@@ -38,9 +38,24 @@ struct DriveFileList {
     files: Vec<DriveFile>,
 }
 
+#[derive(Deserialize)]
+struct DriveFileId {
+    id: String,
+}
+
+#[derive(Deserialize)]
+struct DriveFileIdList {
+    #[serde(default)]
+    files: Vec<DriveFileId>,
+}
+
 fn get_db_path(app: &tauri::AppHandle) -> Result<PathBuf, String> {
     let app_dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
     Ok(app_dir.join("polaris.db"))
+}
+
+fn parse_json<T: serde::de::DeserializeOwned>(body: &str) -> Result<T, String> {
+    serde_json::from_str(body).map_err(|e| format!("{} — response: {}", e, &body[..body.len().min(500)]))
 }
 
 #[tauri::command]
@@ -103,15 +118,13 @@ pub async fn gdrive_authenticate() -> Result<TokenResponse, String> {
         .await
         .map_err(|e| format!("Gagal menukar kode: {}", e))?;
 
-    if !token_resp.status().is_success() {
-        let body = token_resp.text().await.unwrap_or_default();
+    let status = token_resp.status();
+    let body = token_resp.text().await.unwrap_or_default();
+    if !status.is_success() {
         return Err(format!("Token exchange gagal: {}", body));
     }
 
-    token_resp
-        .json::<TokenResponse>()
-        .await
-        .map_err(|e| format!("Gagal parse token: {}", e))
+    parse_json::<TokenResponse>(&body)
 }
 
 #[tauri::command]
@@ -129,14 +142,13 @@ pub async fn gdrive_refresh(refresh_token: String) -> Result<TokenResponse, Stri
         .await
         .map_err(|e| format!("Gagal refresh token: {}", e))?;
 
-    if !resp.status().is_success() {
-        let body = resp.text().await.unwrap_or_default();
+    let status = resp.status();
+    let body = resp.text().await.unwrap_or_default();
+    if !status.is_success() {
         return Err(format!("Token refresh gagal: {}", body));
     }
 
-    resp.json::<TokenResponse>()
-        .await
-        .map_err(|e| e.to_string())
+    parse_json::<TokenResponse>(&body)
 }
 
 async fn get_or_create_folder(
@@ -156,7 +168,8 @@ async fn get_or_create_folder(
         .map_err(|e| e.to_string())?;
 
     if resp.status().is_success() {
-        let list: DriveFileList = resp.json().await.map_err(|e| e.to_string())?;
+        let body = resp.text().await.map_err(|e| e.to_string())?;
+        let list: DriveFileIdList = parse_json(&body)?;
         if let Some(folder) = list.files.first() {
             return Ok(folder.id.clone());
         }
@@ -173,12 +186,13 @@ async fn get_or_create_folder(
         .await
         .map_err(|e| e.to_string())?;
 
-    if !resp.status().is_success() {
-        let body = resp.text().await.unwrap_or_default();
+    let status = resp.status();
+    let body = resp.text().await.unwrap_or_default();
+    if !status.is_success() {
         return Err(format!("Gagal membuat folder: {}", body));
     }
 
-    let folder: DriveFile = resp.json().await.map_err(|e| e.to_string())?;
+    let folder: DriveFileId = parse_json(&body)?;
     Ok(folder.id)
 }
 
@@ -232,14 +246,13 @@ pub async fn gdrive_backup(
         .await
         .map_err(|e| format!("Upload gagal: {}", e))?;
 
-    if !resp.status().is_success() {
-        let body = resp.text().await.unwrap_or_default();
+    let status = resp.status();
+    let body = resp.text().await.unwrap_or_default();
+    if !status.is_success() {
         return Err(format!("Upload gagal: {}", body));
     }
 
-    resp.json::<DriveFile>()
-        .await
-        .map_err(|e| format!("Gagal parse response: {}", e))
+    parse_json::<DriveFile>(&body)
 }
 
 #[tauri::command]
@@ -263,12 +276,13 @@ pub async fn gdrive_list_backups(access_token: String) -> Result<Vec<DriveFile>,
         .await
         .map_err(|e| e.to_string())?;
 
-    if !resp.status().is_success() {
-        let body = resp.text().await.unwrap_or_default();
-        return Err(format!("Gagal mengambil daftar backup: {}", body));
+    let status = resp.status();
+    let body_text = resp.text().await.unwrap_or_default();
+    if !status.is_success() {
+        return Err(format!("Gagal mengambil daftar backup: {}", body_text));
     }
 
-    let list: DriveFileList = resp.json().await.map_err(|e| e.to_string())?;
+    let list: DriveFileList = parse_json(&body_text)?;
     Ok(list.files)
 }
 
