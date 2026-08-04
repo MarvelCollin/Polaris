@@ -1,6 +1,8 @@
-import { NavLink } from "react-router-dom";
+import { useState } from "react";
+import { NavLink, useNavigate } from "react-router-dom";
 import { Separator } from "@/components/ui/separator";
 import { useTheme } from "@/hooks/useTheme";
+import ChangePassword from "./ChangePassword";
 import Logo from "@/assets/Logo.png";
 import {
   LayoutDashboard,
@@ -14,6 +16,8 @@ import {
   Sun,
   Wallet,
   HardDrive,
+  KeyRound,
+  LogOut,
 } from "lucide-react";
 
 const links = [
@@ -31,6 +35,13 @@ const links = [
 
 export default function Sidebar() {
   const { theme, toggle } = useTheme();
+  const navigate = useNavigate();
+  const [showChangePw, setShowChangePw] = useState(false);
+
+  function handleLogout() {
+    sessionStorage.removeItem("polaris_auth");
+    navigate("/login", { replace: true });
+  }
 
   return (
     <aside className="flex h-screen w-56 flex-col border-r bg-sidebar text-sidebar-foreground">
@@ -63,7 +74,7 @@ export default function Sidebar() {
         ))}
       </nav>
       <Separator className="bg-sidebar-border" />
-      <div className="p-2">
+      <div className="flex flex-col gap-0.5 p-2">
         <button
           onClick={toggle}
           className="flex w-full items-center gap-2.5 rounded-md px-3 py-2 text-sm font-medium text-sidebar-foreground/60 transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
@@ -71,7 +82,22 @@ export default function Sidebar() {
           {theme === "light" ? <Moon className="size-4" /> : <Sun className="size-4" />}
           {theme === "light" ? "Mode Gelap" : "Mode Terang"}
         </button>
+        <button
+          onClick={() => setShowChangePw(true)}
+          className="flex w-full items-center gap-2.5 rounded-md px-3 py-2 text-sm font-medium text-sidebar-foreground/60 transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+        >
+          <KeyRound className="size-4" />
+          Ubah Password
+        </button>
+        <button
+          onClick={handleLogout}
+          className="flex w-full items-center gap-2.5 rounded-md px-3 py-2 text-sm font-medium text-sidebar-foreground/60 transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+        >
+          <LogOut className="size-4" />
+          Keluar
+        </button>
       </div>
+      <ChangePassword open={showChangePw} onClose={() => setShowChangePw(false)} />
     </aside>
   );
 }

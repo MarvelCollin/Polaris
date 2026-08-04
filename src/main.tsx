@@ -4,7 +4,10 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import App from "./App";
 import { initDb } from "./database";
 import { seedDatabase } from "./db/seed";
+import { initPassword } from "./db/auth";
+import Spinner from "./components/Spinner";
 
+const Login = lazy(() => import("./pages/Login"));
 const Dashboard = lazy(() => import("./pages/Dashboard"));
 const Products = lazy(() => import("./pages/Products"));
 const Categories = lazy(() => import("./pages/Categories"));
@@ -16,12 +19,13 @@ const Customers = lazy(() => import("./pages/Customers"));
 const UtangPiutang = lazy(() => import("./pages/UtangPiutang"));
 const Backup = lazy(() => import("./pages/Backup"));
 
-initDb().then(() => seedDatabase()).then(() => {
+initDb().then(() => seedDatabase()).then(() => initPassword()).then(() => {
   ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
     <React.StrictMode>
       <BrowserRouter>
-        <Suspense fallback={<div className="flex h-screen items-center justify-center text-muted-foreground">Memuat...</div>}>
+        <Suspense fallback={<div className="flex h-screen items-center justify-center"><Spinner className="size-10" /></div>}>
           <Routes>
+            <Route path="login" element={<Login />} />
             <Route element={<App />}>
               <Route index element={<Dashboard />} />
               <Route path="kasir" element={<Sales />} />
