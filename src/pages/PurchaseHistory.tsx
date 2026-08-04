@@ -1,13 +1,15 @@
 import { useState, useCallback } from "react";
 import { useQuery } from "@/hooks/useQuery";
+import { useSort } from "@/hooks/useSort";
 import { getPurchases, getPurchaseItems } from "@/db/purchases";
-import { PurchaseItem, formatRupiah, formatTanggal } from "@/types/index";
+import { Purchase, PurchaseItem, formatRupiah, formatTanggal } from "@/types/index";
 import { Button } from "@/components/ui/button";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import Modal from "@/components/Modal";
 import Pagination from "@/components/Pagination";
+import SortableHead from "@/components/SortableHead";
 import { Eye } from "lucide-react";
 
 const PER_PAGE = 20;
@@ -26,11 +28,17 @@ export default function PurchaseHistory() {
     useCallback(() => getPurchases(start, end, PER_PAGE, (page - 1) * PER_PAGE), [start, end, page])
   );
 
+  const { sorted, sortKey, sortDir, toggleSort } = useSort<Purchase>(data?.data ?? null);
+
   async function showDetail(purchaseId: number, supplier: string) {
     const items = await getPurchaseItems(purchaseId);
     setDetailItems(items);
     setDetailSupplier(supplier);
   }
+
+  const sh = (label: string, key: string) => (
+    <SortableHead label={label} sortKey={key} active={sortKey === key} dir={sortDir} onSort={toggleSort} />
+  );
 
   return (
     <div className="animate-fade-in">
@@ -42,20 +50,20 @@ export default function PurchaseHistory() {
         <input type="date" className="h-9 rounded-md border bg-background px-3 text-sm" value={endDate} onChange={(e) => { setEndDate(e.target.value); setPage(1); }} />
       </div>
 
-      {data && data.data.length > 0 ? (
+      {sorted && sorted.length > 0 ? (
         <>
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Supplier</TableHead>
-                <TableHead>Ref. Faktur</TableHead>
-                <TableHead>Tanggal</TableHead>
-                <TableHead>Total</TableHead>
+                {sh("Supplier", "supplier")}
+                {sh("Ref. Faktur", "referensi_faktur")}
+                {sh("Tanggal", "dibuat_pada")}
+                {sh("Total", "total")}
                 <TableHead className="w-16">Aksi</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {data.data.map((p) => (
+              {sorted.map((p) => (
                 <TableRow key={p.id}>
                   <TableCell>{p.supplier}</TableCell>
                   <TableCell className="font-mono text-xs">{p.referensi_faktur || "-"}</TableCell>
@@ -70,7 +78,7 @@ export default function PurchaseHistory() {
               ))}
             </TableBody>
           </Table>
-          <Pagination page={page} total={data.total} perPage={PER_PAGE} onChange={setPage} />
+          <Pagination page={page} total={data?.total ?? 0} perPage={PER_PAGE} onChange={setPage} />
         </>
       ) : (
         <p className="py-12 text-center text-sm text-muted-foreground">Belum ada pembelian</p>

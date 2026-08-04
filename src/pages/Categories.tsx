@@ -1,24 +1,23 @@
 import { useState, useCallback } from "react";
 import { useQuery } from "@/hooks/useQuery";
+import { useSort } from "@/hooks/useSort";
 import { getCategories, createCategory, updateCategory, deleteCategory } from "@/db/categories";
 import { Category } from "@/types/index";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
+  Table, TableBody, TableCell, TableHeader, TableRow,
 } from "@/components/ui/table";
 import Modal from "@/components/Modal";
 import ConfirmDialog from "@/components/ConfirmDialog";
+import SortableHead from "@/components/SortableHead";
 import { Plus, Pencil, Trash2 } from "lucide-react";
+import { TableHead } from "@/components/ui/table";
 
 export default function Categories() {
   const { data: categories, refetch } = useQuery(useCallback(() => getCategories(), []));
+  const { sorted, sortKey, sortDir, toggleSort } = useSort<Category>(categories);
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<Category | null>(null);
   const [nama, setNama] = useState("");
@@ -73,16 +72,16 @@ export default function Categories() {
         <Button onClick={openAdd}><Plus className="size-4" /> Tambah</Button>
       </div>
 
-      {categories && categories.length > 0 ? (
+      {sorted && sorted.length > 0 ? (
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Nama</TableHead>
+              <SortableHead label="Nama" sortKey="nama" active={sortKey === "nama"} dir={sortDir} onSort={toggleSort} />
               <TableHead className="w-24">Aksi</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {categories.map((cat) => (
+            {sorted.map((cat) => (
               <TableRow key={cat.id}>
                 <TableCell>{cat.nama}</TableCell>
                 <TableCell>

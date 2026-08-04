@@ -1,12 +1,14 @@
 import { useState, useCallback } from "react";
 import { useQuery } from "@/hooks/useQuery";
 import { useDebounce } from "@/hooks/useDebounce";
+import { useSort } from "@/hooks/useSort";
 import { getProducts, createProduct, updateProduct, deleteProduct, generateProductCode } from "@/db/products";
 import { getCategories } from "@/db/categories";
 import { ProductWithCategory } from "@/types/index";
 import { formatRupiah } from "@/types/index";
 import { pickAndSaveImage, getImageUrl } from "@/lib/images";
 import ProductThumb from "@/components/ProductThumb";
+import SortableHead from "@/components/SortableHead";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -35,6 +37,7 @@ export default function Products() {
     useCallback(() => getProducts(debouncedSearch || undefined, catFilter || undefined), [debouncedSearch, catFilter])
   );
   const { data: categories } = useQuery(useCallback(() => getCategories(), []));
+  const { sorted, sortKey, sortDir, toggleSort } = useSort<ProductWithCategory>(products);
 
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<ProductWithCategory | null>(null);
@@ -121,6 +124,10 @@ export default function Products() {
     }
   }
 
+  const sh = (label: string, key: string, className?: string) => (
+    <SortableHead label={label} sortKey={key} active={sortKey === key} dir={sortDir} onSort={toggleSort} className={className} />
+  );
+
   return (
     <div className="animate-fade-in">
       <div className="mb-4 flex items-center justify-between">
@@ -141,23 +148,23 @@ export default function Products() {
         </div>
       </div>
 
-      {products && products.length > 0 ? (
+      {sorted && sorted.length > 0 ? (
         <Table>
           <TableHeader>
             <TableRow>
               <TableHead className="w-14">Foto</TableHead>
-              <TableHead>Kode</TableHead>
-              <TableHead>Nama</TableHead>
-              <TableHead>Kategori</TableHead>
-              <TableHead>Satuan</TableHead>
-              <TableHead>Harga Beli</TableHead>
-              <TableHead>Harga Jual</TableHead>
-              <TableHead>Stok</TableHead>
+              {sh("Kode", "kode")}
+              {sh("Nama", "nama")}
+              {sh("Kategori", "kategori_nama")}
+              {sh("Satuan", "satuan")}
+              {sh("Harga Beli", "harga_beli")}
+              {sh("Harga Jual", "harga_jual")}
+              {sh("Stok", "stok")}
               <TableHead className="w-20">Aksi</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {products.map((p) => (
+            {sorted.map((p) => (
               <TableRow key={p.id}>
                 <TableCell>
                   <ProductThumb path={p.gambar} size="h-10 w-10" />

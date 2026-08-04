@@ -1,13 +1,15 @@
 import { useState, useCallback } from "react";
 import { useQuery } from "@/hooks/useQuery";
+import { useSort } from "@/hooks/useSort";
 import { getSales, getSaleItems } from "@/db/sales";
-import { SaleItem, formatRupiah, formatTanggal } from "@/types/index";
+import { Sale, SaleItem, formatRupiah, formatTanggal } from "@/types/index";
 import { Button } from "@/components/ui/button";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import Modal from "@/components/Modal";
 import Pagination from "@/components/Pagination";
+import SortableHead from "@/components/SortableHead";
 import { Eye } from "lucide-react";
 
 const PER_PAGE = 20;
@@ -26,11 +28,17 @@ export default function SaleHistory() {
     useCallback(() => getSales(start, end, PER_PAGE, (page - 1) * PER_PAGE), [start, end, page])
   );
 
+  const { sorted, sortKey, sortDir, toggleSort } = useSort<Sale>(data?.data ?? null);
+
   async function showDetail(saleId: number, invoice: string) {
     const items = await getSaleItems(saleId);
     setDetailItems(items);
     setDetailInvoice(invoice);
   }
+
+  const sh = (label: string, key: string) => (
+    <SortableHead label={label} sortKey={key} active={sortKey === key} dir={sortDir} onSort={toggleSort} />
+  );
 
   return (
     <div className="animate-fade-in">
@@ -42,22 +50,22 @@ export default function SaleHistory() {
         <input type="date" className="h-9 rounded-md border bg-background px-3 text-sm" value={endDate} onChange={(e) => { setEndDate(e.target.value); setPage(1); }} />
       </div>
 
-      {data && data.data.length > 0 ? (
+      {sorted && sorted.length > 0 ? (
         <>
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>No. Faktur</TableHead>
-                <TableHead>Pelanggan</TableHead>
-                <TableHead>Tanggal</TableHead>
-                <TableHead>Total</TableHead>
-                <TableHead>Dibayar</TableHead>
-                <TableHead>Kembalian</TableHead>
+                {sh("No. Faktur", "nomor_faktur")}
+                {sh("Pelanggan", "nama_pelanggan")}
+                {sh("Tanggal", "dibuat_pada")}
+                {sh("Total", "total")}
+                {sh("Dibayar", "dibayar")}
+                {sh("Kembalian", "kembalian")}
                 <TableHead className="w-16">Aksi</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {data.data.map((s) => (
+              {sorted.map((s) => (
                 <TableRow key={s.id}>
                   <TableCell className="font-mono text-xs">{s.nomor_faktur}</TableCell>
                   <TableCell>{s.nama_pelanggan || "Umum"}</TableCell>
@@ -74,7 +82,7 @@ export default function SaleHistory() {
               ))}
             </TableBody>
           </Table>
-          <Pagination page={page} total={data.total} perPage={PER_PAGE} onChange={setPage} />
+          <Pagination page={page} total={data?.total ?? 0} perPage={PER_PAGE} onChange={setPage} />
         </>
       ) : (
         <p className="py-12 text-center text-sm text-muted-foreground">Belum ada penjualan</p>

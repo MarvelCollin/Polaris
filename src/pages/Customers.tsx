@@ -1,6 +1,7 @@
 import { useState, useCallback } from "react";
 import { useQuery } from "@/hooks/useQuery";
 import { useDebounce } from "@/hooks/useDebounce";
+import { useSort } from "@/hooks/useSort";
 import { getCustomers, createCustomer, updateCustomer, deleteCustomer, getCustomerPrices, setCustomerPrice, removeCustomerPrice } from "@/db/customers";
 import { getProducts } from "@/db/products";
 import { Customer, CustomerPrice, formatRupiah } from "@/types/index";
@@ -14,6 +15,7 @@ import {
 import Modal from "@/components/Modal";
 import ConfirmDialog from "@/components/ConfirmDialog";
 import SearchInput from "@/components/SearchInput";
+import SortableHead from "@/components/SortableHead";
 import { Plus, Pencil, Trash2, Tag } from "lucide-react";
 import SearchableSelect from "@/components/SearchableSelect";
 
@@ -25,6 +27,7 @@ export default function Customers() {
   const { data: customers, refetch } = useQuery(
     useCallback(() => getCustomers(debouncedSearch || undefined), [debouncedSearch])
   );
+  const { sorted, sortKey, sortDir, toggleSort } = useSort<Customer>(customers);
 
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<Customer | null>(null);
@@ -110,6 +113,10 @@ export default function Customers() {
     setPrices(p);
   }
 
+  const sh = (label: string, key: string) => (
+    <SortableHead label={label} sortKey={key} active={sortKey === key} dir={sortDir} onSort={toggleSort} />
+  );
+
   return (
     <div className="animate-fade-in">
       <div className="mb-4 flex items-center justify-between">
@@ -121,18 +128,18 @@ export default function Customers() {
         <SearchInput value={search} onChange={setSearch} placeholder="Cari nama atau telepon..." />
       </div>
 
-      {customers && customers.length > 0 ? (
+      {sorted && sorted.length > 0 ? (
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Nama</TableHead>
-              <TableHead>Telepon</TableHead>
-              <TableHead>Alamat</TableHead>
+              {sh("Nama", "nama")}
+              {sh("Telepon", "telepon")}
+              {sh("Alamat", "alamat")}
               <TableHead className="w-28">Aksi</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {customers.map((c) => (
+            {sorted.map((c) => (
               <TableRow key={c.id}>
                 <TableCell className="font-medium">{c.nama}</TableCell>
                 <TableCell>{c.telepon || "-"}</TableCell>
