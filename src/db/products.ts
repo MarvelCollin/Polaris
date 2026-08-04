@@ -1,6 +1,15 @@
 import { getDb } from "../database";
 import { Product, ProductWithCategory } from "../types";
 
+export async function generateProductCode(): Promise<string> {
+  const db = await getDb();
+  const rows: { max_id: number | null }[] = await db.select(
+    "SELECT MAX(id) as max_id FROM produk"
+  );
+  const next = (rows[0].max_id ?? 0) + 1;
+  return `PRD-${String(next).padStart(4, "0")}`;
+}
+
 export async function getProducts(
   search?: string,
   categoryId?: number
@@ -47,12 +56,14 @@ export async function createProduct(data: {
   harga_jual: number;
   stok: number;
   stok_minimum: number;
+  gambar?: string | null;
 }): Promise<number> {
   const db = await getDb();
+  const kode = data.kode.trim() || (await generateProductCode());
   const result = await db.execute(
-    `INSERT INTO produk (kode, nama, kategori_id, satuan, harga_beli, harga_jual, stok, stok_minimum)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-    [data.kode, data.nama, data.kategori_id, data.satuan, data.harga_beli, data.harga_jual, data.stok, data.stok_minimum]
+    `INSERT INTO produk (kode, nama, kategori_id, satuan, harga_beli, harga_jual, stok, stok_minimum, gambar)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+    [kode, data.nama, data.kategori_id, data.satuan, data.harga_beli, data.harga_jual, data.stok, data.stok_minimum, data.gambar ?? null]
   );
   return result.lastInsertId ?? 0;
 }
@@ -68,14 +79,15 @@ export async function updateProduct(
     harga_jual: number;
     stok: number;
     stok_minimum: number;
+    gambar?: string | null;
   }
 ): Promise<void> {
   const db = await getDb();
   await db.execute(
     `UPDATE produk SET kode=$1, nama=$2, kategori_id=$3, satuan=$4, harga_beli=$5,
-     harga_jual=$6, stok=$7, stok_minimum=$8, diperbarui_pada=strftime('%s','now')
-     WHERE id = $9`,
-    [data.kode, data.nama, data.kategori_id, data.satuan, data.harga_beli, data.harga_jual, data.stok, data.stok_minimum, id]
+     harga_jual=$6, stok=$7, stok_minimum=$8, gambar=$9, diperbarui_pada=strftime('%s','now')
+     WHERE id = $10`,
+    [data.kode, data.nama, data.kategori_id, data.satuan, data.harga_beli, data.harga_jual, data.stok, data.stok_minimum, data.gambar ?? null, id]
   );
 }
 
