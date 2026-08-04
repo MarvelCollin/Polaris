@@ -20,16 +20,18 @@ export async function createSale(
   items: CartEntry[],
   dibayar: number,
   pelangganId?: number | null,
-  namaPelanggan?: string | null
+  namaPelanggan?: string | null,
+  diskon: number = 0
 ): Promise<number> {
   const db = await getDb();
-  const total = items.reduce((sum, item) => sum + item.jumlah * item.harga, 0);
+  const subtotal = items.reduce((sum, item) => sum + item.jumlah * item.harga, 0);
+  const total = subtotal - diskon;
   const kembalian = Math.max(0, dibayar - total);
   const nomor = await generateInvoiceNumber();
 
   const result = await db.execute(
-    "INSERT INTO penjualan (nomor_faktur, total, dibayar, kembalian, pelanggan_id, nama_pelanggan) VALUES ($1, $2, $3, $4, $5, $6)",
-    [nomor, total, dibayar, kembalian, pelangganId ?? null, namaPelanggan ?? null]
+    "INSERT INTO penjualan (nomor_faktur, total, dibayar, kembalian, pelanggan_id, nama_pelanggan, diskon) VALUES ($1, $2, $3, $4, $5, $6, $7)",
+    [nomor, total, dibayar, kembalian, pelangganId ?? null, namaPelanggan ?? null, diskon]
   );
   const saleId = result.lastInsertId ?? 0;
 

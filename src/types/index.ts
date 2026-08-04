@@ -47,6 +47,7 @@ export interface Sale {
   total: number;
   dibayar: number;
   kembalian: number;
+  diskon: number;
   pelanggan_id: number | null;
   nama_pelanggan: string | null;
   dibuat_pada: number;

@@ -38,10 +38,13 @@ export default function SaleHistory() {
 
   const { sorted, sortKey, sortDir, toggleSort } = useSort<Sale>(data?.data ?? null);
 
-  async function showDetail(saleId: number, invoice: string) {
-    const items = await getSaleItems(saleId);
+  const [detailSale, setDetailSale] = useState<Sale | null>(null);
+
+  async function showDetail(sale: Sale) {
+    const items = await getSaleItems(sale.id);
     setDetailItems(items);
-    setDetailInvoice(invoice);
+    setDetailInvoice(sale.nomor_faktur);
+    setDetailSale(sale);
   }
 
   const sh = (label: string, key: string) => (
@@ -100,7 +103,7 @@ export default function SaleHistory() {
                     )}
                   </TableCell>
                   <TableCell>
-                    <Button variant="ghost" size="icon-xs" onClick={() => showDetail(s.id, s.nomor_faktur)}>
+                    <Button variant="ghost" size="icon-xs" onClick={() => showDetail(s)}>
                       <Eye className="size-3.5" />
                     </Button>
                   </TableCell>
@@ -114,28 +117,36 @@ export default function SaleHistory() {
         <p className="py-12 text-center text-sm text-muted-foreground">Belum ada penjualan</p>
       )}
 
-      <Modal open={!!detailItems} onClose={() => setDetailItems(null)} title={`Detail ${detailInvoice}`}>
+      <Modal open={!!detailItems} onClose={() => { setDetailItems(null); setDetailSale(null); }} title={`Detail ${detailInvoice}`}>
         {detailItems && (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Produk</TableHead>
-                <TableHead>Jumlah</TableHead>
-                <TableHead>Harga</TableHead>
-                <TableHead>Subtotal</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {detailItems.map((item) => (
-                <TableRow key={item.id}>
-                  <TableCell>{item.nama_produk}</TableCell>
-                  <TableCell>{item.jumlah}</TableCell>
-                  <TableCell>{formatRupiah(item.harga_satuan)}</TableCell>
-                  <TableCell>{formatRupiah(item.subtotal)}</TableCell>
+          <>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Produk</TableHead>
+                  <TableHead>Jumlah</TableHead>
+                  <TableHead>Harga</TableHead>
+                  <TableHead>Subtotal</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+              </TableHeader>
+              <TableBody>
+                {detailItems.map((item) => (
+                  <TableRow key={item.id}>
+                    <TableCell>{item.nama_produk}</TableCell>
+                    <TableCell>{item.jumlah}</TableCell>
+                    <TableCell>{formatRupiah(item.harga_satuan)}</TableCell>
+                    <TableCell>{formatRupiah(item.subtotal)}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+            {detailSale && detailSale.diskon > 0 && (
+              <div className="mt-3 flex justify-between border-t pt-3 text-sm">
+                <span className="text-muted-foreground">Diskon</span>
+                <span className="font-medium text-destructive">−{formatRupiah(detailSale.diskon)}</span>
+              </div>
+            )}
+          </>
         )}
       </Modal>
     </div>

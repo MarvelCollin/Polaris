@@ -127,6 +127,7 @@ export async function initDb() {
   try { await database.execute("ALTER TABLE penjualan ADD COLUMN nama_pelanggan TEXT"); } catch (_) {}
 
   try { await database.execute("ALTER TABLE pembelian ADD COLUMN dibayar REAL NOT NULL DEFAULT 0"); } catch (_) {}
+  try { await database.execute("ALTER TABLE penjualan ADD COLUMN diskon REAL NOT NULL DEFAULT 0"); } catch (_) {}
 
   await database.execute(`
     UPDATE pembelian SET dibayar = total WHERE dibayar = 0

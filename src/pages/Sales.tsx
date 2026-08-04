@@ -12,7 +12,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 import SearchInput from "@/components/SearchInput";
-import { Plus, Minus, Trash2, CheckCircle, UserCircle, Star } from "lucide-react";
+import { Plus, Minus, Trash2, CheckCircle, UserCircle, Star, Percent } from "lucide-react";
 import ProductThumb from "@/components/ProductThumb";
 import SearchableSelect from "@/components/SearchableSelect";
 
@@ -34,6 +34,8 @@ export default function Sales() {
   const [paid, setPaid] = useState<number>(0);
   const [isUtang, setIsUtang] = useState(false);
   const [success, setSuccess] = useState<string | null>(null);
+  const [discountType, setDiscountType] = useState<"percent" | "rupiah">("percent");
+  const [discountValue, setDiscountValue] = useState<number>(0);
 
   useEffect(() => {
     if (selectedCustomer) {
@@ -74,7 +76,11 @@ export default function Sales() {
       .filter((p): p is ProductWithCategory => p !== undefined);
   }, [allProducts, frequentIds]);
 
-  const total = cart.reduce((sum, item) => sum + item.jumlah * item.harga, 0);
+  const subtotal = cart.reduce((sum, item) => sum + item.jumlah * item.harga, 0);
+  const discountAmount = discountType === "percent"
+    ? Math.round(subtotal * Math.min(discountValue, 100) / 100)
+    : Math.min(discountValue, subtotal);
+  const total = subtotal - discountAmount;
   const change = paid - total;
 
   function getPrice(p: { id: number; harga_jual: number }): number {
@@ -132,7 +138,7 @@ export default function Sales() {
     if (!canCheckout) return;
     if (isUtang && !selectedCustomer) return;
     try {
-      await createSale(cart, paid, selectedCustomer?.id, selectedCustomer?.nama);
+      await createSale(cart, paid, selectedCustomer?.id, selectedCustomer?.nama, discountAmount);
       if (isUtang) {
         setSuccess(`Penjualan utang berhasil! Sisa: ${formatRupiah(sisaUtang)}`);
       } else {
@@ -141,6 +147,7 @@ export default function Sales() {
       setCart([]);
       setPaid(0);
       setIsUtang(false);
+      setDiscountValue(0);
       refetchProducts();
       setTimeout(() => setSuccess(null), 3000);
     } catch (e) {
@@ -325,6 +332,54 @@ export default function Sales() {
               <Separator className="my-3" />
 
               <div className="space-y-2">
+                <div className="flex justify-between text-sm text-muted-foreground">
+                  <span>Subtotal</span>
+                  <span>{formatRupiah(subtotal)}</span>
+                </div>
+
+                <div>
+                  <div className="mb-1 flex items-center gap-1.5">
+                    <span className="text-sm text-muted-foreground">Diskon</span>
+                    <div className="ml-auto flex overflow-hidden rounded-md border">
+                      <button
+                        type="button"
+                        onClick={() => setDiscountType("percent")}
+                        className={`flex items-center gap-1 px-2 py-0.5 text-xs font-medium transition-colors ${
+                          discountType === "percent"
+                            ? "bg-primary text-primary-foreground"
+                            : "text-muted-foreground hover:bg-accent"
+                        }`}
+                      >
+                        <Percent className="size-3" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setDiscountType("rupiah")}
+                        className={`flex items-center gap-1 px-2 py-0.5 text-xs font-medium transition-colors ${
+                          discountType === "rupiah"
+                            ? "bg-primary text-primary-foreground"
+                            : "text-muted-foreground hover:bg-accent"
+                        }`}
+                      >
+                        Rp
+                      </button>
+                    </div>
+                  </div>
+                  <Input
+                    type="number"
+                    min={0}
+                    max={discountType === "percent" ? 100 : subtotal}
+                    value={discountValue || ""}
+                    onChange={(e) => setDiscountValue(Number(e.target.value))}
+                    placeholder={discountType === "percent" ? "0%" : "Rp 0"}
+                  />
+                  {discountAmount > 0 && (
+                    <p className="mt-1 text-right text-xs text-destructive">
+                      −{formatRupiah(discountAmount)}
+                    </p>
+                  )}
+                </div>
+
                 <div className="flex justify-between text-lg font-bold">
                   <span>Total</span>
                   <span>{formatRupiah(total)}</span>
