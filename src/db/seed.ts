@@ -170,4 +170,39 @@ export async function seedDatabase() {
       );
     }
   }
+
+  const customerData = [
+    { nama: "Pak Budi - Kontraktor", telepon: "081234567890", alamat: "Jl. Merdeka No. 10" },
+    { nama: "CV Bangun Jaya", telepon: "082345678901", alamat: "Jl. Industri No. 5" },
+    { nama: "Pak Hendra", telepon: "083456789012", alamat: null },
+  ];
+
+  const customerIds: number[] = [];
+  for (const c of customerData) {
+    const result = await db.execute(
+      "INSERT INTO pelanggan (nama, telepon, alamat) VALUES ($1, $2, $3)",
+      [c.nama, c.telepon, c.alamat]
+    );
+    customerIds.push(result.lastInsertId ?? 0);
+  }
+
+  const allProduk: { id: number; harga_jual: number }[] = await db.select(
+    "SELECT id, harga_jual FROM produk LIMIT 10"
+  );
+
+  for (let i = 0; i < Math.min(5, allProduk.length); i++) {
+    const p = allProduk[i];
+    await db.execute(
+      "INSERT INTO harga_pelanggan (pelanggan_id, produk_id, harga) VALUES ($1, $2, $3)",
+      [customerIds[0], p.id, Math.round(p.harga_jual * 0.9)]
+    );
+  }
+
+  for (let i = 0; i < Math.min(3, allProduk.length); i++) {
+    const p = allProduk[i];
+    await db.execute(
+      "INSERT INTO harga_pelanggan (pelanggan_id, produk_id, harga) VALUES ($1, $2, $3)",
+      [customerIds[1], p.id, Math.round(p.harga_jual * 0.85)]
+    );
+  }
 }
