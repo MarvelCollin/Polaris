@@ -12,6 +12,7 @@ const Sales = lazy(() => import("./pages/Sales"));
 const Purchases = lazy(() => import("./pages/Purchases"));
 const SaleHistory = lazy(() => import("./pages/SaleHistory"));
 const PurchaseHistory = lazy(() => import("./pages/PurchaseHistory"));
+const Customers = lazy(() => import("./pages/Customers"));
 
 initDb().then(() => seedDatabase()).then(() => {
   ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
@@ -25,6 +26,7 @@ initDb().then(() => seedDatabase()).then(() => {
               <Route path="pembelian" element={<Purchases />} />
               <Route path="produk" element={<Products />} />
               <Route path="kategori" element={<Categories />} />
+              <Route path="pelanggan" element={<Customers />} />
               <Route path="riwayat-jual" element={<SaleHistory />} />
               <Route path="riwayat-beli" element={<PurchaseHistory />} />
             </Route>

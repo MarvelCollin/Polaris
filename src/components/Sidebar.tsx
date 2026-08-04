@@ -7,6 +7,7 @@ import {
   Package,
   FolderOpen,
   FileText,
+  Users,
 } from "lucide-react";
 
 const links = [
@@ -15,6 +16,7 @@ const links = [
   { to: "/pembelian", label: "Pembelian", icon: Truck },
   { to: "/produk", label: "Produk", icon: Package },
   { to: "/kategori", label: "Kategori", icon: FolderOpen },
+  { to: "/pelanggan", label: "Pelanggan", icon: Users },
   { to: "/riwayat-jual", label: "Riwayat Penjualan", icon: FileText },
   { to: "/riwayat-beli", label: "Riwayat Pembelian", icon: FileText },
 ];
