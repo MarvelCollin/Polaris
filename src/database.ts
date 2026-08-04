@@ -37,6 +37,7 @@ export async function initDb() {
       harga_jual REAL NOT NULL,
       stok REAL NOT NULL DEFAULT 0,
       stok_minimum REAL NOT NULL DEFAULT 0,
+      gambar TEXT,
       dibuat_pada INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),
       diperbarui_pada INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),
       FOREIGN KEY (kategori_id) REFERENCES kategori(id)
@@ -98,6 +99,10 @@ export async function initDb() {
       value TEXT NOT NULL
     )
   `);
+
+  try {
+    await database.execute("ALTER TABLE produk ADD COLUMN gambar TEXT");
+  } catch (_) {}
 
   await database.execute(`CREATE INDEX IF NOT EXISTS idx_produk_kategori ON produk(kategori_id)`);
   await database.execute(`CREATE INDEX IF NOT EXISTS idx_produk_kode ON produk(kode)`);

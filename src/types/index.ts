@@ -14,6 +14,7 @@ export interface Product {
   harga_jual: number;
   stok: number;
   stok_minimum: number;
+  gambar: string | null;
   dibuat_pada: number;
   diperbarui_pada: number;
 }
