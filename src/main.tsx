@@ -3,6 +3,7 @@ import ReactDOM from "react-dom/client";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import App from "./App";
 import { initDb } from "./database";
+import { seedDatabase } from "./db/seed";
 
 const Dashboard = lazy(() => import("./pages/Dashboard"));
 const Products = lazy(() => import("./pages/Products"));
@@ -12,7 +13,7 @@ const Purchases = lazy(() => import("./pages/Purchases"));
 const SaleHistory = lazy(() => import("./pages/SaleHistory"));
 const PurchaseHistory = lazy(() => import("./pages/PurchaseHistory"));
 
-initDb().then(() => {
+initDb().then(() => seedDatabase()).then(() => {
   ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
     <React.StrictMode>
       <BrowserRouter>
