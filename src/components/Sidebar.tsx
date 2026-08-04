@@ -36,10 +36,10 @@ export default function Sidebar() {
         <img src={Logo} alt="Sahabat Sentarum" className="size-10" />
         <div>
           <h1 className="text-base font-bold leading-tight text-sidebar-primary">Sahabat Sentarum</h1>
-          <p className="text-[10px] text-muted-foreground">Toko Bangunan</p>
+          <p className="text-[10px] text-sidebar-foreground/50">Toko Bangunan</p>
         </div>
       </div>
-      <Separator />
+      <Separator className="bg-sidebar-border" />
       <nav className="flex flex-1 flex-col gap-0.5 p-2">
         {links.map((link, i) => (
           <NavLink
@@ -51,7 +51,7 @@ export default function Sidebar() {
               `animate-slide-in-left flex items-center gap-2.5 rounded-md px-3 py-2 text-sm font-medium transition-colors ${
                 isActive
                   ? "bg-sidebar-accent text-sidebar-accent-foreground font-semibold"
-                  : "text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+                  : "text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
               }`
             }
           >
@@ -60,11 +60,11 @@ export default function Sidebar() {
           </NavLink>
         ))}
       </nav>
-      <Separator />
+      <Separator className="bg-sidebar-border" />
       <div className="p-2">
         <button
           onClick={toggle}
-          className="flex w-full items-center gap-2.5 rounded-md px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+          className="flex w-full items-center gap-2.5 rounded-md px-3 py-2 text-sm font-medium text-sidebar-foreground/60 transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
         >
           {theme === "light" ? <Moon className="size-4" /> : <Sun className="size-4" />}
           {theme === "light" ? "Mode Gelap" : "Mode Terang"}
