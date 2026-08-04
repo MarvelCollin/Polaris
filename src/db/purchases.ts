@@ -1,19 +1,42 @@
 import { getDb } from "../database";
 import { Purchase, PurchaseItem, PurchaseEntry, PurchaseDebt, Payment, ReturPembelian, ReturItem } from "../types";
 
+export async function getDistinctSuppliers(): Promise<string[]> {
+  const db = await getDb();
+  const rows: { supplier: string }[] = await db.select(
+    "SELECT supplier FROM pembelian GROUP BY UPPER(supplier) ORDER BY supplier"
+  );
+  return rows.map((r) => r.supplier);
+}
+
+async function generatePurchaseNumber(): Promise<string> {
+  const db = await getDb();
+  const now = new Date();
+  const dateStr = now.toISOString().slice(0, 10).replace(/-/g, "");
+  const startOfDay = Math.floor(new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime() / 1000);
+  const endOfDay = startOfDay + 86400;
+
+  const rows: { count: number }[] = await db.select(
+    "SELECT COUNT(*) as count FROM pembelian WHERE dibuat_pada >= $1 AND dibuat_pada < $2",
+    [startOfDay, endOfDay]
+  );
+  const seq = (rows[0].count + 1).toString().padStart(4, "0");
+  return `PO-${dateStr}-${seq}`;
+}
+
 export async function createPurchase(
   supplier: string,
-  referensiFaktur: string | null,
   items: PurchaseEntry[],
   dibayar?: number
 ): Promise<number> {
   const db = await getDb();
   const total = items.reduce((sum, item) => sum + item.jumlah * item.harga, 0);
   const paid = dibayar ?? total;
+  const nomor = await generatePurchaseNumber();
 
   const result = await db.execute(
     "INSERT INTO pembelian (supplier, referensi_faktur, total, dibayar) VALUES ($1, $2, $3, $4)",
-    [supplier, referensiFaktur, total, paid]
+    [supplier, nomor, total, paid]
   );
   const purchaseId = result.lastInsertId ?? 0;
 
