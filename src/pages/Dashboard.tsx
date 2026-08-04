@@ -20,7 +20,7 @@ export default function Dashboard() {
 
   return (
     <div>
-      <h1 className="mb-6 text-2xl font-bold">Dasbor</h1>
+      <h1 className="mb-6 text-2xl font-bold">Dashboard</h1>
 
       <div className="mb-6 grid grid-cols-4 gap-4">
         <StatsCard title="Total Produk" value={String(stats?.totalProducts ?? 0)} />
