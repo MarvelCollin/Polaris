@@ -2,9 +2,11 @@ import { useState, useCallback } from "react";
 import { useQuery } from "@/hooks/useQuery";
 import { useSort } from "@/hooks/useSort";
 import { useDebounce } from "@/hooks/useDebounce";
-import { getSales, getSaleItems, getSaleHistoryStats } from "@/db/sales";
+import { getSales, getSaleItems, getSaleHistoryStats, getReturnedQtyMap, createSaleReturn } from "@/db/sales";
 import { Sale, SaleItem, formatRupiah, formatTanggal } from "@/types/index";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import SearchInput from "@/components/SearchInput";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
@@ -13,7 +15,7 @@ import Modal from "@/components/Modal";
 import Pagination from "@/components/Pagination";
 import SortableHead from "@/components/SortableHead";
 import { Badge } from "@/components/ui/badge";
-import { Eye } from "lucide-react";
+import { Eye, RotateCcw } from "lucide-react";
 
 const PER_PAGE = 20;
 
@@ -29,10 +31,10 @@ export default function SaleHistory() {
   const start = startDate ? Math.floor(new Date(startDate).getTime() / 1000) : undefined;
   const end = endDate ? Math.floor(new Date(endDate + "T23:59:59").getTime() / 1000) : undefined;
 
-  const { data } = useQuery(
+  const { data, refetch } = useQuery(
     useCallback(() => getSales(start, end, PER_PAGE, (page - 1) * PER_PAGE, debouncedSearch || undefined), [start, end, page, debouncedSearch])
   );
-  const { data: stats } = useQuery(
+  const { data: stats, refetch: refetchStats } = useQuery(
     useCallback(() => getSaleHistoryStats(start, end), [start, end])
   );
 
@@ -45,6 +47,59 @@ export default function SaleHistory() {
     setDetailItems(items);
     setDetailInvoice(sale.nomor_faktur);
     setDetailSale(sale);
+  }
+
+  const [returSale, setReturSale] = useState<Sale | null>(null);
+  const [returItems, setReturItems] = useState<SaleItem[]>([]);
+  const [returQty, setReturQty] = useState<Record<number, number>>({});
+  const [returAlasan, setReturAlasan] = useState("");
+  const [returLoading, setReturLoading] = useState(false);
+  const [returReturnedMap, setReturReturnedMap] = useState<Record<number, number>>({});
+
+  async function openRetur(sale: Sale) {
+    const [items, returned] = await Promise.all([
+      getSaleItems(sale.id),
+      getReturnedQtyMap(sale.id),
+    ]);
+    setReturSale(sale);
+    setReturItems(items);
+    setReturReturnedMap(returned);
+    setReturQty({});
+    setReturAlasan("");
+  }
+
+  function closeRetur() {
+    setReturSale(null);
+    setReturItems([]);
+    setReturQty({});
+    setReturAlasan("");
+  }
+
+  function maxReturnable(item: SaleItem): number {
+    return item.jumlah - (returReturnedMap[item.produk_id] ?? 0);
+  }
+
+  const returTotal = returItems.reduce(
+    (sum, item) => sum + (returQty[item.produk_id] ?? 0) * item.harga_satuan, 0
+  );
+  const hasReturItems = Object.values(returQty).some((q) => q > 0);
+
+  async function handleRetur() {
+    if (!returSale || !hasReturItems) return;
+    setReturLoading(true);
+    const items = returItems
+      .filter((i) => (returQty[i.produk_id] ?? 0) > 0)
+      .map((i) => ({
+        produk_id: i.produk_id,
+        nama_produk: i.nama_produk,
+        jumlah: returQty[i.produk_id],
+        harga_satuan: i.harga_satuan,
+      }));
+    await createSaleReturn(returSale.id, items, returAlasan || undefined);
+    closeRetur();
+    setReturLoading(false);
+    refetch();
+    refetchStats();
   }
 
   const sh = (label: string, key: string) => (
@@ -83,7 +138,7 @@ export default function SaleHistory() {
                 {sh("Dibayar", "dibayar")}
                 {sh("Kembalian", "kembalian")}
                 <TableHead>Status</TableHead>
-                <TableHead className="w-16">Aksi</TableHead>
+                <TableHead className="w-24">Aksi</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -103,9 +158,14 @@ export default function SaleHistory() {
                     )}
                   </TableCell>
                   <TableCell>
-                    <Button variant="ghost" size="icon-xs" onClick={() => showDetail(s)}>
-                      <Eye className="size-3.5" />
-                    </Button>
+                    <div className="flex gap-1">
+                      <Button variant="ghost" size="icon-xs" onClick={() => showDetail(s)}>
+                        <Eye className="size-3.5" />
+                      </Button>
+                      <Button variant="ghost" size="icon-xs" onClick={() => openRetur(s)}>
+                        <RotateCcw className="size-3.5 text-destructive" />
+                      </Button>
+                    </div>
                   </TableCell>
                 </TableRow>
               ))}
@@ -147,6 +207,75 @@ export default function SaleHistory() {
               </div>
             )}
           </>
+        )}
+      </Modal>
+
+      <Modal open={!!returSale} onClose={closeRetur} title={`Retur ${returSale?.nomor_faktur ?? ""}`}>
+        {returSale && returItems.length > 0 && (
+          <div className="space-y-4">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Produk</TableHead>
+                  <TableHead>Terjual</TableHead>
+                  <TableHead>Sudah Retur</TableHead>
+                  <TableHead className="w-24">Qty Retur</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {returItems.map((item) => {
+                  const max = maxReturnable(item);
+                  return (
+                    <TableRow key={item.produk_id}>
+                      <TableCell>{item.nama_produk}</TableCell>
+                      <TableCell>{item.jumlah}</TableCell>
+                      <TableCell>{returReturnedMap[item.produk_id] ?? 0}</TableCell>
+                      <TableCell>
+                        {max > 0 ? (
+                          <Input
+                            type="number"
+                            min={0}
+                            max={max}
+                            value={returQty[item.produk_id] ?? ""}
+                            onChange={(e) => {
+                              const v = Math.min(Math.max(0, Number(e.target.value)), max);
+                              setReturQty((prev) => ({ ...prev, [item.produk_id]: v }));
+                            }}
+                            className="h-8 w-20"
+                          />
+                        ) : (
+                          <span className="text-xs text-muted-foreground">Full</span>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+
+            <div className="space-y-2">
+              <Label>Alasan retur</Label>
+              <Input
+                value={returAlasan}
+                onChange={(e) => setReturAlasan(e.target.value)}
+                placeholder="Barang pecah, salah kirim, dll..."
+              />
+            </div>
+
+            {returTotal > 0 && (
+              <div className="flex justify-between text-sm font-medium">
+                <span>Total Retur</span>
+                <span className="text-destructive">{formatRupiah(returTotal)}</span>
+              </div>
+            )}
+
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={closeRetur}>Batal</Button>
+              <Button variant="destructive" disabled={!hasReturItems || returLoading} onClick={handleRetur}>
+                {returLoading ? "Memproses..." : "Proses Retur"}
+              </Button>
+            </div>
+          </div>
         )}
       </Modal>
     </div>

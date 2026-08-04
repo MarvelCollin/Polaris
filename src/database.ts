@@ -128,6 +128,7 @@ export async function initDb() {
 
   try { await database.execute("ALTER TABLE pembelian ADD COLUMN dibayar REAL NOT NULL DEFAULT 0"); } catch (_) {}
   try { await database.execute("ALTER TABLE penjualan ADD COLUMN diskon REAL NOT NULL DEFAULT 0"); } catch (_) {}
+  try { await database.execute("ALTER TABLE item_penjualan ADD COLUMN hpp REAL NOT NULL DEFAULT 0"); } catch (_) {}
 
   await database.execute(`
     UPDATE pembelian SET dibayar = total WHERE dibayar = 0
@@ -171,4 +172,57 @@ export async function initDb() {
   await database.execute(`CREATE INDEX IF NOT EXISTS idx_harga_pelanggan_pelanggan ON harga_pelanggan(pelanggan_id)`);
   await database.execute(`CREATE INDEX IF NOT EXISTS idx_harga_pelanggan_produk ON harga_pelanggan(produk_id)`);
   await database.execute(`CREATE INDEX IF NOT EXISTS idx_penjualan_pelanggan ON penjualan(pelanggan_id)`);
+
+  await database.execute(`
+    CREATE TABLE IF NOT EXISTS retur_penjualan (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      penjualan_id INTEGER NOT NULL,
+      total REAL NOT NULL,
+      alasan TEXT,
+      dibuat_pada INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),
+      FOREIGN KEY (penjualan_id) REFERENCES penjualan(id)
+    )
+  `);
+
+  await database.execute(`
+    CREATE TABLE IF NOT EXISTS item_retur_penjualan (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      retur_id INTEGER NOT NULL,
+      produk_id INTEGER NOT NULL,
+      nama_produk TEXT NOT NULL,
+      jumlah REAL NOT NULL,
+      harga_satuan REAL NOT NULL,
+      subtotal REAL NOT NULL,
+      FOREIGN KEY (retur_id) REFERENCES retur_penjualan(id),
+      FOREIGN KEY (produk_id) REFERENCES produk(id)
+    )
+  `);
+
+  await database.execute(`
+    CREATE TABLE IF NOT EXISTS retur_pembelian (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      pembelian_id INTEGER NOT NULL,
+      total REAL NOT NULL,
+      alasan TEXT,
+      dibuat_pada INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),
+      FOREIGN KEY (pembelian_id) REFERENCES pembelian(id)
+    )
+  `);
+
+  await database.execute(`
+    CREATE TABLE IF NOT EXISTS item_retur_pembelian (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      retur_id INTEGER NOT NULL,
+      produk_id INTEGER NOT NULL,
+      nama_produk TEXT NOT NULL,
+      jumlah REAL NOT NULL,
+      harga_satuan REAL NOT NULL,
+      subtotal REAL NOT NULL,
+      FOREIGN KEY (retur_id) REFERENCES retur_pembelian(id),
+      FOREIGN KEY (produk_id) REFERENCES produk(id)
+    )
+  `);
+
+  await database.execute(`CREATE INDEX IF NOT EXISTS idx_retur_penjualan ON retur_penjualan(penjualan_id)`);
+  await database.execute(`CREATE INDEX IF NOT EXISTS idx_retur_pembelian ON retur_pembelian(pembelian_id)`);
 }

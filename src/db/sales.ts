@@ -1,5 +1,5 @@
 import { getDb } from "../database";
-import { Sale, SaleItem, CartEntry, SaleDebt, Payment } from "../types";
+import { Sale, SaleItem, CartEntry, SaleDebt, Payment, ReturPenjualan, ReturItem } from "../types";
 
 async function generateInvoiceNumber(): Promise<string> {
   const db = await getDb();
@@ -36,10 +36,16 @@ export async function createSale(
   const saleId = result.lastInsertId ?? 0;
 
   for (const item of items) {
+    const produk: { harga_beli: number }[] = await db.select(
+      "SELECT harga_beli FROM produk WHERE id = $1",
+      [item.produk_id]
+    );
+    const hpp = produk.length > 0 ? produk[0].harga_beli : 0;
+
     await db.execute(
-      `INSERT INTO item_penjualan (penjualan_id, produk_id, nama_produk, jumlah, harga_satuan, subtotal)
-       VALUES ($1, $2, $3, $4, $5, $6)`,
-      [saleId, item.produk_id, item.nama, item.jumlah, item.harga, item.jumlah * item.harga]
+      `INSERT INTO item_penjualan (penjualan_id, produk_id, nama_produk, jumlah, harga_satuan, subtotal, hpp)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+      [saleId, item.produk_id, item.nama, item.jumlah, item.harga, item.jumlah * item.harga, hpp]
     );
     await db.execute(
       "UPDATE produk SET stok = stok - $1, diperbarui_pada = strftime('%s','now') WHERE id = $2",
@@ -184,5 +190,65 @@ export async function getSaleHistoryTopProducts(startDate?: number, endDate?: nu
      ORDER BY total DESC
      LIMIT $${params.length + 1}`,
     [...params, limit]
+  );
+}
+
+export async function getReturnedQtyMap(saleId: number): Promise<Record<number, number>> {
+  const db = await getDb();
+  const rows: { produk_id: number; total_qty: number }[] = await db.select(
+    `SELECT ir.produk_id, SUM(ir.jumlah) as total_qty
+     FROM item_retur_penjualan ir
+     JOIN retur_penjualan r ON ir.retur_id = r.id
+     WHERE r.penjualan_id = $1
+     GROUP BY ir.produk_id`,
+    [saleId]
+  );
+  const map: Record<number, number> = {};
+  for (const r of rows) map[r.produk_id] = r.total_qty;
+  return map;
+}
+
+export async function createSaleReturn(
+  saleId: number,
+  items: { produk_id: number; nama_produk: string; jumlah: number; harga_satuan: number }[],
+  alasan?: string
+): Promise<number> {
+  const db = await getDb();
+  const total = items.reduce((sum, i) => sum + i.jumlah * i.harga_satuan, 0);
+
+  const result = await db.execute(
+    "INSERT INTO retur_penjualan (penjualan_id, total, alasan) VALUES ($1, $2, $3)",
+    [saleId, total, alasan || null]
+  );
+  const returId = result.lastInsertId ?? 0;
+
+  for (const item of items) {
+    await db.execute(
+      `INSERT INTO item_retur_penjualan (retur_id, produk_id, nama_produk, jumlah, harga_satuan, subtotal)
+       VALUES ($1, $2, $3, $4, $5, $6)`,
+      [returId, item.produk_id, item.nama_produk, item.jumlah, item.harga_satuan, item.jumlah * item.harga_satuan]
+    );
+    await db.execute(
+      "UPDATE produk SET stok = stok + $1, diperbarui_pada = strftime('%s','now') WHERE id = $2",
+      [item.jumlah, item.produk_id]
+    );
+  }
+
+  return returId;
+}
+
+export async function getSaleReturns(saleId: number): Promise<ReturPenjualan[]> {
+  const db = await getDb();
+  return await db.select(
+    "SELECT * FROM retur_penjualan WHERE penjualan_id = $1 ORDER BY dibuat_pada DESC",
+    [saleId]
+  );
+}
+
+export async function getReturItems(returId: number): Promise<ReturItem[]> {
+  const db = await getDb();
+  return await db.select(
+    "SELECT * FROM item_retur_penjualan WHERE retur_id = $1",
+    [returId]
   );
 }

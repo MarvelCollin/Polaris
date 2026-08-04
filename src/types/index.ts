@@ -125,6 +125,33 @@ export interface Payment {
   dibuat_pada: number;
 }
 
+export interface Retur {
+  id: number;
+  total: number;
+  alasan: string | null;
+  dibuat_pada: number;
+}
+
+export interface ReturPenjualan extends Retur {
+  penjualan_id: number;
+  nomor_faktur?: string;
+}
+
+export interface ReturPembelian extends Retur {
+  pembelian_id: number;
+  supplier?: string;
+}
+
+export interface ReturItem {
+  id: number;
+  retur_id: number;
+  produk_id: number;
+  nama_produk: string;
+  jumlah: number;
+  harga_satuan: number;
+  subtotal: number;
+}
+
 export function formatRupiah(amount: number): string {
   return new Intl.NumberFormat("id-ID", {
     style: "currency",

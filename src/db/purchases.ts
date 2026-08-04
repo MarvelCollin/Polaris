@@ -1,5 +1,5 @@
 import { getDb } from "../database";
-import { Purchase, PurchaseItem, PurchaseEntry, PurchaseDebt, Payment } from "../types";
+import { Purchase, PurchaseItem, PurchaseEntry, PurchaseDebt, Payment, ReturPembelian, ReturItem } from "../types";
 
 export async function createPurchase(
   supplier: string,
@@ -23,10 +23,24 @@ export async function createPurchase(
        VALUES ($1, $2, $3, $4, $5, $6)`,
       [purchaseId, item.produk_id, item.nama, item.jumlah, item.harga, item.jumlah * item.harga]
     );
-    await db.execute(
-      "UPDATE produk SET stok = stok + $1, diperbarui_pada = strftime('%s','now') WHERE id = $2",
-      [item.jumlah, item.produk_id]
+
+    const produk: { stok: number; harga_beli: number }[] = await db.select(
+      "SELECT stok, harga_beli FROM produk WHERE id = $1",
+      [item.produk_id]
     );
+    if (produk.length > 0) {
+      const { stok, harga_beli } = produk[0];
+      const newHpp = (stok * harga_beli + item.jumlah * item.harga) / (stok + item.jumlah);
+      await db.execute(
+        "UPDATE produk SET stok = stok + $1, harga_beli = $2, diperbarui_pada = strftime('%s','now') WHERE id = $3",
+        [item.jumlah, Math.round(newHpp), item.produk_id]
+      );
+    } else {
+      await db.execute(
+        "UPDATE produk SET stok = stok + $1, diperbarui_pada = strftime('%s','now') WHERE id = $2",
+        [item.jumlah, item.produk_id]
+      );
+    }
   }
 
   return purchaseId;
@@ -186,5 +200,65 @@ export async function getPurchaseHistoryTopSuppliers(startDate?: number, endDate
      ORDER BY total DESC
      LIMIT $${params.length + 1}`,
     [...params, limit]
+  );
+}
+
+export async function getReturnedQtyMapPurchase(purchaseId: number): Promise<Record<number, number>> {
+  const db = await getDb();
+  const rows: { produk_id: number; total_qty: number }[] = await db.select(
+    `SELECT ir.produk_id, SUM(ir.jumlah) as total_qty
+     FROM item_retur_pembelian ir
+     JOIN retur_pembelian r ON ir.retur_id = r.id
+     WHERE r.pembelian_id = $1
+     GROUP BY ir.produk_id`,
+    [purchaseId]
+  );
+  const map: Record<number, number> = {};
+  for (const r of rows) map[r.produk_id] = r.total_qty;
+  return map;
+}
+
+export async function createPurchaseReturn(
+  purchaseId: number,
+  items: { produk_id: number; nama_produk: string; jumlah: number; harga_satuan: number }[],
+  alasan?: string
+): Promise<number> {
+  const db = await getDb();
+  const total = items.reduce((sum, i) => sum + i.jumlah * i.harga_satuan, 0);
+
+  const result = await db.execute(
+    "INSERT INTO retur_pembelian (pembelian_id, total, alasan) VALUES ($1, $2, $3)",
+    [purchaseId, total, alasan || null]
+  );
+  const returId = result.lastInsertId ?? 0;
+
+  for (const item of items) {
+    await db.execute(
+      `INSERT INTO item_retur_pembelian (retur_id, produk_id, nama_produk, jumlah, harga_satuan, subtotal)
+       VALUES ($1, $2, $3, $4, $5, $6)`,
+      [returId, item.produk_id, item.nama_produk, item.jumlah, item.harga_satuan, item.jumlah * item.harga_satuan]
+    );
+    await db.execute(
+      "UPDATE produk SET stok = stok - $1, diperbarui_pada = strftime('%s','now') WHERE id = $2",
+      [item.jumlah, item.produk_id]
+    );
+  }
+
+  return returId;
+}
+
+export async function getPurchaseReturns(purchaseId: number): Promise<ReturPembelian[]> {
+  const db = await getDb();
+  return await db.select(
+    "SELECT * FROM retur_pembelian WHERE pembelian_id = $1 ORDER BY dibuat_pada DESC",
+    [purchaseId]
+  );
+}
+
+export async function getPurchaseReturItems(returId: number): Promise<ReturItem[]> {
+  const db = await getDb();
+  return await db.select(
+    "SELECT * FROM item_retur_pembelian WHERE retur_id = $1",
+    [returId]
   );
 }
