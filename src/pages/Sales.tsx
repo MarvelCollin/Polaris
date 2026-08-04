@@ -32,6 +32,7 @@ export default function Sales() {
   const [priceMap, setPriceMap] = useState<Record<number, number>>({});
   const [cart, setCart] = useState<CartEntry[]>([]);
   const [paid, setPaid] = useState<number>(0);
+  const [isUtang, setIsUtang] = useState(false);
   const [success, setSuccess] = useState<string | null>(null);
 
   useEffect(() => {
@@ -124,13 +125,22 @@ export default function Sales() {
     }
   }
 
+  const canCheckout = cart.length > 0 && (isUtang ? selectedCustomer !== null : paid >= total);
+  const sisaUtang = isUtang ? total - paid : 0;
+
   async function handleCheckout() {
-    if (cart.length === 0 || paid < total) return;
+    if (!canCheckout) return;
+    if (isUtang && !selectedCustomer) return;
     try {
       await createSale(cart, paid, selectedCustomer?.id, selectedCustomer?.nama);
-      setSuccess(`Pembayaran berhasil! Kembalian: ${formatRupiah(change)}`);
+      if (isUtang) {
+        setSuccess(`Penjualan utang berhasil! Sisa: ${formatRupiah(sisaUtang)}`);
+      } else {
+        setSuccess(`Pembayaran berhasil! Kembalian: ${formatRupiah(change)}`);
+      }
       setCart([]);
       setPaid(0);
+      setIsUtang(false);
       refetchProducts();
       setTimeout(() => setSuccess(null), 3000);
     } catch (e) {
@@ -319,8 +329,27 @@ export default function Sales() {
                   <span>Total</span>
                   <span>{formatRupiah(total)}</span>
                 </div>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setIsUtang(!isUtang)}
+                    className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors ${
+                      isUtang ? "bg-amber-500" : "bg-muted"
+                    }`}
+                  >
+                    <span className={`pointer-events-none inline-block size-4 rounded-full bg-white shadow-sm transition-transform ${
+                      isUtang ? "translate-x-4" : "translate-x-0"
+                    }`} />
+                  </button>
+                  <span className="text-sm text-muted-foreground">Utang</span>
+                  {isUtang && !selectedCustomer && (
+                    <span className="text-xs text-destructive">← Pilih pelanggan dulu</span>
+                  )}
+                </div>
+
                 <div>
-                  <label className="text-sm text-muted-foreground">Bayar</label>
+                  <label className="text-sm text-muted-foreground">{isUtang ? "Bayar di muka" : "Bayar"}</label>
                   <Input
                     type="number"
                     value={paid || ""}
@@ -328,18 +357,27 @@ export default function Sales() {
                     className="mt-1"
                   />
                 </div>
-                {paid > 0 && paid >= total && (
+
+                {!isUtang && paid > 0 && paid >= total && (
                   <div className="flex justify-between text-sm">
                     <span className="text-muted-foreground">Kembalian</span>
                     <span className="font-medium text-emerald-600">{formatRupiah(change)}</span>
                   </div>
                 )}
+
+                {isUtang && total > 0 && (
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">Sisa Utang</span>
+                    <span className="font-medium text-amber-600">{formatRupiah(Math.max(0, total - paid))}</span>
+                  </div>
+                )}
+
                 <Button
                   className="mt-2 w-full"
-                  disabled={cart.length === 0 || paid < total}
+                  disabled={!canCheckout}
                   onClick={handleCheckout}
                 >
-                  Selesai
+                  {isUtang ? "Simpan (Utang)" : "Selesai"}
                 </Button>
               </div>
             </CardContent>

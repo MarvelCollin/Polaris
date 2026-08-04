@@ -12,9 +12,10 @@ import Modal from "@/components/Modal";
 import Pagination from "@/components/Pagination";
 import SortableHead from "@/components/SortableHead";
 import StatsCard from "@/components/StatsCard";
+import { Badge } from "@/components/ui/badge";
 import { Eye } from "lucide-react";
 import {
-  AreaChart, Area, BarChart, Bar,
+  AreaChart, Area,
   XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer,
 } from "recharts";
@@ -158,6 +159,7 @@ export default function SaleHistory() {
                 {sh("Total", "total")}
                 {sh("Dibayar", "dibayar")}
                 {sh("Kembalian", "kembalian")}
+                <TableHead>Status</TableHead>
                 <TableHead className="w-16">Aksi</TableHead>
               </TableRow>
             </TableHeader>
@@ -170,6 +172,13 @@ export default function SaleHistory() {
                   <TableCell>{formatRupiah(s.total)}</TableCell>
                   <TableCell>{formatRupiah(s.dibayar)}</TableCell>
                   <TableCell>{formatRupiah(s.kembalian)}</TableCell>
+                  <TableCell>
+                    {s.dibayar >= s.total ? (
+                      <Badge variant="default">Lunas</Badge>
+                    ) : (
+                      <Badge variant="destructive">Piutang</Badge>
+                    )}
+                  </TableCell>
                   <TableCell>
                     <Button variant="ghost" size="icon-xs" onClick={() => showDetail(s.id, s.nomor_faktur)}>
                       <Eye className="size-3.5" />

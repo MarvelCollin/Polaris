@@ -12,6 +12,7 @@ import Modal from "@/components/Modal";
 import Pagination from "@/components/Pagination";
 import SortableHead from "@/components/SortableHead";
 import StatsCard from "@/components/StatsCard";
+import { Badge } from "@/components/ui/badge";
 import { Eye } from "lucide-react";
 import {
   AreaChart, Area,
@@ -178,6 +179,7 @@ export default function PurchaseHistory() {
                 {sh("Ref. Faktur", "referensi_faktur")}
                 {sh("Tanggal", "dibuat_pada")}
                 {sh("Total", "total")}
+                <TableHead>Status</TableHead>
                 <TableHead className="w-16">Aksi</TableHead>
               </TableRow>
             </TableHeader>
@@ -188,6 +190,13 @@ export default function PurchaseHistory() {
                   <TableCell className="font-mono text-xs">{p.referensi_faktur || "-"}</TableCell>
                   <TableCell>{formatTanggal(p.dibuat_pada)}</TableCell>
                   <TableCell>{formatRupiah(p.total)}</TableCell>
+                  <TableCell>
+                    {p.dibayar >= p.total ? (
+                      <Badge variant="default">Lunas</Badge>
+                    ) : (
+                      <Badge variant="destructive">Utang</Badge>
+                    )}
+                  </TableCell>
                   <TableCell>
                     <Button variant="ghost" size="icon-xs" onClick={() => showDetail(p.id, p.supplier)}>
                       <Eye className="size-3.5" />

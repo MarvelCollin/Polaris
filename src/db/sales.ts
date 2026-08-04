@@ -1,5 +1,5 @@
 import { getDb } from "../database";
-import { Sale, SaleItem, CartEntry } from "../types";
+import { Sale, SaleItem, CartEntry, SaleDebt, Payment } from "../types";
 
 async function generateInvoiceNumber(): Promise<string> {
   const db = await getDb();
@@ -24,7 +24,7 @@ export async function createSale(
 ): Promise<number> {
   const db = await getDb();
   const total = items.reduce((sum, item) => sum + item.jumlah * item.harga, 0);
-  const kembalian = dibayar - total;
+  const kembalian = Math.max(0, dibayar - total);
   const nomor = await generateInvoiceNumber();
 
   const result = await db.execute(
@@ -81,6 +81,37 @@ export async function getSaleItems(saleId: number): Promise<SaleItem[]> {
   return await db.select(
     "SELECT * FROM item_penjualan WHERE penjualan_id = $1",
     [saleId]
+  );
+}
+
+export async function getSaleDebts(): Promise<SaleDebt[]> {
+  const db = await getDb();
+  return await db.select(
+    `SELECT p.id, p.nomor_faktur, p.nama_pelanggan, p.total, p.dibayar,
+       COALESCE(pay.total_bayar, 0) as total_pembayaran,
+       (p.total - p.dibayar - COALESCE(pay.total_bayar, 0)) as sisa,
+       p.dibuat_pada
+     FROM penjualan p
+     LEFT JOIN (SELECT penjualan_id, SUM(jumlah) as total_bayar FROM pembayaran_penjualan GROUP BY penjualan_id) pay
+       ON pay.penjualan_id = p.id
+     WHERE (p.total - p.dibayar - COALESCE(pay.total_bayar, 0)) > 0
+     ORDER BY p.dibuat_pada DESC`
+  );
+}
+
+export async function getSalePayments(saleId: number): Promise<Payment[]> {
+  const db = await getDb();
+  return await db.select(
+    "SELECT * FROM pembayaran_penjualan WHERE penjualan_id = $1 ORDER BY dibuat_pada DESC",
+    [saleId]
+  );
+}
+
+export async function addSalePayment(saleId: number, jumlah: number, catatan?: string): Promise<void> {
+  const db = await getDb();
+  await db.execute(
+    "INSERT INTO pembayaran_penjualan (penjualan_id, jumlah, catatan) VALUES ($1, $2, $3)",
+    [saleId, jumlah, catatan || null]
   );
 }
 

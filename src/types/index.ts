@@ -67,6 +67,7 @@ export interface Purchase {
   supplier: string;
   referensi_faktur: string | null;
   total: number;
+  dibayar: number;
   dibuat_pada: number;
 }
 
@@ -95,6 +96,32 @@ export interface PurchaseEntry {
   satuan: string;
   jumlah: number;
   harga: number;
+}
+
+export interface DebtRecord {
+  id: number;
+  total: number;
+  dibayar: number;
+  total_pembayaran: number;
+  sisa: number;
+  dibuat_pada: number;
+}
+
+export interface SaleDebt extends DebtRecord {
+  nomor_faktur: string;
+  nama_pelanggan: string;
+}
+
+export interface PurchaseDebt extends DebtRecord {
+  supplier: string;
+  referensi_faktur: string | null;
+}
+
+export interface Payment {
+  id: number;
+  jumlah: number;
+  catatan: string | null;
+  dibuat_pada: number;
 }
 
 export function formatRupiah(amount: number): string {

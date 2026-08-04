@@ -1,17 +1,19 @@
 import { getDb } from "../database";
-import { Purchase, PurchaseItem, PurchaseEntry } from "../types";
+import { Purchase, PurchaseItem, PurchaseEntry, PurchaseDebt, Payment } from "../types";
 
 export async function createPurchase(
   supplier: string,
   referensiFaktur: string | null,
-  items: PurchaseEntry[]
+  items: PurchaseEntry[],
+  dibayar?: number
 ): Promise<number> {
   const db = await getDb();
   const total = items.reduce((sum, item) => sum + item.jumlah * item.harga, 0);
+  const paid = dibayar ?? total;
 
   const result = await db.execute(
-    "INSERT INTO pembelian (supplier, referensi_faktur, total) VALUES ($1, $2, $3)",
-    [supplier, referensiFaktur, total]
+    "INSERT INTO pembelian (supplier, referensi_faktur, total, dibayar) VALUES ($1, $2, $3, $4)",
+    [supplier, referensiFaktur, total, paid]
   );
   const purchaseId = result.lastInsertId ?? 0;
 
@@ -63,6 +65,37 @@ export async function getPurchaseItems(purchaseId: number): Promise<PurchaseItem
   return await db.select(
     "SELECT * FROM item_pembelian WHERE pembelian_id = $1",
     [purchaseId]
+  );
+}
+
+export async function getPurchaseDebts(): Promise<PurchaseDebt[]> {
+  const db = await getDb();
+  return await db.select(
+    `SELECT p.id, p.supplier, p.referensi_faktur, p.total, p.dibayar,
+       COALESCE(pay.total_bayar, 0) as total_pembayaran,
+       (p.total - p.dibayar - COALESCE(pay.total_bayar, 0)) as sisa,
+       p.dibuat_pada
+     FROM pembelian p
+     LEFT JOIN (SELECT pembelian_id, SUM(jumlah) as total_bayar FROM pembayaran_pembelian GROUP BY pembelian_id) pay
+       ON pay.pembelian_id = p.id
+     WHERE (p.total - p.dibayar - COALESCE(pay.total_bayar, 0)) > 0
+     ORDER BY p.dibuat_pada DESC`
+  );
+}
+
+export async function getPurchasePayments(purchaseId: number): Promise<Payment[]> {
+  const db = await getDb();
+  return await db.select(
+    "SELECT * FROM pembayaran_pembelian WHERE pembelian_id = $1 ORDER BY dibuat_pada DESC",
+    [purchaseId]
+  );
+}
+
+export async function addPurchasePayment(purchaseId: number, jumlah: number, catatan?: string): Promise<void> {
+  const db = await getDb();
+  await db.execute(
+    "INSERT INTO pembayaran_pembelian (pembelian_id, jumlah, catatan) VALUES ($1, $2, $3)",
+    [purchaseId, jumlah, catatan || null]
   );
 }
 

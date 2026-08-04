@@ -126,6 +126,37 @@ export async function initDb() {
   try { await database.execute("ALTER TABLE penjualan ADD COLUMN pelanggan_id INTEGER REFERENCES pelanggan(id)"); } catch (_) {}
   try { await database.execute("ALTER TABLE penjualan ADD COLUMN nama_pelanggan TEXT"); } catch (_) {}
 
+  try { await database.execute("ALTER TABLE pembelian ADD COLUMN dibayar REAL NOT NULL DEFAULT 0"); } catch (_) {}
+
+  await database.execute(`
+    UPDATE pembelian SET dibayar = total WHERE dibayar = 0
+  `);
+
+  await database.execute(`
+    CREATE TABLE IF NOT EXISTS pembayaran_pembelian (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      pembelian_id INTEGER NOT NULL,
+      jumlah REAL NOT NULL,
+      catatan TEXT,
+      dibuat_pada INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),
+      FOREIGN KEY (pembelian_id) REFERENCES pembelian(id)
+    )
+  `);
+
+  await database.execute(`
+    CREATE TABLE IF NOT EXISTS pembayaran_penjualan (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      penjualan_id INTEGER NOT NULL,
+      jumlah REAL NOT NULL,
+      catatan TEXT,
+      dibuat_pada INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),
+      FOREIGN KEY (penjualan_id) REFERENCES penjualan(id)
+    )
+  `);
+
+  await database.execute(`CREATE INDEX IF NOT EXISTS idx_pembayaran_pembelian ON pembayaran_pembelian(pembelian_id)`);
+  await database.execute(`CREATE INDEX IF NOT EXISTS idx_pembayaran_penjualan ON pembayaran_penjualan(penjualan_id)`);
+
   await database.execute(`CREATE INDEX IF NOT EXISTS idx_produk_kategori ON produk(kategori_id)`);
   await database.execute(`CREATE INDEX IF NOT EXISTS idx_produk_kode ON produk(kode)`);
   await database.execute(`CREATE INDEX IF NOT EXISTS idx_produk_nama ON produk(nama)`);

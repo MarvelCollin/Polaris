@@ -11,6 +11,7 @@ import {
   Users,
   Moon,
   Sun,
+  Wallet,
 } from "lucide-react";
 
 const links = [
@@ -22,6 +23,7 @@ const links = [
   { to: "/pelanggan", label: "Pelanggan", icon: Users },
   { to: "/riwayat-jual", label: "Riwayat Penjualan", icon: FileText },
   { to: "/riwayat-beli", label: "Riwayat Pembelian", icon: FileText },
+  { to: "/utang-piutang", label: "Utang & Piutang", icon: Wallet },
 ];
 
 export default function Sidebar() {

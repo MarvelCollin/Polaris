@@ -22,6 +22,8 @@ export default function Purchases() {
   const [supplier, setSupplier] = useState("");
   const [invoiceRef, setInvoiceRef] = useState("");
   const [items, setItems] = useState<PurchaseEntry[]>([]);
+  const [isUtang, setIsUtang] = useState(false);
+  const [dibayar, setDibayar] = useState<number>(0);
   const [success, setSuccess] = useState<string | null>(null);
 
   const total = items.reduce((sum, item) => sum + item.jumlah * item.harga, 0);
@@ -60,11 +62,19 @@ export default function Purchases() {
   async function handleSave() {
     if (!supplier.trim() || items.length === 0) return;
     try {
-      await createPurchase(supplier.trim(), invoiceRef.trim() || null, items);
-      setSuccess("Pembelian berhasil disimpan!");
+      const paidAmount = isUtang ? dibayar : total;
+      await createPurchase(supplier.trim(), invoiceRef.trim() || null, items, paidAmount);
+      const sisaUtang = total - paidAmount;
+      if (isUtang && sisaUtang > 0) {
+        setSuccess(`Pembelian disimpan! Utang: ${formatRupiah(sisaUtang)}`);
+      } else {
+        setSuccess("Pembelian berhasil disimpan!");
+      }
       setSupplier("");
       setInvoiceRef("");
       setItems([]);
+      setIsUtang(false);
+      setDibayar(0);
       setTimeout(() => setSuccess(null), 3000);
     } catch (e) {
       alert(e instanceof Error ? e.message : String(e));
@@ -172,8 +182,42 @@ export default function Purchases() {
                 <span>{formatRupiah(total)}</span>
               </div>
 
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setIsUtang(!isUtang)}
+                  className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors ${
+                    isUtang ? "bg-amber-500" : "bg-muted"
+                  }`}
+                >
+                  <span className={`pointer-events-none inline-block size-4 rounded-full bg-white shadow-sm transition-transform ${
+                    isUtang ? "translate-x-4" : "translate-x-0"
+                  }`} />
+                </button>
+                <span className="text-sm text-muted-foreground">Utang</span>
+              </div>
+
+              {isUtang && (
+                <>
+                  <div>
+                    <Label>Bayar di muka</Label>
+                    <Input
+                      type="number"
+                      value={dibayar || ""}
+                      onChange={(e) => setDibayar(Number(e.target.value))}
+                    />
+                  </div>
+                  {total > 0 && (
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">Sisa Utang</span>
+                      <span className="font-medium text-amber-600">{formatRupiah(Math.max(0, total - dibayar))}</span>
+                    </div>
+                  )}
+                </>
+              )}
+
               <Button className="w-full" disabled={!supplier.trim() || items.length === 0} onClick={handleSave}>
-                Simpan Pembelian
+                {isUtang ? "Simpan (Utang)" : "Simpan Pembelian"}
               </Button>
             </CardContent>
           </Card>
