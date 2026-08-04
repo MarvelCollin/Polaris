@@ -5,6 +5,12 @@ let db: Database | null = null;
 export async function getDb(): Promise<Database> {
   if (!db) {
     db = await Database.load("sqlite:polaris.db");
+    await db.execute("PRAGMA journal_mode = WAL");
+    await db.execute("PRAGMA synchronous = NORMAL");
+    await db.execute("PRAGMA cache_size = -8000");
+    await db.execute("PRAGMA temp_store = MEMORY");
+    await db.execute("PRAGMA mmap_size = 268435456");
+    await db.execute("PRAGMA foreign_keys = ON");
   }
   return db;
 }
@@ -95,8 +101,12 @@ export async function initDb() {
 
   await database.execute(`CREATE INDEX IF NOT EXISTS idx_produk_kategori ON produk(kategori_id)`);
   await database.execute(`CREATE INDEX IF NOT EXISTS idx_produk_kode ON produk(kode)`);
+  await database.execute(`CREATE INDEX IF NOT EXISTS idx_produk_nama ON produk(nama)`);
   await database.execute(`CREATE INDEX IF NOT EXISTS idx_item_penjualan_penjualan ON item_penjualan(penjualan_id)`);
+  await database.execute(`CREATE INDEX IF NOT EXISTS idx_item_penjualan_produk ON item_penjualan(produk_id)`);
   await database.execute(`CREATE INDEX IF NOT EXISTS idx_item_pembelian_pembelian ON item_pembelian(pembelian_id)`);
+  await database.execute(`CREATE INDEX IF NOT EXISTS idx_item_pembelian_produk ON item_pembelian(produk_id)`);
   await database.execute(`CREATE INDEX IF NOT EXISTS idx_penjualan_dibuat ON penjualan(dibuat_pada)`);
+  await database.execute(`CREATE INDEX IF NOT EXISTS idx_penjualan_faktur ON penjualan(nomor_faktur)`);
   await database.execute(`CREATE INDEX IF NOT EXISTS idx_pembelian_dibuat ON pembelian(dibuat_pada)`);
 }
