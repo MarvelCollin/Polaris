@@ -18,6 +18,7 @@ import Modal from "@/components/Modal";
 import ConfirmDialog from "@/components/ConfirmDialog";
 import SearchInput from "@/components/SearchInput";
 import { Plus, Pencil, Trash2, ImagePlus, X } from "lucide-react";
+import SearchableSelect from "@/components/SearchableSelect";
 
 const emptyForm = {
   kode: "", nama: "", kategori_id: 0, satuan: "pcs",
@@ -129,14 +130,15 @@ export default function Products() {
 
       <div className="mb-4 flex items-center gap-3">
         <SearchInput value={search} onChange={setSearch} placeholder="Cari kode atau nama..." />
-        <select
-          className="h-9 rounded-md border bg-background px-3 text-sm"
-          value={catFilter}
-          onChange={(e) => setCatFilter(Number(e.target.value))}
-        >
-          <option value={0}>Semua Kategori</option>
-          {categories?.map((c) => <option key={c.id} value={c.id}>{c.nama}</option>)}
-        </select>
+        <div className="w-48">
+          <SearchableSelect
+            options={categories?.map((c) => ({ value: c.id, label: c.nama })) ?? []}
+            value={catFilter}
+            onChange={setCatFilter}
+            placeholder="Cari kategori..."
+            emptyLabel="Semua Kategori"
+          />
+        </div>
       </div>
 
       {products && products.length > 0 ? (
@@ -231,14 +233,13 @@ export default function Products() {
           <div className="grid grid-cols-2 gap-3">
             <div>
               <Label>Kategori</Label>
-              <select
-                className="h-9 w-full rounded-md border bg-background px-3 text-sm"
+              <SearchableSelect
+                options={categories?.map((c) => ({ value: c.id, label: c.nama })) ?? []}
                 value={form.kategori_id}
-                onChange={(e) => set("kategori_id", Number(e.target.value))}
-              >
-                <option value={0}>Pilih...</option>
-                {categories?.map((c) => <option key={c.id} value={c.id}>{c.nama}</option>)}
-              </select>
+                onChange={(v) => set("kategori_id", v)}
+                placeholder="Cari kategori..."
+                emptyLabel="Pilih..."
+              />
             </div>
             <div>
               <Label>Satuan</Label>

@@ -13,6 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import SearchInput from "@/components/SearchInput";
 import { Plus, Minus, Trash2, CheckCircle, UserCircle } from "lucide-react";
 import ProductThumb from "@/components/ProductThumb";
+import SearchableSelect from "@/components/SearchableSelect";
 
 export default function Sales() {
   const [search, setSearch] = useState("");
@@ -188,17 +189,14 @@ export default function Sales() {
             <CardContent>
               <div className="mb-3">
                 <div className="flex items-center gap-2">
-                  <UserCircle className="size-4 text-muted-foreground" />
-                  <select
-                    className="h-9 w-full rounded-md border bg-background px-3 text-sm"
+                  <UserCircle className="size-4 shrink-0 text-muted-foreground" />
+                  <SearchableSelect
+                    options={customers?.map((c) => ({ value: c.id, label: c.nama })) ?? []}
                     value={selectedCustomer?.id ?? 0}
-                    onChange={(e) => handleCustomerChange(Number(e.target.value))}
-                  >
-                    <option value={0}>Umum (tanpa pelanggan)</option>
-                    {customers?.map((c) => (
-                      <option key={c.id} value={c.id}>{c.nama}</option>
-                    ))}
-                  </select>
+                    onChange={handleCustomerChange}
+                    placeholder="Cari pelanggan..."
+                    emptyLabel="Umum (tanpa pelanggan)"
+                  />
                 </div>
                 {selectedCustomer && Object.keys(priceMap).length > 0 && (
                   <p className="mt-1 text-xs text-muted-foreground">

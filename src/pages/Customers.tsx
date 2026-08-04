@@ -15,6 +15,7 @@ import Modal from "@/components/Modal";
 import ConfirmDialog from "@/components/ConfirmDialog";
 import SearchInput from "@/components/SearchInput";
 import { Plus, Pencil, Trash2, Tag } from "lucide-react";
+import SearchableSelect from "@/components/SearchableSelect";
 
 const emptyForm = { nama: "", telepon: "", alamat: "" };
 
@@ -219,23 +220,21 @@ export default function Customers() {
             <div className="space-y-2 rounded-md border p-3">
               <div>
                 <Label>Produk</Label>
-                <select
-                  className="h-9 w-full rounded-md border bg-background px-3 text-sm"
+                <SearchableSelect
+                  options={
+                    allProducts
+                      ?.filter((p) => !prices.some((pr) => pr.produk_id === p.id))
+                      .map((p) => ({ value: p.id, label: `[${p.kode}] ${p.nama} - ${formatRupiah(p.harga_jual)}` })) ?? []
+                  }
                   value={selectedProdukId}
-                  onChange={(e) => {
-                    const id = Number(e.target.value);
+                  onChange={(id) => {
                     setSelectedProdukId(id);
                     const prod = allProducts?.find((p) => p.id === id);
                     if (prod) setSelectedHarga(prod.harga_jual);
                   }}
-                >
-                  <option value={0}>Pilih produk...</option>
-                  {allProducts
-                    ?.filter((p) => !prices.some((pr) => pr.produk_id === p.id))
-                    .map((p) => (
-                      <option key={p.id} value={p.id}>[{p.kode}] {p.nama} - {formatRupiah(p.harga_jual)}</option>
-                    ))}
-                </select>
+                  placeholder="Cari produk..."
+                  emptyLabel="Pilih produk..."
+                />
               </div>
               <div>
                 <Label>Harga Khusus</Label>
