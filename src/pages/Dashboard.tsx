@@ -1,4 +1,4 @@
-import { useCallback } from "react";
+import { useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@/hooks/useQuery";
 import {
@@ -10,6 +10,8 @@ import {
   getSalesByCategory,
   getTopProducts,
   getTopCustomers,
+  getSalesRecap,
+  getPurchasesRecap,
 } from "@/db/dashboard";
 import { formatRupiah, formatTanggal } from "@/types/index";
 import StatsCard from "@/components/StatsCard";
@@ -56,8 +58,12 @@ function PieTooltipContent({ active, payload }: { active?: boolean; payload?: { 
   );
 }
 
+type RecapPeriod = "day" | "week" | "month";
+const recapLabels: Record<RecapPeriod, string> = { day: "Hari Ini", week: "Minggu Ini", month: "Bulan Ini" };
+
 export default function Dashboard() {
   const navigate = useNavigate();
+  const [recapPeriod, setRecapPeriod] = useState<RecapPeriod>("day");
   const { data: stats } = useQuery(useCallback(() => getDashboardStats(), []));
   const { data: lowStock } = useQuery(useCallback(() => getLowStockProducts(), []));
   const { data: recentSales } = useQuery(useCallback(() => getRecentSales(), []));
@@ -66,6 +72,8 @@ export default function Dashboard() {
   const { data: categoryData } = useQuery(useCallback(() => getSalesByCategory(), []));
   const { data: topProducts } = useQuery(useCallback(() => getTopProducts(5), []));
   const { data: topCustomers } = useQuery(useCallback(() => getTopCustomers(5), []));
+  const { data: salesRecap } = useQuery(useCallback(() => getSalesRecap(recapPeriod), [recapPeriod]));
+  const { data: purchasesRecap } = useQuery(useCallback(() => getPurchasesRecap(recapPeriod), [recapPeriod]));
 
   return (
     <div className="animate-fade-in">
@@ -325,6 +333,101 @@ export default function Dashboard() {
             )}
           </CardContent>
         </Card>
+      </div>
+
+      <div className="mb-6">
+        <div className="mb-3 flex items-center gap-3">
+          <h2 className="text-lg font-semibold">Rekap Transaksi</h2>
+          <div className="flex gap-1">
+            {(["day", "week", "month"] as RecapPeriod[]).map((p) => (
+              <button
+                key={p}
+                type="button"
+                onClick={() => setRecapPeriod(p)}
+                className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
+                  recapPeriod === p
+                    ? "bg-primary text-primary-foreground"
+                    : "bg-secondary text-secondary-foreground hover:bg-accent"
+                }`}
+              >
+                {recapLabels[p]}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div className="grid grid-cols-2 gap-6">
+          <Card className="animate-fade-in-up">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-semibold">Penjualan - {recapLabels[recapPeriod]}</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {salesRecap && salesRecap.length > 0 ? (
+                <>
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Produk</TableHead>
+                        <TableHead className="text-right">Qty</TableHead>
+                        <TableHead className="text-right">Total</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {salesRecap.map((r, i) => (
+                        <TableRow key={i}>
+                          <TableCell className="text-xs">{r.nama_produk}</TableCell>
+                          <TableCell className="text-right text-xs">{r.jumlah}</TableCell>
+                          <TableCell className="text-right text-xs font-medium">{formatRupiah(r.total)}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                  <div className="mt-2 flex justify-between border-t pt-2 text-sm font-bold">
+                    <span>Total</span>
+                    <span>{formatRupiah(salesRecap.reduce((s, r) => s + r.total, 0))}</span>
+                  </div>
+                </>
+              ) : (
+                <p className="py-6 text-center text-sm text-muted-foreground">Belum ada penjualan {recapLabels[recapPeriod].toLowerCase()}</p>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card className="animate-fade-in-up" style={{ animationDelay: "50ms", animationFillMode: "backwards" }}>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-semibold">Pembelian - {recapLabels[recapPeriod]}</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {purchasesRecap && purchasesRecap.length > 0 ? (
+                <>
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Produk</TableHead>
+                        <TableHead className="text-right">Qty</TableHead>
+                        <TableHead className="text-right">Total</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {purchasesRecap.map((r, i) => (
+                        <TableRow key={i}>
+                          <TableCell className="text-xs">{r.nama_produk}</TableCell>
+                          <TableCell className="text-right text-xs">{r.jumlah}</TableCell>
+                          <TableCell className="text-right text-xs font-medium">{formatRupiah(r.total)}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                  <div className="mt-2 flex justify-between border-t pt-2 text-sm font-bold">
+                    <span>Total</span>
+                    <span>{formatRupiah(purchasesRecap.reduce((s, r) => s + r.total, 0))}</span>
+                  </div>
+                </>
+              ) : (
+                <p className="py-6 text-center text-sm text-muted-foreground">Belum ada pembelian {recapLabels[recapPeriod].toLowerCase()}</p>
+              )}
+            </CardContent>
+          </Card>
+        </div>
       </div>
     </div>
   );

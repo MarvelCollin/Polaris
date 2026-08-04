@@ -146,6 +146,56 @@ export async function getTopCustomers(limit: number = 5): Promise<{ nama: string
   );
 }
 
+export async function getSalesRecap(period: "day" | "week" | "month"): Promise<{ nama_produk: string; jumlah: number; total: number }[]> {
+  const db = await getDb();
+  const now = new Date();
+  let startTs: number;
+
+  if (period === "day") {
+    startTs = Math.floor(new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime() / 1000);
+  } else if (period === "week") {
+    const dayOfWeek = now.getDay() || 7;
+    startTs = Math.floor(new Date(now.getFullYear(), now.getMonth(), now.getDate() - dayOfWeek + 1).getTime() / 1000);
+  } else {
+    startTs = Math.floor(new Date(now.getFullYear(), now.getMonth(), 1).getTime() / 1000);
+  }
+
+  return await db.select(
+    `SELECT ip.nama_produk, SUM(ip.jumlah) as jumlah, SUM(ip.subtotal) as total
+     FROM item_penjualan ip
+     JOIN penjualan p ON ip.penjualan_id = p.id
+     WHERE p.dibuat_pada >= $1
+     GROUP BY ip.produk_id
+     ORDER BY total DESC`,
+    [startTs]
+  );
+}
+
+export async function getPurchasesRecap(period: "day" | "week" | "month"): Promise<{ nama_produk: string; jumlah: number; total: number }[]> {
+  const db = await getDb();
+  const now = new Date();
+  let startTs: number;
+
+  if (period === "day") {
+    startTs = Math.floor(new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime() / 1000);
+  } else if (period === "week") {
+    const dayOfWeek = now.getDay() || 7;
+    startTs = Math.floor(new Date(now.getFullYear(), now.getMonth(), now.getDate() - dayOfWeek + 1).getTime() / 1000);
+  } else {
+    startTs = Math.floor(new Date(now.getFullYear(), now.getMonth(), 1).getTime() / 1000);
+  }
+
+  return await db.select(
+    `SELECT ip.nama_produk, SUM(ip.jumlah) as jumlah, SUM(ip.subtotal) as total
+     FROM item_pembelian ip
+     JOIN pembelian p ON ip.pembelian_id = p.id
+     WHERE p.dibuat_pada >= $1
+     GROUP BY ip.produk_id
+     ORDER BY total DESC`,
+    [startTs]
+  );
+}
+
 export async function getLowStockProducts(): Promise<ProductWithCategory[]> {
   const db = await getDb();
   return await db.select(
