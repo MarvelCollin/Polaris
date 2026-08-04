@@ -23,6 +23,7 @@ tauri-plugin-fs = "2.5.1"
 reqwest = { version = "0.12", features = ["json"] }
 tokio = { version = "1", features = ["net", "time", "io-util"] }
 open = "5"
+chrono = { version = "0.4", default-features = false, features = ["clock"] }
 
 [profile.dev]
 incremental = true

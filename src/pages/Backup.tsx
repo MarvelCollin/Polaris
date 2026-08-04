@@ -19,6 +19,8 @@ import {
   listBackups,
   restoreBackup,
   deleteBackup,
+  getAutoBackupStatus,
+  setAutoBackup,
   DriveFile,
 } from "@/db/backup";
 import {
@@ -29,6 +31,7 @@ import {
   Trash2,
   LogOut,
   RefreshCw,
+  Clock,
 } from "lucide-react";
 
 export default function Backup() {
@@ -40,6 +43,9 @@ export default function Backup() {
   const [success, setSuccess] = useState("");
   const [confirmRestore, setConfirmRestore] = useState<DriveFile | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<DriveFile | null>(null);
+
+  const [autoEnabled, setAutoEnabled] = useState(false);
+  const [lastAutoDate, setLastAutoDate] = useState<string | null>(null);
 
   useEffect(() => {
     checkConnection();
@@ -53,6 +59,9 @@ export default function Backup() {
         setConnected(true);
         await loadBackups();
       }
+      const status = await getAutoBackupStatus();
+      setAutoEnabled(status.enabled);
+      setLastAutoDate(status.last_backup_date ?? null);
     } catch {
       // not connected
     }
@@ -75,6 +84,10 @@ export default function Backup() {
 
   async function handleDisconnect() {
     await clearTokens();
+    if (autoEnabled) {
+      await setAutoBackup(false);
+      setAutoEnabled(false);
+    }
     setConnected(false);
     setBackups([]);
     setSuccess("");
@@ -138,6 +151,23 @@ export default function Backup() {
       setError(e instanceof Error ? e.message : String(e));
     }
     setActionLoading(null);
+  }
+
+  async function handleToggleAuto() {
+    const newVal = !autoEnabled;
+    setError("");
+    try {
+      const refresh = await getStoredRefreshToken();
+      await setAutoBackup(newVal, refresh ?? undefined);
+      setAutoEnabled(newVal);
+      setSuccess(
+        newVal
+          ? "Auto backup aktif. Backup otomatis setiap hari jam 00:00. PC akan dibangunkan dari sleep."
+          : "Auto backup dinonaktifkan."
+      );
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    }
   }
 
   function formatSize(bytes?: string) {
@@ -212,7 +242,7 @@ export default function Backup() {
         </div>
       ) : (
         <>
-          <div className="mb-4 flex gap-2">
+          <div className="mb-4 flex items-center gap-3">
             <Button onClick={handleBackup} disabled={!!actionLoading}>
               <Upload className="mr-1 size-4" />
               {actionLoading === "backup" ? "Membackup..." : "Backup Sekarang"}
@@ -224,6 +254,26 @@ export default function Backup() {
             >
               <RefreshCw className="mr-1 size-4" /> Refresh
             </Button>
+
+            <div className="ml-auto flex items-center gap-3">
+              {lastAutoDate && (
+                <span className="text-xs text-muted-foreground">
+                  Auto backup terakhir: {lastAutoDate}
+                </span>
+              )}
+              <button
+                type="button"
+                onClick={handleToggleAuto}
+                className={`flex items-center gap-2 rounded-full px-4 py-1.5 text-sm font-medium transition-colors ${
+                  autoEnabled
+                    ? "bg-primary text-primary-foreground"
+                    : "bg-secondary text-secondary-foreground hover:bg-accent"
+                }`}
+              >
+                <Clock className="size-3.5" />
+                {autoEnabled ? "Auto Backup Aktif" : "Auto Backup Mati"}
+              </button>
+            </div>
           </div>
 
           {backups.length > 0 ? (

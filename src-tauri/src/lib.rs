@@ -18,6 +18,12 @@ pub fn run() {
                     std::fs::remove_file(&restore_file).ok();
                 }
             }
+
+            let handle = app.handle().clone();
+            tauri::async_runtime::spawn(async move {
+                gdrive::auto_backup_loop(handle).await;
+            });
+
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -27,6 +33,8 @@ pub fn run() {
             gdrive::gdrive_list_backups,
             gdrive::gdrive_restore,
             gdrive::gdrive_delete_backup,
+            gdrive::gdrive_set_auto_backup,
+            gdrive::gdrive_get_auto_backup_status,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

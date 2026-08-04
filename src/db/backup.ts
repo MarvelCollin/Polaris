@@ -92,3 +92,20 @@ export async function deleteBackup(
 ): Promise<void> {
   return invoke<void>("gdrive_delete_backup", { accessToken, fileId });
 }
+
+export interface AutoBackupStatus {
+  enabled: boolean;
+  refresh_token?: string;
+  last_backup_date?: string;
+}
+
+export async function getAutoBackupStatus(): Promise<AutoBackupStatus> {
+  return invoke<AutoBackupStatus>("gdrive_get_auto_backup_status");
+}
+
+export async function setAutoBackup(
+  enabled: boolean,
+  refreshToken?: string
+): Promise<void> {
+  return invoke("gdrive_set_auto_backup", { enabled, refreshToken });
+}
