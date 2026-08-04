@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { resetMock, mockDb } from "./setup";
-import { getProducts, getProduct, createProduct, updateProduct, deleteProduct, getLowStockProducts } from "@/db/products";
+import { getProducts, getProduct, createProduct, updateProduct, deleteProduct, getLowStockProducts, generateProductCode } from "@/db/products";
 
 describe("products", () => {
   beforeEach(() => {
@@ -89,7 +89,7 @@ describe("products", () => {
     await updateProduct(1, data);
     const call = mockDb.execute.mock.calls[0][0] as string;
     expect(call).toContain("UPDATE produk SET");
-    expect(call).toContain("WHERE id = $9");
+    expect(call).toContain("WHERE id = $10");
   });
 
   it("should delete a product with no transactions", async () => {
@@ -113,6 +113,39 @@ describe("products", () => {
     await expect(deleteProduct(1)).rejects.toThrow(
       "Produk tidak dapat dihapus karena sudah memiliki transaksi"
     );
+  });
+
+  it("should generate product code based on max id", async () => {
+    mockDb.select.mockResolvedValueOnce([{ max_id: 15 }]);
+    const code = await generateProductCode();
+    expect(code).toBe("PRD-0016");
+  });
+
+  it("should generate PRD-0001 when no products exist", async () => {
+    mockDb.select.mockResolvedValueOnce([{ max_id: null }]);
+    const code = await generateProductCode();
+    expect(code).toBe("PRD-0001");
+  });
+
+  it("should create product with gambar", async () => {
+    mockDb.execute.mockResolvedValueOnce({ lastInsertId: 11, rowsAffected: 1 });
+    mockDb.select.mockResolvedValueOnce([{ max_id: 10 }]);
+    const data = {
+      kode: "",
+      nama: "Semen",
+      kategori_id: 1,
+      satuan: "sak",
+      harga_beli: 52000,
+      harga_jual: 58000,
+      stok: 100,
+      stok_minimum: 20,
+      gambar: "/path/to/image.jpg",
+    };
+    const id = await createProduct(data);
+    expect(id).toBe(11);
+    const call = mockDb.execute.mock.calls.find((c: unknown[]) => (c[0] as string).includes("INSERT INTO produk"));
+    expect(call).toBeDefined();
+    expect(call![1]).toContain("/path/to/image.jpg");
   });
 
   it("should fetch low stock products", async () => {
