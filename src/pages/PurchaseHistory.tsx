@@ -105,15 +105,15 @@ export default function PurchaseHistory() {
                 <AreaChart data={dailyData}>
                   <defs>
                     <linearGradient id="colorPurchHist" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#f59e0b" stopOpacity={0.3} />
-                      <stop offset="95%" stopColor="#f59e0b" stopOpacity={0} />
+                      <stop offset="5%" stopColor="#1b508a" stopOpacity={0.3} />
+                      <stop offset="95%" stopColor="#1b508a" stopOpacity={0} />
                     </linearGradient>
                   </defs>
                   <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
                   <XAxis dataKey="tanggal" tick={{ fontSize: 10 }} interval="preserveStartEnd" />
                   <YAxis tick={{ fontSize: 10 }} tickFormatter={formatShortRupiah} width={45} />
                   <Tooltip content={<ChartTooltipContent />} />
-                  <Area type="monotone" dataKey="total" name="Pembelian" stroke="#f59e0b" fill="url(#colorPurchHist)" strokeWidth={2} />
+                  <Area type="monotone" dataKey="total" name="Pembelian" stroke="#1b508a" fill="url(#colorPurchHist)" strokeWidth={2} />
                 </AreaChart>
               </ResponsiveContainer>
             ) : (
@@ -137,7 +137,7 @@ export default function PurchaseHistory() {
                     </div>
                     <div className="h-2 overflow-hidden rounded-full bg-muted">
                       <div
-                        className="h-full rounded-full bg-amber-500 transition-all"
+                        className="h-full rounded-full bg-[#1b508a] transition-all"
                         style={{ width: `${(p.total / topProducts[0].total) * 100}%` }}
                       />
                     </div>
@@ -161,7 +161,7 @@ export default function PurchaseHistory() {
               {topSuppliers.map((s, i) => (
                 <div key={i} className="space-y-1">
                   <p className="truncate text-xs font-medium">{s.supplier}</p>
-                  <p className="text-lg font-bold text-amber-600 dark:text-amber-400">{formatRupiah(s.total)}</p>
+                  <p className="text-lg font-bold text-[#1b508a] dark:text-[#5ba0d0]">{formatRupiah(s.total)}</p>
                   <p className="text-[10px] text-muted-foreground">{s.count} transaksi</p>
                 </div>
               ))}

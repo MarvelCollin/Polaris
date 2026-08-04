@@ -10,9 +10,9 @@ interface Props {
 
 const variantColors = {
   default: "text-foreground",
-  success: "text-emerald-600 dark:text-emerald-400",
+  success: "text-[#e07828] dark:text-[#e8a04c]",
   danger: "text-red-600 dark:text-red-400",
-  warning: "text-amber-600 dark:text-amber-400",
+  warning: "text-[#1b508a] dark:text-[#5ba0d0]",
 };
 
 export default function StatsCard({ title, value, variant = "default", to }: Props) {

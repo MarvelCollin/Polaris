@@ -102,15 +102,15 @@ export default function SaleHistory() {
                 <AreaChart data={dailyData}>
                   <defs>
                     <linearGradient id="colorSaleHist" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3} />
-                      <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
+                      <stop offset="5%" stopColor="#e07828" stopOpacity={0.3} />
+                      <stop offset="95%" stopColor="#e07828" stopOpacity={0} />
                     </linearGradient>
                   </defs>
                   <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
                   <XAxis dataKey="tanggal" tick={{ fontSize: 10 }} interval="preserveStartEnd" />
                   <YAxis tick={{ fontSize: 10 }} tickFormatter={formatShortRupiah} width={45} />
                   <Tooltip content={<ChartTooltipContent />} />
-                  <Area type="monotone" dataKey="total" name="Penjualan" stroke="#3b82f6" fill="url(#colorSaleHist)" strokeWidth={2} />
+                  <Area type="monotone" dataKey="total" name="Penjualan" stroke="#e07828" fill="url(#colorSaleHist)" strokeWidth={2} />
                 </AreaChart>
               </ResponsiveContainer>
             ) : (
@@ -134,7 +134,7 @@ export default function SaleHistory() {
                     </div>
                     <div className="h-2 overflow-hidden rounded-full bg-muted">
                       <div
-                        className="h-full rounded-full bg-blue-500 transition-all"
+                        className="h-full rounded-full bg-[#e07828] transition-all"
                         style={{ width: `${(p.total / topProducts[0].total) * 100}%` }}
                       />
                     </div>
