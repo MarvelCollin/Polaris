@@ -31,6 +31,8 @@ describe("database", () => {
     expect(calls.some((c: string) => c.includes("CREATE TABLE IF NOT EXISTS item_penjualan"))).toBe(true);
     expect(calls.some((c: string) => c.includes("CREATE TABLE IF NOT EXISTS pembelian"))).toBe(true);
     expect(calls.some((c: string) => c.includes("CREATE TABLE IF NOT EXISTS item_pembelian"))).toBe(true);
+    expect(calls.some((c: string) => c.includes("CREATE TABLE IF NOT EXISTS pelanggan"))).toBe(true);
+    expect(calls.some((c: string) => c.includes("CREATE TABLE IF NOT EXISTS harga_pelanggan"))).toBe(true);
     expect(calls.some((c: string) => c.includes("CREATE TABLE IF NOT EXISTS settings"))).toBe(true);
   });
 
@@ -41,5 +43,17 @@ describe("database", () => {
     expect(calls.some((c: string) => c.includes("idx_produk_kategori"))).toBe(true);
     expect(calls.some((c: string) => c.includes("idx_produk_kode"))).toBe(true);
     expect(calls.some((c: string) => c.includes("idx_penjualan_faktur"))).toBe(true);
+    expect(calls.some((c: string) => c.includes("idx_harga_pelanggan_pelanggan"))).toBe(true);
+    expect(calls.some((c: string) => c.includes("idx_harga_pelanggan_produk"))).toBe(true);
+    expect(calls.some((c: string) => c.includes("idx_penjualan_pelanggan"))).toBe(true);
+  });
+
+  it("should run migration alters on initDb", async () => {
+    const { initDb } = await import("@/database");
+    await initDb();
+    const calls = mockDb.execute.mock.calls.map((c: unknown[]) => c[0] as string);
+    expect(calls.some((c: string) => c.includes("ALTER TABLE produk ADD COLUMN gambar"))).toBe(true);
+    expect(calls.some((c: string) => c.includes("ALTER TABLE penjualan ADD COLUMN pelanggan_id"))).toBe(true);
+    expect(calls.some((c: string) => c.includes("ALTER TABLE penjualan ADD COLUMN nama_pelanggan"))).toBe(true);
   });
 });

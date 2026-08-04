@@ -51,6 +51,42 @@ describe("sales", () => {
     expect(invoiceNumber).toMatch(/^INV-\d{8}-0001$/);
   });
 
+  it("should create a sale with customer info", async () => {
+    mockDb.select.mockResolvedValueOnce([{ count: 0 }]);
+    mockDb.execute.mockResolvedValueOnce({ lastInsertId: 1, rowsAffected: 1 });
+
+    const items: CartEntry[] = [
+      { produk_id: 1, nama: "Semen", satuan: "sak", jumlah: 10, harga: 52200, stok: 100 },
+    ];
+
+    await createSale(items, 522000, 1, "Pak Budi");
+
+    const saleInsert = mockDb.execute.mock.calls.find(
+      (c: unknown[]) => (c[0] as string).includes("INSERT INTO penjualan")
+    );
+    expect(saleInsert).toBeDefined();
+    expect((saleInsert![0] as string)).toContain("pelanggan_id");
+    expect((saleInsert![0] as string)).toContain("nama_pelanggan");
+    expect(saleInsert![1]).toContain(1);
+    expect(saleInsert![1]).toContain("Pak Budi");
+  });
+
+  it("should create a sale without customer (null pelanggan)", async () => {
+    mockDb.select.mockResolvedValueOnce([{ count: 0 }]);
+    mockDb.execute.mockResolvedValueOnce({ lastInsertId: 2, rowsAffected: 1 });
+
+    const items: CartEntry[] = [
+      { produk_id: 1, nama: "Semen", satuan: "sak", jumlah: 1, harga: 58000, stok: 100 },
+    ];
+
+    await createSale(items, 58000);
+
+    const saleInsert = mockDb.execute.mock.calls.find(
+      (c: unknown[]) => (c[0] as string).includes("INSERT INTO penjualan")
+    );
+    expect(saleInsert![1]).toContain(null);
+  });
+
   it("should fetch sales with pagination", async () => {
     mockDb.select.mockResolvedValueOnce([{ count: 10 }]);
     mockDb.select.mockResolvedValueOnce([
