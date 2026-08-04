@@ -2,11 +2,12 @@ import { useState, useCallback } from "react";
 import { useQuery } from "@/hooks/useQuery";
 import { useSort } from "@/hooks/useSort";
 import { useDebounce } from "@/hooks/useDebounce";
-import { getSales, getSaleItems, getSaleHistoryStats, getReturnedQtyMap, createSaleReturn } from "@/db/sales";
+import { getSales, getSaleItems, getSaleHistoryStats, getSaleHistoryDaily, getSaleHistoryTopProducts, getReturnedQtyMap, createSaleReturn } from "@/db/sales";
 import { Sale, SaleItem, formatRupiah, formatTanggal } from "@/types/index";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import SearchInput from "@/components/SearchInput";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
@@ -16,6 +17,29 @@ import Pagination from "@/components/Pagination";
 import SortableHead from "@/components/SortableHead";
 import { Badge } from "@/components/ui/badge";
 import { Eye, RotateCcw } from "lucide-react";
+import {
+  AreaChart, Area, BarChart, Bar,
+  XAxis, YAxis, CartesianGrid, Tooltip,
+  ResponsiveContainer,
+} from "recharts";
+
+function formatShortRupiah(value: number): string {
+  if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}jt`;
+  if (value >= 1_000) return `${(value / 1_000).toFixed(0)}rb`;
+  return String(value);
+}
+
+function ChartTooltip({ active, payload, label }: { active?: boolean; payload?: { name: string; value: number; color: string }[]; label?: string }) {
+  if (!active || !payload?.length) return null;
+  return (
+    <div className="rounded-md border bg-background p-2 text-xs shadow-md">
+      <p className="mb-1 font-medium">{label}</p>
+      {payload.map((entry, i) => (
+        <p key={i} style={{ color: entry.color }}>{entry.name}: {formatRupiah(entry.value)}</p>
+      ))}
+    </div>
+  );
+}
 
 const PER_PAGE = 20;
 
@@ -36,6 +60,12 @@ export default function SaleHistory() {
   );
   const { data: stats, refetch: refetchStats } = useQuery(
     useCallback(() => getSaleHistoryStats(start, end), [start, end])
+  );
+  const { data: dailyData } = useQuery(
+    useCallback(() => getSaleHistoryDaily(start, end), [start, end])
+  );
+  const { data: topProducts } = useQuery(
+    useCallback(() => getSaleHistoryTopProducts(start, end, 5), [start, end])
   );
 
   const { sorted, sortKey, sortDir, toggleSort } = useSort<Sale>(data?.data ?? null);
@@ -116,6 +146,57 @@ export default function SaleHistory() {
           <span className="text-muted-foreground">rata-rata {formatRupiah(stats?.avg ?? 0)}</span>
         </div>
       </div>
+
+      {(dailyData && dailyData.length > 0) || (topProducts && topProducts.length > 0) ? (
+        <div className="mb-4 grid grid-cols-5 gap-4">
+          <Card className="col-span-3">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-semibold">Tren Penjualan Harian</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {dailyData && dailyData.length > 0 ? (
+                <ResponsiveContainer width="100%" height={200}>
+                  <AreaChart data={dailyData}>
+                    <defs>
+                      <linearGradient id="colorSaleHist" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#e07828" stopOpacity={0.3} />
+                        <stop offset="95%" stopColor="#e07828" stopOpacity={0} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+                    <XAxis dataKey="tanggal" tick={{ fontSize: 10 }} interval="preserveStartEnd" />
+                    <YAxis tick={{ fontSize: 10 }} tickFormatter={formatShortRupiah} width={45} />
+                    <Tooltip content={<ChartTooltip />} />
+                    <Area type="monotone" dataKey="total" name="Penjualan" stroke="#e07828" fill="url(#colorSaleHist)" strokeWidth={2} />
+                  </AreaChart>
+                </ResponsiveContainer>
+              ) : (
+                <p className="py-12 text-center text-sm text-muted-foreground">Belum ada data</p>
+              )}
+            </CardContent>
+          </Card>
+          <Card className="col-span-2">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-semibold">Produk Terlaris</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {topProducts && topProducts.length > 0 ? (
+                <ResponsiveContainer width="100%" height={200}>
+                  <BarChart data={topProducts} layout="vertical">
+                    <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+                    <XAxis type="number" tick={{ fontSize: 10 }} tickFormatter={formatShortRupiah} />
+                    <YAxis type="category" dataKey="nama" tick={{ fontSize: 10 }} width={90} />
+                    <Tooltip content={<ChartTooltip />} />
+                    <Bar dataKey="total" name="Total" fill="#e07828" radius={[0, 4, 4, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              ) : (
+                <p className="py-12 text-center text-sm text-muted-foreground">Belum ada data</p>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      ) : null}
 
       <div className="mb-4 flex items-center gap-3">
         <div className="flex-1">

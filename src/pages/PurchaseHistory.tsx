@@ -2,11 +2,12 @@ import { useState, useCallback } from "react";
 import { useQuery } from "@/hooks/useQuery";
 import { useSort } from "@/hooks/useSort";
 import { useDebounce } from "@/hooks/useDebounce";
-import { getPurchases, getPurchaseItems, getPurchaseHistoryStats, getReturnedQtyMapPurchase, createPurchaseReturn } from "@/db/purchases";
+import { getPurchases, getPurchaseItems, getPurchaseHistoryStats, getPurchaseHistoryDaily, getPurchaseHistoryTopProducts, getPurchaseHistoryTopSuppliers, getReturnedQtyMapPurchase, createPurchaseReturn } from "@/db/purchases";
 import { Purchase, PurchaseItem, formatRupiah, formatTanggal } from "@/types/index";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import SearchInput from "@/components/SearchInput";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
@@ -16,6 +17,41 @@ import Pagination from "@/components/Pagination";
 import SortableHead from "@/components/SortableHead";
 import { Badge } from "@/components/ui/badge";
 import { Eye, RotateCcw } from "lucide-react";
+import {
+  AreaChart, Area, BarChart, Bar,
+  XAxis, YAxis, CartesianGrid, Tooltip,
+  ResponsiveContainer, PieChart, Pie, Cell,
+} from "recharts";
+
+const COLORS = ["#1b508a", "#e07828", "#2e7ab8", "#d4952e", "#3a8cc4"];
+
+function formatShortRupiah(value: number): string {
+  if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}jt`;
+  if (value >= 1_000) return `${(value / 1_000).toFixed(0)}rb`;
+  return String(value);
+}
+
+function ChartTooltip({ active, payload, label }: { active?: boolean; payload?: { name: string; value: number; color: string }[]; label?: string }) {
+  if (!active || !payload?.length) return null;
+  return (
+    <div className="rounded-md border bg-background p-2 text-xs shadow-md">
+      <p className="mb-1 font-medium">{label}</p>
+      {payload.map((entry, i) => (
+        <p key={i} style={{ color: entry.color }}>{entry.name}: {formatRupiah(entry.value)}</p>
+      ))}
+    </div>
+  );
+}
+
+function PieTooltip({ active, payload }: { active?: boolean; payload?: { name: string; value: number }[] }) {
+  if (!active || !payload?.length) return null;
+  return (
+    <div className="rounded-md border bg-background p-2 text-xs shadow-md">
+      <p className="font-medium">{payload[0].name}</p>
+      <p>{formatRupiah(payload[0].value)}</p>
+    </div>
+  );
+}
 
 const PER_PAGE = 20;
 
@@ -36,6 +72,15 @@ export default function PurchaseHistory() {
   );
   const { data: stats, refetch: refetchStats } = useQuery(
     useCallback(() => getPurchaseHistoryStats(start, end), [start, end])
+  );
+  const { data: dailyData } = useQuery(
+    useCallback(() => getPurchaseHistoryDaily(start, end), [start, end])
+  );
+  const { data: topProducts } = useQuery(
+    useCallback(() => getPurchaseHistoryTopProducts(start, end, 5), [start, end])
+  );
+  const { data: topSuppliers } = useQuery(
+    useCallback(() => getPurchaseHistoryTopSuppliers(start, end, 5), [start, end])
   );
 
   const { sorted, sortKey, sortDir, toggleSort } = useSort<Purchase>(data?.data ?? null);
@@ -113,6 +158,97 @@ export default function PurchaseHistory() {
           <span className="text-muted-foreground">rata-rata {formatRupiah(stats?.avg ?? 0)}</span>
         </div>
       </div>
+
+      {(dailyData && dailyData.length > 0) || (topProducts && topProducts.length > 0) || (topSuppliers && topSuppliers.length > 0) ? (
+        <div className="mb-4 grid grid-cols-6 gap-4">
+          <Card className="col-span-3">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-semibold">Tren Pembelian Harian</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {dailyData && dailyData.length > 0 ? (
+                <ResponsiveContainer width="100%" height={200}>
+                  <AreaChart data={dailyData}>
+                    <defs>
+                      <linearGradient id="colorPurchHist" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#1b508a" stopOpacity={0.3} />
+                        <stop offset="95%" stopColor="#1b508a" stopOpacity={0} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+                    <XAxis dataKey="tanggal" tick={{ fontSize: 10 }} interval="preserveStartEnd" />
+                    <YAxis tick={{ fontSize: 10 }} tickFormatter={formatShortRupiah} width={45} />
+                    <Tooltip content={<ChartTooltip />} />
+                    <Area type="monotone" dataKey="total" name="Pembelian" stroke="#1b508a" fill="url(#colorPurchHist)" strokeWidth={2} />
+                  </AreaChart>
+                </ResponsiveContainer>
+              ) : (
+                <p className="py-12 text-center text-sm text-muted-foreground">Belum ada data</p>
+              )}
+            </CardContent>
+          </Card>
+          <Card className="col-span-2">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-semibold">Produk Terbanyak Dibeli</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {topProducts && topProducts.length > 0 ? (
+                <ResponsiveContainer width="100%" height={200}>
+                  <BarChart data={topProducts} layout="vertical">
+                    <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+                    <XAxis type="number" tick={{ fontSize: 10 }} tickFormatter={formatShortRupiah} />
+                    <YAxis type="category" dataKey="nama" tick={{ fontSize: 10 }} width={90} />
+                    <Tooltip content={<ChartTooltip />} />
+                    <Bar dataKey="total" name="Total" fill="#1b508a" radius={[0, 4, 4, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              ) : (
+                <p className="py-12 text-center text-sm text-muted-foreground">Belum ada data</p>
+              )}
+            </CardContent>
+          </Card>
+          <Card className="col-span-1">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-semibold">Top Supplier</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {topSuppliers && topSuppliers.length > 0 ? (
+                <div>
+                  <ResponsiveContainer width="100%" height={140}>
+                    <PieChart>
+                      <Pie
+                        data={topSuppliers}
+                        dataKey="total"
+                        nameKey="supplier"
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={30}
+                        outerRadius={55}
+                        paddingAngle={2}
+                      >
+                        {topSuppliers.map((_, i) => (
+                          <Cell key={i} fill={COLORS[i % COLORS.length]} />
+                        ))}
+                      </Pie>
+                      <Tooltip content={<PieTooltip />} />
+                    </PieChart>
+                  </ResponsiveContainer>
+                  <div className="mt-1 space-y-0.5 px-1">
+                    {topSuppliers.map((s, i) => (
+                      <div key={i} className="flex items-center gap-1 text-[10px]">
+                        <div className="size-2 shrink-0 rounded-full" style={{ backgroundColor: COLORS[i % COLORS.length] }} />
+                        <span className="truncate text-muted-foreground">{s.supplier}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <p className="py-12 text-center text-sm text-muted-foreground">Belum ada data</p>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      ) : null}
 
       <div className="mb-4 flex items-center gap-3">
         <div className="flex-1">
