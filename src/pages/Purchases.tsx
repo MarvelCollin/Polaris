@@ -86,7 +86,7 @@ export default function Purchases() {
       <h1 className="mb-4 text-2xl font-bold">Pembelian</h1>
 
       {success && (
-        <div className="animate-fade-in-up mb-4 flex items-center gap-2 rounded-md bg-emerald-50 p-3 text-sm text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">
+        <div className="animate-fade-in-up mb-4 flex items-center gap-2 rounded-md bg-[#1b508a]/10 p-3 text-sm text-[#1b508a] dark:bg-[#1b508a]/20 dark:text-[#5ba0d0]">
           <CheckCircle className="size-4" /> {success}
         </div>
       )}
@@ -187,7 +187,7 @@ export default function Purchases() {
                   type="button"
                   onClick={() => setIsUtang(!isUtang)}
                   className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors ${
-                    isUtang ? "bg-amber-500" : "bg-muted"
+                    isUtang ? "bg-primary" : "bg-muted"
                   }`}
                 >
                   <span className={`pointer-events-none inline-block size-4 rounded-full bg-white shadow-sm transition-transform ${
@@ -210,7 +210,7 @@ export default function Purchases() {
                   {total > 0 && (
                     <div className="flex justify-between text-sm">
                       <span className="text-muted-foreground">Sisa Utang</span>
-                      <span className="font-medium text-amber-600">{formatRupiah(Math.max(0, total - dibayar))}</span>
+                      <span className="font-medium text-destructive">{formatRupiah(Math.max(0, total - dibayar))}</span>
                     </div>
                   )}
                 </>

@@ -337,7 +337,7 @@ export default function Products() {
                 <span className="text-sm text-muted-foreground">{stockTarget.satuan}</span>
               </div>
               {stockValue !== stockTarget.stok && (
-                <p className={`mt-1 text-xs ${stockValue > stockTarget.stok ? "text-emerald-600" : "text-amber-600"}`}>
+                <p className={`mt-1 text-xs ${stockValue > stockTarget.stok ? "text-[#1b508a] dark:text-[#5ba0d0]" : "text-destructive"}`}>
                   {stockValue > stockTarget.stok ? "+" : ""}{stockValue - stockTarget.stok} {stockTarget.satuan}
                 </p>
               )}
