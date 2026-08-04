@@ -2,7 +2,7 @@ import { useState, useCallback } from "react";
 import { useQuery } from "@/hooks/useQuery";
 import { useDebounce } from "@/hooks/useDebounce";
 import { useSort } from "@/hooks/useSort";
-import { getProducts, createProduct, updateProduct, deleteProduct, generateProductCode } from "@/db/products";
+import { getProducts, createProduct, updateProduct, deleteProduct, generateProductCode, updateStock } from "@/db/products";
 import { getCategories } from "@/db/categories";
 import { ProductWithCategory } from "@/types/index";
 import { formatRupiah } from "@/types/index";
@@ -19,7 +19,7 @@ import {
 import Modal from "@/components/Modal";
 import ConfirmDialog from "@/components/ConfirmDialog";
 import SearchInput from "@/components/SearchInput";
-import { Plus, Pencil, Trash2, ImagePlus, X } from "lucide-react";
+import { Plus, Minus, Pencil, Trash2, ImagePlus, X, PackagePlus } from "lucide-react";
 import SearchableSelect from "@/components/SearchableSelect";
 
 const emptyForm = {
@@ -45,6 +45,8 @@ export default function Products() {
   const [deleteTarget, setDeleteTarget] = useState<ProductWithCategory | null>(null);
   const [error, setError] = useState("");
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [stockTarget, setStockTarget] = useState<ProductWithCategory | null>(null);
+  const [stockValue, setStockValue] = useState(0);
 
   function set(key: string, value: string | number) {
     setForm((f) => ({ ...f, [key]: value }));
@@ -109,6 +111,22 @@ export default function Products() {
       refetch();
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
+    }
+  }
+
+  function openStock(p: ProductWithCategory) {
+    setStockTarget(p);
+    setStockValue(p.stok);
+  }
+
+  async function handleStockSave() {
+    if (!stockTarget) return;
+    try {
+      await updateStock(stockTarget.id, stockValue);
+      setStockTarget(null);
+      refetch();
+    } catch (e) {
+      alert(e instanceof Error ? e.message : String(e));
     }
   }
 
@@ -184,6 +202,9 @@ export default function Products() {
                 </TableCell>
                 <TableCell>
                   <div className="flex gap-1">
+                    <Button variant="ghost" size="icon-xs" onClick={() => openStock(p)} title="Update Stok">
+                      <PackagePlus className="size-3.5" />
+                    </Button>
                     <Button variant="ghost" size="icon-xs" onClick={() => openEdit(p)}>
                       <Pencil className="size-3.5" />
                     </Button>
@@ -279,6 +300,54 @@ export default function Products() {
             <Button onClick={handleSave}>Simpan</Button>
           </div>
         </div>
+      </Modal>
+
+      <Modal open={!!stockTarget} onClose={() => setStockTarget(null)} title={`Update Stok - ${stockTarget?.nama ?? ""}`}>
+        {stockTarget && (
+          <div className="space-y-4">
+            <div className="rounded-md bg-muted p-3 text-sm">
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Produk</span>
+                <span className="font-medium">{stockTarget.nama}</span>
+              </div>
+              <div className="mt-1 flex justify-between">
+                <span className="text-muted-foreground">Stok Saat Ini</span>
+                <span className="font-medium">{stockTarget.stok} {stockTarget.satuan}</span>
+              </div>
+              <div className="mt-1 flex justify-between">
+                <span className="text-muted-foreground">Stok Minimum</span>
+                <span className="font-medium">{stockTarget.stok_minimum} {stockTarget.satuan}</span>
+              </div>
+            </div>
+            <div>
+              <Label>Stok Baru</Label>
+              <div className="flex items-center gap-2">
+                <Button variant="outline" size="icon-xs" onClick={() => setStockValue((v) => Math.max(0, v - 1))}>
+                  <Minus className="size-3" />
+                </Button>
+                <Input
+                  type="number"
+                  value={stockValue}
+                  onChange={(e) => setStockValue(Number(e.target.value))}
+                  className="w-28 text-center"
+                />
+                <Button variant="outline" size="icon-xs" onClick={() => setStockValue((v) => v + 1)}>
+                  <Plus className="size-3" />
+                </Button>
+                <span className="text-sm text-muted-foreground">{stockTarget.satuan}</span>
+              </div>
+              {stockValue !== stockTarget.stok && (
+                <p className={`mt-1 text-xs ${stockValue > stockTarget.stok ? "text-emerald-600" : "text-amber-600"}`}>
+                  {stockValue > stockTarget.stok ? "+" : ""}{stockValue - stockTarget.stok} {stockTarget.satuan}
+                </p>
+              )}
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setStockTarget(null)}>Batal</Button>
+              <Button onClick={handleStockSave}>Simpan</Button>
+            </div>
+          </div>
+        )}
       </Modal>
 
       <ConfirmDialog
