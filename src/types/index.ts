@@ -23,12 +23,32 @@ export interface ProductWithCategory extends Product {
   kategori_nama: string;
 }
 
+export interface Customer {
+  id: number;
+  nama: string;
+  telepon: string | null;
+  alamat: string | null;
+  dibuat_pada: number;
+}
+
+export interface CustomerPrice {
+  id: number;
+  pelanggan_id: number;
+  produk_id: number;
+  harga: number;
+  nama_produk?: string;
+  kode_produk?: string;
+  harga_jual_default?: number;
+}
+
 export interface Sale {
   id: number;
   nomor_faktur: string;
   total: number;
   dibayar: number;
   kembalian: number;
+  pelanggan_id: number | null;
+  nama_pelanggan: string | null;
   dibuat_pada: number;
 }
 

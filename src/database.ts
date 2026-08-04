@@ -94,15 +94,37 @@ export async function initDb() {
   `);
 
   await database.execute(`
+    CREATE TABLE IF NOT EXISTS pelanggan (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      nama TEXT NOT NULL,
+      telepon TEXT,
+      alamat TEXT,
+      dibuat_pada INTEGER NOT NULL DEFAULT (strftime('%s', 'now'))
+    )
+  `);
+
+  await database.execute(`
+    CREATE TABLE IF NOT EXISTS harga_pelanggan (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      pelanggan_id INTEGER NOT NULL,
+      produk_id INTEGER NOT NULL,
+      harga REAL NOT NULL,
+      FOREIGN KEY (pelanggan_id) REFERENCES pelanggan(id) ON DELETE CASCADE,
+      FOREIGN KEY (produk_id) REFERENCES produk(id) ON DELETE CASCADE,
+      UNIQUE(pelanggan_id, produk_id)
+    )
+  `);
+
+  await database.execute(`
     CREATE TABLE IF NOT EXISTS settings (
       key TEXT PRIMARY KEY,
       value TEXT NOT NULL
     )
   `);
 
-  try {
-    await database.execute("ALTER TABLE produk ADD COLUMN gambar TEXT");
-  } catch (_) {}
+  try { await database.execute("ALTER TABLE produk ADD COLUMN gambar TEXT"); } catch (_) {}
+  try { await database.execute("ALTER TABLE penjualan ADD COLUMN pelanggan_id INTEGER REFERENCES pelanggan(id)"); } catch (_) {}
+  try { await database.execute("ALTER TABLE penjualan ADD COLUMN nama_pelanggan TEXT"); } catch (_) {}
 
   await database.execute(`CREATE INDEX IF NOT EXISTS idx_produk_kategori ON produk(kategori_id)`);
   await database.execute(`CREATE INDEX IF NOT EXISTS idx_produk_kode ON produk(kode)`);
@@ -114,4 +136,7 @@ export async function initDb() {
   await database.execute(`CREATE INDEX IF NOT EXISTS idx_penjualan_dibuat ON penjualan(dibuat_pada)`);
   await database.execute(`CREATE INDEX IF NOT EXISTS idx_penjualan_faktur ON penjualan(nomor_faktur)`);
   await database.execute(`CREATE INDEX IF NOT EXISTS idx_pembelian_dibuat ON pembelian(dibuat_pada)`);
+  await database.execute(`CREATE INDEX IF NOT EXISTS idx_harga_pelanggan_pelanggan ON harga_pelanggan(pelanggan_id)`);
+  await database.execute(`CREATE INDEX IF NOT EXISTS idx_harga_pelanggan_produk ON harga_pelanggan(produk_id)`);
+  await database.execute(`CREATE INDEX IF NOT EXISTS idx_penjualan_pelanggan ON penjualan(pelanggan_id)`);
 }
