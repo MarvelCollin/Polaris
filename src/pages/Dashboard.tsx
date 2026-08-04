@@ -1,4 +1,5 @@
 import { useCallback } from "react";
+import { useNavigate } from "react-router-dom";
 import { useQuery } from "@/hooks/useQuery";
 import {
   getDashboardStats,
@@ -56,6 +57,7 @@ function PieTooltipContent({ active, payload }: { active?: boolean; payload?: { 
 }
 
 export default function Dashboard() {
+  const navigate = useNavigate();
   const { data: stats } = useQuery(useCallback(() => getDashboardStats(), []));
   const { data: lowStock } = useQuery(useCallback(() => getLowStockProducts(), []));
   const { data: recentSales } = useQuery(useCallback(() => getRecentSales(), []));
@@ -71,38 +73,40 @@ export default function Dashboard() {
 
       <div className="mb-6 grid grid-cols-4 gap-4">
         <div className="animate-fade-in-up">
-          <StatsCard title="Penjualan Bulan Ini" value={formatRupiah(stats?.monthlySales ?? 0)} variant="success" />
+          <StatsCard title="Penjualan Bulan Ini" value={formatRupiah(stats?.monthlySales ?? 0)} variant="success" to="/riwayat-jual" />
         </div>
         <div className="animate-fade-in-up" style={{ animationDelay: "50ms", animationFillMode: "backwards" }}>
-          <StatsCard title="Pembelian Bulan Ini" value={formatRupiah(stats?.monthlyPurchases ?? 0)} variant="warning" />
+          <StatsCard title="Pembelian Bulan Ini" value={formatRupiah(stats?.monthlyPurchases ?? 0)} variant="warning" to="/riwayat-beli" />
         </div>
         <div className="animate-fade-in-up" style={{ animationDelay: "100ms", animationFillMode: "backwards" }}>
           <StatsCard
             title="Laba Kotor Bulan Ini"
             value={formatRupiah(stats?.monthlyProfit ?? 0)}
             variant={(stats?.monthlyProfit ?? 0) >= 0 ? "success" : "danger"}
+            to="/riwayat-jual"
           />
         </div>
         <div className="animate-fade-in-up" style={{ animationDelay: "150ms", animationFillMode: "backwards" }}>
-          <StatsCard title="Total Pelanggan" value={String(stats?.totalCustomers ?? 0)} />
+          <StatsCard title="Total Pelanggan" value={String(stats?.totalCustomers ?? 0)} to="/pelanggan" />
         </div>
       </div>
 
       <div className="mb-4 grid grid-cols-4 gap-4">
         <div className="animate-fade-in-up" style={{ animationDelay: "100ms", animationFillMode: "backwards" }}>
-          <StatsCard title="Penjualan Hari Ini" value={formatRupiah(stats?.todaySales ?? 0)} variant="success" />
+          <StatsCard title="Penjualan Hari Ini" value={formatRupiah(stats?.todaySales ?? 0)} variant="success" to="/kasir" />
         </div>
         <div className="animate-fade-in-up" style={{ animationDelay: "150ms", animationFillMode: "backwards" }}>
-          <StatsCard title="Pembelian Hari Ini" value={formatRupiah(stats?.todayPurchases ?? 0)} variant="warning" />
+          <StatsCard title="Pembelian Hari Ini" value={formatRupiah(stats?.todayPurchases ?? 0)} variant="warning" to="/pembelian" />
         </div>
         <div className="animate-fade-in-up" style={{ animationDelay: "200ms", animationFillMode: "backwards" }}>
-          <StatsCard title="Total Produk" value={String(stats?.totalProducts ?? 0)} />
+          <StatsCard title="Total Produk" value={String(stats?.totalProducts ?? 0)} to="/produk" />
         </div>
         <div className="animate-fade-in-up" style={{ animationDelay: "250ms", animationFillMode: "backwards" }}>
           <StatsCard
             title="Stok Rendah"
             value={String(stats?.lowStockCount ?? 0)}
             variant={stats?.lowStockCount ? "danger" : "default"}
+            to="/produk"
           />
         </div>
       </div>
@@ -110,7 +114,7 @@ export default function Dashboard() {
       <div className="mb-6 grid grid-cols-3 gap-6">
         <Card className="col-span-2 animate-fade-in-up" style={{ animationDelay: "200ms", animationFillMode: "backwards" }}>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-semibold">Penjualan 30 Hari Terakhir</CardTitle>
+            <CardTitle className="cursor-pointer text-sm font-semibold hover:text-primary" onClick={() => navigate("/riwayat-jual")}>Penjualan 30 Hari Terakhir →</CardTitle>
           </CardHeader>
           <CardContent>
             {dailySales && dailySales.length > 0 ? (
@@ -137,7 +141,7 @@ export default function Dashboard() {
 
         <Card className="animate-fade-in-up" style={{ animationDelay: "250ms", animationFillMode: "backwards" }}>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-semibold">Penjualan per Kategori</CardTitle>
+            <CardTitle className="cursor-pointer text-sm font-semibold hover:text-primary" onClick={() => navigate("/kategori")}>Penjualan per Kategori →</CardTitle>
           </CardHeader>
           <CardContent>
             {categoryData && categoryData.length > 0 ? (
@@ -180,7 +184,7 @@ export default function Dashboard() {
       <div className="mb-6 grid grid-cols-3 gap-6">
         <Card className="col-span-2 animate-fade-in-up" style={{ animationDelay: "300ms", animationFillMode: "backwards" }}>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-semibold">Penjualan vs Pembelian (6 Bulan)</CardTitle>
+            <CardTitle className="cursor-pointer text-sm font-semibold hover:text-primary" onClick={() => navigate("/riwayat-jual")}>Penjualan vs Pembelian (6 Bulan) →</CardTitle>
           </CardHeader>
           <CardContent>
             {monthlyData && monthlyData.length > 0 ? (
@@ -203,7 +207,7 @@ export default function Dashboard() {
 
         <Card className="animate-fade-in-up" style={{ animationDelay: "350ms", animationFillMode: "backwards" }}>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-semibold">Produk Terlaris</CardTitle>
+            <CardTitle className="cursor-pointer text-sm font-semibold hover:text-primary" onClick={() => navigate("/produk")}>Produk Terlaris →</CardTitle>
           </CardHeader>
           <CardContent>
             {topProducts && topProducts.length > 0 ? (
@@ -233,7 +237,7 @@ export default function Dashboard() {
       <div className="mb-6 grid grid-cols-3 gap-6">
         <Card className="animate-fade-in-up" style={{ animationDelay: "350ms", animationFillMode: "backwards" }}>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-semibold">Stok Rendah</CardTitle>
+            <CardTitle className="cursor-pointer text-sm font-semibold hover:text-primary" onClick={() => navigate("/produk")}>Stok Rendah →</CardTitle>
           </CardHeader>
           <CardContent>
             {lowStock && lowStock.length > 0 ? (
@@ -265,7 +269,7 @@ export default function Dashboard() {
 
         <Card className="animate-fade-in-up" style={{ animationDelay: "400ms", animationFillMode: "backwards" }}>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-semibold">Pelanggan Terbaik</CardTitle>
+            <CardTitle className="cursor-pointer text-sm font-semibold hover:text-primary" onClick={() => navigate("/pelanggan")}>Pelanggan Terbaik →</CardTitle>
           </CardHeader>
           <CardContent>
             {topCustomers && topCustomers.length > 0 ? (
@@ -293,7 +297,7 @@ export default function Dashboard() {
 
         <Card className="animate-fade-in-up" style={{ animationDelay: "450ms", animationFillMode: "backwards" }}>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-semibold">Penjualan Terakhir</CardTitle>
+            <CardTitle className="cursor-pointer text-sm font-semibold hover:text-primary" onClick={() => navigate("/riwayat-jual")}>Penjualan Terakhir →</CardTitle>
           </CardHeader>
           <CardContent>
             {recentSales && recentSales.length > 0 ? (
