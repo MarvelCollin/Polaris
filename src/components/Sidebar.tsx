@@ -13,6 +13,7 @@ import {
   Moon,
   Sun,
   Wallet,
+  HardDrive,
 } from "lucide-react";
 
 const links = [
@@ -25,6 +26,7 @@ const links = [
   { to: "/riwayat-jual", label: "Riwayat Penjualan", icon: FileText },
   { to: "/riwayat-beli", label: "Riwayat Pembelian", icon: FileText },
   { to: "/utang-piutang", label: "Utang & Piutang", icon: Wallet },
+  { to: "/backup", label: "Backup", icon: HardDrive },
 ];
 
 export default function Sidebar() {
