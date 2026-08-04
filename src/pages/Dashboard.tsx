@@ -12,6 +12,7 @@ import {
   getTopCustomers,
   getSalesRecap,
   getPurchasesRecap,
+  getGrossProfitByProduct,
 } from "@/db/dashboard";
 import { formatRupiah, formatTanggal } from "@/types/index";
 import StatsCard from "@/components/StatsCard";
@@ -72,6 +73,7 @@ export default function Dashboard() {
   const { data: categoryData } = useQuery(useCallback(() => getSalesByCategory(), []));
   const { data: topProducts } = useQuery(useCallback(() => getTopProducts(5), []));
   const { data: topCustomers } = useQuery(useCallback(() => getTopCustomers(5), []));
+  const { data: grossProfit } = useQuery(useCallback(() => getGrossProfitByProduct(10), []));
   const { data: salesRecap } = useQuery(useCallback(() => getSalesRecap(recapPeriod), [recapPeriod]));
   const { data: purchasesRecap } = useQuery(useCallback(() => getPurchasesRecap(recapPeriod), [recapPeriod]));
 
@@ -334,6 +336,52 @@ export default function Dashboard() {
           </CardContent>
         </Card>
       </div>
+
+      {grossProfit && grossProfit.length > 0 && (
+        <Card className="mb-6 animate-fade-in-up" style={{ animationDelay: "450ms", animationFillMode: "backwards" }}>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-semibold">Laba Kotor per Produk</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Produk</TableHead>
+                  <TableHead className="text-right">Terjual</TableHead>
+                  <TableHead className="text-right">Pendapatan</TableHead>
+                  <TableHead className="text-right">Modal (HPP)</TableHead>
+                  <TableHead className="text-right">Laba</TableHead>
+                  <TableHead className="text-right">Margin</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {grossProfit.map((p, i) => (
+                  <TableRow key={i}>
+                    <TableCell className="text-xs font-medium">{p.nama}</TableCell>
+                    <TableCell className="text-right text-xs">{p.jumlah}</TableCell>
+                    <TableCell className="text-right text-xs">{formatRupiah(p.pendapatan)}</TableCell>
+                    <TableCell className="text-right text-xs">{formatRupiah(p.modal)}</TableCell>
+                    <TableCell className={`text-right text-xs font-medium ${p.laba >= 0 ? "text-green-600 dark:text-green-400" : "text-destructive"}`}>
+                      {formatRupiah(p.laba)}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <Badge variant={p.margin >= 20 ? "default" : p.margin >= 10 ? "secondary" : "destructive"}>
+                        {p.margin}%
+                      </Badge>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+            <div className="mt-2 flex justify-between border-t pt-2 text-sm font-bold">
+              <span>Total Laba Kotor</span>
+              <span className={grossProfit.reduce((s, p) => s + p.laba, 0) >= 0 ? "text-green-600 dark:text-green-400" : "text-destructive"}>
+                {formatRupiah(grossProfit.reduce((s, p) => s + p.laba, 0))}
+              </span>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <div className="mb-6">
         <div className="mb-3 flex items-center gap-3">

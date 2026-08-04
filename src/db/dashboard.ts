@@ -214,3 +214,31 @@ export async function getRecentSales(): Promise<Sale[]> {
     "SELECT * FROM penjualan ORDER BY dibuat_pada DESC LIMIT 5"
   );
 }
+
+export async function getGrossProfitByProduct(limit: number = 10): Promise<{
+  nama: string;
+  jumlah: number;
+  pendapatan: number;
+  modal: number;
+  laba: number;
+  margin: number;
+}[]> {
+  const db = await getDb();
+  const rows: { nama: string; jumlah: number; pendapatan: number; modal: number }[] = await db.select(
+    `SELECT ip.nama_produk as nama,
+       SUM(ip.jumlah) as jumlah,
+       SUM(ip.subtotal) as pendapatan,
+       SUM(ip.jumlah * ip.hpp) as modal
+     FROM item_penjualan ip
+     WHERE ip.hpp > 0
+     GROUP BY ip.produk_id
+     ORDER BY (SUM(ip.subtotal) - SUM(ip.jumlah * ip.hpp)) DESC
+     LIMIT $1`,
+    [limit]
+  );
+  return rows.map((r) => ({
+    ...r,
+    laba: r.pendapatan - r.modal,
+    margin: r.pendapatan > 0 ? Math.round(((r.pendapatan - r.modal) / r.pendapatan) * 100) : 0,
+  }));
+}
