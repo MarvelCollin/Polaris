@@ -209,7 +209,7 @@ export default function Sales() {
               <div className="mb-2 flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
                 <Star className="size-3" /> Sering Dibeli
               </div>
-              <div className="grid grid-cols-4 gap-2">
+              <div className="grid grid-cols-4 gap-2 p-1">
                 {frequentProducts.map((p) => (
                   <ProductTile key={p.id} p={p} />
                 ))}
@@ -245,7 +245,7 @@ export default function Sales() {
             ))}
           </div>
 
-          <div className="max-h-[calc(100vh-320px)] overflow-y-auto rounded-md">
+          <div className="max-h-[calc(100vh-320px)] overflow-y-auto rounded-md p-1">
             {filteredProducts.length > 0 ? (
               <div className="grid grid-cols-3 gap-2">
                 {filteredProducts.map((p) => (
