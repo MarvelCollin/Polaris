@@ -52,16 +52,23 @@ export async function getSales(
   startDate?: number,
   endDate?: number,
   limit: number = 50,
-  offset: number = 0
+  offset: number = 0,
+  search?: string
 ): Promise<{ data: Sale[]; total: number }> {
   const db = await getDb();
-  let where = "";
-  const params: number[] = [];
+  const conditions: string[] = [];
+  const params: (number | string)[] = [];
 
   if (startDate && endDate) {
-    where = "WHERE dibuat_pada >= $1 AND dibuat_pada <= $2";
+    conditions.push(`dibuat_pada >= $${params.length + 1} AND dibuat_pada <= $${params.length + 2}`);
     params.push(startDate, endDate);
   }
+  if (search) {
+    conditions.push(`(nomor_faktur LIKE $${params.length + 1} OR nama_pelanggan LIKE $${params.length + 1})`);
+    params.push(`%${search}%`);
+  }
+
+  const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
 
   const countRows: { count: number }[] = await db.select(
     `SELECT COUNT(*) as count FROM penjualan ${where}`,

@@ -1,8 +1,10 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useMemo } from "react";
 import { useQuery } from "@/hooks/useQuery";
+import { useDebounce } from "@/hooks/useDebounce";
 import { getSaleDebts, getSalePayments, addSalePayment } from "@/db/sales";
 import { getPurchaseDebts, getPurchasePayments, addPurchasePayment } from "@/db/purchases";
 import { Payment, formatRupiah, formatTanggal } from "@/types/index";
+import SearchInput from "@/components/SearchInput";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -17,6 +19,8 @@ type Tab = "piutang" | "utang";
 
 export default function UtangPiutang() {
   const [tab, setTab] = useState<Tab>("piutang");
+  const [search, setSearch] = useState("");
+  const debouncedSearch = useDebounce(search);
 
   const { data: saleDebts, refetch: refetchSale } = useQuery(
     useCallback(() => getSaleDebts(), [])
@@ -34,6 +38,18 @@ export default function UtangPiutang() {
 
   const [historyModal, setHistoryModal] = useState<{ type: "sale" | "purchase"; id: number; label: string } | null>(null);
   const [payments, setPayments] = useState<Payment[] | null>(null);
+
+  const filteredSaleDebts = useMemo(() => {
+    if (!saleDebts || !debouncedSearch) return saleDebts;
+    const q = debouncedSearch.toLowerCase();
+    return saleDebts.filter((d) => d.nama_pelanggan?.toLowerCase().includes(q) || d.nomor_faktur.toLowerCase().includes(q));
+  }, [saleDebts, debouncedSearch]);
+
+  const filteredPurchaseDebts = useMemo(() => {
+    if (!purchaseDebts || !debouncedSearch) return purchaseDebts;
+    const q = debouncedSearch.toLowerCase();
+    return purchaseDebts.filter((d) => d.supplier.toLowerCase().includes(q) || d.referensi_faktur?.toLowerCase().includes(q));
+  }, [purchaseDebts, debouncedSearch]);
 
   const totalPiutang = saleDebts?.reduce((s, d) => s + d.sisa, 0) ?? 0;
   const totalUtang = purchaseDebts?.reduce((s, d) => s + d.sisa, 0) ?? 0;
@@ -81,7 +97,8 @@ export default function UtangPiutang() {
         <StatsCard title="Total Utang (Supplier)" value={formatRupiah(totalUtang)} variant="danger" />
       </div>
 
-      <div className="mb-4 flex gap-1">
+      <div className="mb-4 flex items-center gap-3">
+        <div className="flex gap-1">
         {(["piutang", "utang"] as Tab[]).map((t) => (
           <button
             key={t}
@@ -96,11 +113,15 @@ export default function UtangPiutang() {
             {t === "piutang" ? "Piutang Pelanggan" : "Utang ke Supplier"}
           </button>
         ))}
+        </div>
+        <div className="flex-1">
+          <SearchInput value={search} onChange={setSearch} placeholder={tab === "piutang" ? "Cari pelanggan atau faktur..." : "Cari supplier atau faktur..."} />
+        </div>
       </div>
 
       {tab === "piutang" && (
         <>
-          {saleDebts && saleDebts.length > 0 ? (
+          {filteredSaleDebts && filteredSaleDebts.length > 0 ? (
             <Table>
               <TableHeader>
                 <TableRow>
@@ -114,7 +135,7 @@ export default function UtangPiutang() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {saleDebts.map((d) => (
+                {filteredSaleDebts.map((d) => (
                   <TableRow key={d.id}>
                     <TableCell className="font-mono text-xs">{d.nomor_faktur}</TableCell>
                     <TableCell>{d.nama_pelanggan}</TableCell>
@@ -146,7 +167,7 @@ export default function UtangPiutang() {
 
       {tab === "utang" && (
         <>
-          {purchaseDebts && purchaseDebts.length > 0 ? (
+          {filteredPurchaseDebts && filteredPurchaseDebts.length > 0 ? (
             <Table>
               <TableHeader>
                 <TableRow>
@@ -160,7 +181,7 @@ export default function UtangPiutang() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {purchaseDebts.map((d) => (
+                {filteredPurchaseDebts.map((d) => (
                   <TableRow key={d.id}>
                     <TableCell>{d.supplier}</TableCell>
                     <TableCell className="font-mono text-xs">{d.referensi_faktur || "-"}</TableCell>

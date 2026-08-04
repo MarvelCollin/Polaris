@@ -1,47 +1,26 @@
 import { useState, useCallback } from "react";
 import { useQuery } from "@/hooks/useQuery";
 import { useSort } from "@/hooks/useSort";
-import { getPurchases, getPurchaseItems, getPurchaseHistoryStats, getPurchaseHistoryDaily, getPurchaseHistoryTopProducts, getPurchaseHistoryTopSuppliers } from "@/db/purchases";
+import { useDebounce } from "@/hooks/useDebounce";
+import { getPurchases, getPurchaseItems, getPurchaseHistoryStats } from "@/db/purchases";
 import { Purchase, PurchaseItem, formatRupiah, formatTanggal } from "@/types/index";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import SearchInput from "@/components/SearchInput";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import Modal from "@/components/Modal";
 import Pagination from "@/components/Pagination";
 import SortableHead from "@/components/SortableHead";
-import StatsCard from "@/components/StatsCard";
 import { Badge } from "@/components/ui/badge";
 import { Eye } from "lucide-react";
-import {
-  AreaChart, Area,
-  XAxis, YAxis, CartesianGrid, Tooltip,
-  ResponsiveContainer,
-} from "recharts";
-
-function formatShortRupiah(value: number): string {
-  if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}jt`;
-  if (value >= 1_000) return `${(value / 1_000).toFixed(0)}rb`;
-  return String(value);
-}
-
-function ChartTooltipContent({ active, payload, label }: { active?: boolean; payload?: { name: string; value: number; color: string }[]; label?: string }) {
-  if (!active || !payload?.length) return null;
-  return (
-    <div className="rounded-md border bg-background p-2 text-xs shadow-md">
-      <p className="mb-1 font-medium">{label}</p>
-      {payload.map((entry, i) => (
-        <p key={i} style={{ color: entry.color }}>{entry.name}: {formatRupiah(entry.value)}</p>
-      ))}
-    </div>
-  );
-}
 
 const PER_PAGE = 20;
 
 export default function PurchaseHistory() {
   const [page, setPage] = useState(1);
+  const [search, setSearch] = useState("");
+  const debouncedSearch = useDebounce(search);
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [detailItems, setDetailItems] = useState<PurchaseItem[] | null>(null);
@@ -51,19 +30,10 @@ export default function PurchaseHistory() {
   const end = endDate ? Math.floor(new Date(endDate + "T23:59:59").getTime() / 1000) : undefined;
 
   const { data } = useQuery(
-    useCallback(() => getPurchases(start, end, PER_PAGE, (page - 1) * PER_PAGE), [start, end, page])
+    useCallback(() => getPurchases(start, end, PER_PAGE, (page - 1) * PER_PAGE, debouncedSearch || undefined), [start, end, page, debouncedSearch])
   );
   const { data: stats } = useQuery(
     useCallback(() => getPurchaseHistoryStats(start, end), [start, end])
-  );
-  const { data: dailyData } = useQuery(
-    useCallback(() => getPurchaseHistoryDaily(start, end), [start, end])
-  );
-  const { data: topProducts } = useQuery(
-    useCallback(() => getPurchaseHistoryTopProducts(start, end), [start, end])
-  );
-  const { data: topSuppliers } = useQuery(
-    useCallback(() => getPurchaseHistoryTopSuppliers(start, end), [start, end])
   );
 
   const { sorted, sortKey, sortDir, toggleSort } = useSort<Purchase>(data?.data ?? null);
@@ -80,95 +50,23 @@ export default function PurchaseHistory() {
 
   return (
     <div className="animate-fade-in">
-      <h1 className="mb-4 text-2xl font-bold">Riwayat Pembelian</h1>
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <h1 className="text-2xl font-bold">Riwayat Pembelian</h1>
+        <div className="flex items-center gap-4 text-sm">
+          <span className="text-muted-foreground">{stats?.count ?? 0} transaksi</span>
+          <span className="font-semibold text-primary">{formatRupiah(stats?.total ?? 0)}</span>
+          <span className="text-muted-foreground">rata-rata {formatRupiah(stats?.avg ?? 0)}</span>
+        </div>
+      </div>
 
       <div className="mb-4 flex items-center gap-3">
+        <div className="flex-1">
+          <SearchInput value={search} onChange={(v) => { setSearch(v); setPage(1); }} placeholder="Cari supplier atau faktur..." />
+        </div>
         <input type="date" className="h-9 rounded-md border bg-background px-3 text-sm" value={startDate} onChange={(e) => { setStartDate(e.target.value); setPage(1); }} />
         <span className="text-sm text-muted-foreground">s/d</span>
         <input type="date" className="h-9 rounded-md border bg-background px-3 text-sm" value={endDate} onChange={(e) => { setEndDate(e.target.value); setPage(1); }} />
       </div>
-
-      <div className="mb-6 grid grid-cols-3 gap-4">
-        <StatsCard title="Total Transaksi" value={String(stats?.count ?? 0)} />
-        <StatsCard title="Total Pembelian" value={formatRupiah(stats?.total ?? 0)} variant="warning" />
-        <StatsCard title="Rata-rata / Transaksi" value={formatRupiah(stats?.avg ?? 0)} />
-      </div>
-
-      <div className="mb-6 grid grid-cols-3 gap-6">
-        <Card className="col-span-2">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-semibold">Tren Pembelian</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {dailyData && dailyData.length > 0 ? (
-              <ResponsiveContainer width="100%" height={220}>
-                <AreaChart data={dailyData}>
-                  <defs>
-                    <linearGradient id="colorPurchHist" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#1b508a" stopOpacity={0.3} />
-                      <stop offset="95%" stopColor="#1b508a" stopOpacity={0} />
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-                  <XAxis dataKey="tanggal" tick={{ fontSize: 10 }} interval="preserveStartEnd" />
-                  <YAxis tick={{ fontSize: 10 }} tickFormatter={formatShortRupiah} width={45} />
-                  <Tooltip content={<ChartTooltipContent />} />
-                  <Area type="monotone" dataKey="total" name="Pembelian" stroke="#1b508a" fill="url(#colorPurchHist)" strokeWidth={2} />
-                </AreaChart>
-              </ResponsiveContainer>
-            ) : (
-              <p className="py-12 text-center text-sm text-muted-foreground">Belum ada data</p>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-semibold">Produk Terbanyak</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {topProducts && topProducts.length > 0 ? (
-              <div className="space-y-3">
-                {topProducts.map((p, i) => (
-                  <div key={i} className="space-y-1">
-                    <div className="flex items-center justify-between text-xs">
-                      <span className="max-w-36 truncate font-medium">{p.nama}</span>
-                      <span className="text-muted-foreground">{p.jumlah}x</span>
-                    </div>
-                    <div className="h-2 overflow-hidden rounded-full bg-muted">
-                      <div
-                        className="h-full rounded-full bg-[#1b508a] transition-all"
-                        style={{ width: `${(p.total / topProducts[0].total) * 100}%` }}
-                      />
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <p className="py-8 text-center text-sm text-muted-foreground">Belum ada data</p>
-            )}
-          </CardContent>
-        </Card>
-      </div>
-
-      {topSuppliers && topSuppliers.length > 0 && (
-        <Card className="mb-6">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-semibold">Supplier Teratas</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-5 gap-4">
-              {topSuppliers.map((s, i) => (
-                <div key={i} className="space-y-1">
-                  <p className="truncate text-xs font-medium">{s.supplier}</p>
-                  <p className="text-lg font-bold text-[#1b508a] dark:text-[#5ba0d0]">{formatRupiah(s.total)}</p>
-                  <p className="text-[10px] text-muted-foreground">{s.count} transaksi</p>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
 
       {sorted && sorted.length > 0 ? (
         <>

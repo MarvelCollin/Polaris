@@ -1,11 +1,13 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useMemo } from "react";
 import { useQuery } from "@/hooks/useQuery";
 import { useSort } from "@/hooks/useSort";
+import { useDebounce } from "@/hooks/useDebounce";
 import { getCategories, createCategory, updateCategory, deleteCategory } from "@/db/categories";
 import { Category } from "@/types/index";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import SearchInput from "@/components/SearchInput";
 import {
   Table, TableBody, TableCell, TableHeader, TableRow,
 } from "@/components/ui/table";
@@ -16,8 +18,15 @@ import { Plus, Pencil, Trash2 } from "lucide-react";
 import { TableHead } from "@/components/ui/table";
 
 export default function Categories() {
+  const [search, setSearch] = useState("");
+  const debouncedSearch = useDebounce(search);
   const { data: categories, refetch } = useQuery(useCallback(() => getCategories(), []));
-  const { sorted, sortKey, sortDir, toggleSort } = useSort<Category>(categories);
+  const filtered = useMemo(() => {
+    if (!categories || !debouncedSearch) return categories;
+    const q = debouncedSearch.toLowerCase();
+    return categories.filter((c) => c.nama.toLowerCase().includes(q));
+  }, [categories, debouncedSearch]);
+  const { sorted, sortKey, sortDir, toggleSort } = useSort<Category>(filtered);
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<Category | null>(null);
   const [nama, setNama] = useState("");
@@ -70,6 +79,9 @@ export default function Categories() {
       <div className="mb-4 flex items-center justify-between">
         <h1 className="text-2xl font-bold">Kategori</h1>
         <Button onClick={openAdd}><Plus className="size-4" /> Tambah</Button>
+      </div>
+      <div className="mb-4">
+        <SearchInput value={search} onChange={setSearch} placeholder="Cari kategori..." />
       </div>
 
       {sorted && sorted.length > 0 ? (
