@@ -10,6 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import SearchInput from "@/components/SearchInput";
 import { Plus, Minus, Trash2, CheckCircle } from "lucide-react";
+import ProductThumb from "@/components/ProductThumb";
 
 export default function Sales() {
   const [search, setSearch] = useState("");
@@ -84,6 +85,7 @@ export default function Sales() {
             <table className="w-full text-sm">
               <thead className="sticky top-0 bg-muted">
                 <tr>
+                  <th className="w-10 px-2 py-2"></th>
                   <th className="px-3 py-2 text-left font-medium">Kode</th>
                   <th className="px-3 py-2 text-left font-medium">Nama</th>
                   <th className="px-3 py-2 text-left font-medium">Harga</th>
@@ -94,6 +96,7 @@ export default function Sales() {
               <tbody>
                 {products?.map((p) => (
                   <tr key={p.id} className="border-t hover:bg-muted/50">
+                    <td className="px-2 py-2"><ProductThumb path={p.gambar} /></td>
                     <td className="px-3 py-2 font-mono text-xs">{p.kode}</td>
                     <td className="px-3 py-2">{p.nama}</td>
                     <td className="px-3 py-2">{formatRupiah(p.harga_jual)}</td>
@@ -111,7 +114,7 @@ export default function Sales() {
                   </tr>
                 ))}
                 {products?.length === 0 && (
-                  <tr><td colSpan={5} className="py-8 text-center text-muted-foreground">Produk tidak ditemukan</td></tr>
+                  <tr><td colSpan={6} className="py-8 text-center text-muted-foreground">Produk tidak ditemukan</td></tr>
                 )}
               </tbody>
             </table>

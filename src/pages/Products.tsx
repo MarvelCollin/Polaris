@@ -1,10 +1,12 @@
 import { useState, useCallback } from "react";
 import { useQuery } from "@/hooks/useQuery";
 import { useDebounce } from "@/hooks/useDebounce";
-import { getProducts, createProduct, updateProduct, deleteProduct } from "@/db/products";
+import { getProducts, createProduct, updateProduct, deleteProduct, generateProductCode } from "@/db/products";
 import { getCategories } from "@/db/categories";
 import { ProductWithCategory } from "@/types/index";
 import { formatRupiah } from "@/types/index";
+import { pickAndSaveImage, getImageUrl } from "@/lib/images";
+import ProductThumb from "@/components/ProductThumb";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -15,11 +17,12 @@ import {
 import Modal from "@/components/Modal";
 import ConfirmDialog from "@/components/ConfirmDialog";
 import SearchInput from "@/components/SearchInput";
-import { Plus, Pencil, Trash2 } from "lucide-react";
+import { Plus, Pencil, Trash2, ImagePlus, X } from "lucide-react";
 
 const emptyForm = {
   kode: "", nama: "", kategori_id: 0, satuan: "pcs",
   harga_beli: 0, harga_jual: 0, stok: 0, stok_minimum: 0,
+  gambar: null as string | null,
 };
 
 export default function Products() {
@@ -37,15 +40,18 @@ export default function Products() {
   const [form, setForm] = useState(emptyForm);
   const [deleteTarget, setDeleteTarget] = useState<ProductWithCategory | null>(null);
   const [error, setError] = useState("");
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
 
   function set(key: string, value: string | number) {
     setForm((f) => ({ ...f, [key]: value }));
   }
 
-  function openAdd() {
+  async function openAdd() {
     setEditing(null);
-    setForm({ ...emptyForm, kategori_id: categories?.[0]?.id ?? 0 });
+    const kode = await generateProductCode();
+    setForm({ ...emptyForm, kode, kategori_id: categories?.[0]?.id ?? 0 });
     setError("");
+    setPreviewUrl(null);
     setModalOpen(true);
   }
 
@@ -54,14 +60,39 @@ export default function Products() {
     setForm({
       kode: p.kode, nama: p.nama, kategori_id: p.kategori_id, satuan: p.satuan,
       harga_beli: p.harga_beli, harga_jual: p.harga_jual, stok: p.stok, stok_minimum: p.stok_minimum,
+      gambar: p.gambar,
     });
     setError("");
+    if (p.gambar) {
+      getImageUrl(p.gambar).then(setPreviewUrl);
+    } else {
+      setPreviewUrl(null);
+    }
     setModalOpen(true);
   }
 
+  async function handlePickImage() {
+    try {
+      const path = await pickAndSaveImage();
+      if (path) {
+        setForm((f) => ({ ...f, gambar: path }));
+        const url = await getImageUrl(path);
+        setPreviewUrl(url);
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    }
+  }
+
+  function removeImage() {
+    setForm((f) => ({ ...f, gambar: null }));
+    if (previewUrl) URL.revokeObjectURL(previewUrl);
+    setPreviewUrl(null);
+  }
+
   async function handleSave() {
-    if (!form.kode.trim() || !form.nama.trim() || !form.kategori_id) {
-      setError("Kode, nama, dan kategori wajib diisi");
+    if (!form.nama.trim() || !form.kategori_id) {
+      setError("Nama dan kategori wajib diisi");
       return;
     }
     try {
@@ -112,6 +143,7 @@ export default function Products() {
         <Table>
           <TableHeader>
             <TableRow>
+              <TableHead className="w-14">Foto</TableHead>
               <TableHead>Kode</TableHead>
               <TableHead>Nama</TableHead>
               <TableHead>Kategori</TableHead>
@@ -125,6 +157,9 @@ export default function Products() {
           <TableBody>
             {products.map((p) => (
               <TableRow key={p.id}>
+                <TableCell>
+                  <ProductThumb path={p.gambar} size="h-10 w-10" />
+                </TableCell>
                 <TableCell className="font-mono text-xs">{p.kode}</TableCell>
                 <TableCell>{p.nama}</TableCell>
                 <TableCell>{p.kategori_nama}</TableCell>
@@ -158,14 +193,39 @@ export default function Products() {
 
       <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={editing ? "Edit Produk" : "Tambah Produk"}>
         <div className="space-y-3">
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <Label>Kode</Label>
-              <Input value={form.kode} onChange={(e) => set("kode", e.target.value)} placeholder="BRG001" />
+          <div className="flex items-start gap-4">
+            <div className="flex flex-col items-center gap-1">
+              {previewUrl ? (
+                <div className="relative">
+                  <img src={previewUrl} className="h-24 w-24 rounded-lg object-cover" />
+                  <button
+                    onClick={removeImage}
+                    className="absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-destructive text-destructive-foreground"
+                  >
+                    <X className="size-3" />
+                  </button>
+                </div>
+              ) : (
+                <button
+                  onClick={handlePickImage}
+                  className="flex h-24 w-24 flex-col items-center justify-center rounded-lg border-2 border-dashed text-muted-foreground hover:border-primary hover:text-primary"
+                >
+                  <ImagePlus className="size-6" />
+                  <span className="mt-1 text-[10px]">Pilih Foto</span>
+                </button>
+              )}
             </div>
-            <div>
-              <Label>Nama</Label>
-              <Input value={form.nama} onChange={(e) => set("nama", e.target.value)} placeholder="Semen Tiga Roda" />
+            <div className="flex-1 space-y-3">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label>Kode (otomatis)</Label>
+                  <Input value={form.kode} onChange={(e) => set("kode", e.target.value)} placeholder="Auto" />
+                </div>
+                <div>
+                  <Label>Nama</Label>
+                  <Input value={form.nama} onChange={(e) => set("nama", e.target.value)} placeholder="Semen Tiga Roda" />
+                </div>
+              </div>
             </div>
           </div>
           <div className="grid grid-cols-2 gap-3">
