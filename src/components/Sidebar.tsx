@@ -1,5 +1,6 @@
 import { NavLink } from "react-router-dom";
 import { Separator } from "@/components/ui/separator";
+import { useTheme } from "@/hooks/useTheme";
 import {
   LayoutDashboard,
   ShoppingCart,
@@ -8,6 +9,8 @@ import {
   FolderOpen,
   FileText,
   Users,
+  Moon,
+  Sun,
 } from "lucide-react";
 
 const links = [
@@ -22,6 +25,8 @@ const links = [
 ];
 
 export default function Sidebar() {
+  const { theme, toggle } = useTheme();
+
   return (
     <aside className="flex h-screen w-56 flex-col border-r bg-sidebar text-sidebar-foreground">
       <div className="p-4">
@@ -49,6 +54,16 @@ export default function Sidebar() {
           </NavLink>
         ))}
       </nav>
+      <Separator />
+      <div className="p-2">
+        <button
+          onClick={toggle}
+          className="flex w-full items-center gap-2.5 rounded-md px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+        >
+          {theme === "light" ? <Moon className="size-4" /> : <Sun className="size-4" />}
+          {theme === "light" ? "Mode Gelap" : "Mode Terang"}
+        </button>
+      </div>
     </aside>
   );
 }
