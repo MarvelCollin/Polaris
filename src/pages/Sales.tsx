@@ -165,7 +165,7 @@ export default function Sales() {
           </span>
         )}
         <div className="mb-1 flex items-start gap-2">
-          <ProductThumb path={p.gambar} size="h-8 w-8" />
+          <ProductThumb path={p.gambar} size="h-12 w-12" />
           <div className="min-w-0 flex-1">
             <span className="text-sm font-medium leading-tight">{p.nama}</span>
             <span className="mt-0.5 block font-mono text-[10px] text-muted-foreground">{p.kode}</span>
