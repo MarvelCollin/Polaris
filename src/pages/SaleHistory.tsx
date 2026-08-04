@@ -48,6 +48,7 @@ export default function SaleHistory() {
             <TableHeader>
               <TableRow>
                 <TableHead>No. Faktur</TableHead>
+                <TableHead>Pelanggan</TableHead>
                 <TableHead>Tanggal</TableHead>
                 <TableHead>Total</TableHead>
                 <TableHead>Dibayar</TableHead>
@@ -59,6 +60,7 @@ export default function SaleHistory() {
               {data.data.map((s) => (
                 <TableRow key={s.id}>
                   <TableCell className="font-mono text-xs">{s.nomor_faktur}</TableCell>
+                  <TableCell>{s.nama_pelanggan || "Umum"}</TableCell>
                   <TableCell>{formatTanggal(s.dibuat_pada)}</TableCell>
                   <TableCell>{formatRupiah(s.total)}</TableCell>
                   <TableCell>{formatRupiah(s.dibayar)}</TableCell>

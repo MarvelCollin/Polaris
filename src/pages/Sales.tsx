@@ -1,15 +1,17 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { useQuery } from "@/hooks/useQuery";
 import { useDebounce } from "@/hooks/useDebounce";
 import { getProducts } from "@/db/products";
 import { createSale } from "@/db/sales";
-import { CartEntry, formatRupiah } from "@/types/index";
+import { getCustomers, getCustomerPriceMap } from "@/db/customers";
+import { CartEntry, Customer, formatRupiah } from "@/types/index";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
+import { Badge } from "@/components/ui/badge";
 import SearchInput from "@/components/SearchInput";
-import { Plus, Minus, Trash2, CheckCircle } from "lucide-react";
+import { Plus, Minus, Trash2, CheckCircle, UserCircle } from "lucide-react";
 import ProductThumb from "@/components/ProductThumb";
 
 export default function Sales() {
@@ -18,15 +20,42 @@ export default function Sales() {
   const { data: products, refetch: refetchProducts } = useQuery(
     useCallback(() => getProducts(debouncedSearch || undefined), [debouncedSearch])
   );
+  const { data: customers } = useQuery(useCallback(() => getCustomers(), []));
 
+  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
+  const [priceMap, setPriceMap] = useState<Record<number, number>>({});
   const [cart, setCart] = useState<CartEntry[]>([]);
   const [paid, setPaid] = useState<number>(0);
   const [success, setSuccess] = useState<string | null>(null);
 
+  useEffect(() => {
+    if (selectedCustomer) {
+      getCustomerPriceMap(selectedCustomer.id).then(setPriceMap);
+    } else {
+      setPriceMap({});
+    }
+  }, [selectedCustomer]);
+
+  useEffect(() => {
+    if (Object.keys(priceMap).length > 0) {
+      setCart((prev) =>
+        prev.map((item) => {
+          const customPrice = priceMap[item.produk_id];
+          return customPrice !== undefined ? { ...item, harga: customPrice } : item;
+        })
+      );
+    }
+  }, [priceMap]);
+
   const total = cart.reduce((sum, item) => sum + item.jumlah * item.harga, 0);
   const change = paid - total;
 
+  function getPrice(p: { id: number; harga_jual: number }): number {
+    return priceMap[p.id] ?? p.harga_jual;
+  }
+
   function addToCart(p: { id: number; nama: string; satuan: string; harga_jual: number; stok: number }) {
+    const price = getPrice(p);
     setCart((prev) => {
       const existing = prev.find((c) => c.produk_id === p.id);
       if (existing) {
@@ -34,19 +63,18 @@ export default function Sales() {
         return prev.map((c) => c.produk_id === p.id ? { ...c, jumlah: c.jumlah + 1 } : c);
       }
       if (p.stok <= 0) return prev;
-      return [...prev, { produk_id: p.id, nama: p.nama, satuan: p.satuan, jumlah: 1, harga: p.harga_jual, stok: p.stok }];
+      return [...prev, { produk_id: p.id, nama: p.nama, satuan: p.satuan, jumlah: 1, harga: price, stok: p.stok }];
     });
   }
 
   function updateQty(produkId: number, delta: number) {
     setCart((prev) =>
-      prev
-        .map((c) => {
-          if (c.produk_id !== produkId) return c;
-          const newQty = c.jumlah + delta;
-          if (newQty > c.stok || newQty < 1) return c;
-          return { ...c, jumlah: newQty };
-        })
+      prev.map((c) => {
+        if (c.produk_id !== produkId) return c;
+        const newQty = c.jumlah + delta;
+        if (newQty > c.stok || newQty < 1) return c;
+        return { ...c, jumlah: newQty };
+      })
     );
   }
 
@@ -54,10 +82,26 @@ export default function Sales() {
     setCart((prev) => prev.filter((c) => c.produk_id !== produkId));
   }
 
+  function handleCustomerChange(customerId: number) {
+    if (customerId === 0) {
+      setSelectedCustomer(null);
+      setCart((prev) => {
+        if (!products) return prev;
+        return prev.map((item) => {
+          const prod = products.find((p) => p.id === item.produk_id);
+          return prod ? { ...item, harga: prod.harga_jual } : item;
+        });
+      });
+    } else {
+      const cust = customers?.find((c) => c.id === customerId) ?? null;
+      setSelectedCustomer(cust);
+    }
+  }
+
   async function handleCheckout() {
     if (cart.length === 0 || paid < total) return;
     try {
-      await createSale(cart, paid);
+      await createSale(cart, paid, selectedCustomer?.id, selectedCustomer?.nama);
       setSuccess(`Pembayaran berhasil! Kembalian: ${formatRupiah(change)}`);
       setCart([]);
       setPaid(0);
@@ -80,8 +124,10 @@ export default function Sales() {
 
       <div className="grid grid-cols-5 gap-4">
         <div className="col-span-3">
-          <SearchInput value={search} onChange={setSearch} placeholder="Cari produk..." />
-          <div className="mt-3 max-h-[calc(100vh-220px)] overflow-y-auto rounded-md border">
+          <div className="mb-3 flex items-center gap-3">
+            <SearchInput value={search} onChange={setSearch} placeholder="Cari produk..." />
+          </div>
+          <div className="max-h-[calc(100vh-220px)] overflow-y-auto rounded-md border">
             <table className="w-full text-sm">
               <thead className="sticky top-0 bg-muted">
                 <tr>
@@ -94,25 +140,38 @@ export default function Sales() {
                 </tr>
               </thead>
               <tbody>
-                {products?.map((p) => (
-                  <tr key={p.id} className="border-t hover:bg-muted/50">
-                    <td className="px-2 py-2"><ProductThumb path={p.gambar} /></td>
-                    <td className="px-3 py-2 font-mono text-xs">{p.kode}</td>
-                    <td className="px-3 py-2">{p.nama}</td>
-                    <td className="px-3 py-2">{formatRupiah(p.harga_jual)}</td>
-                    <td className="px-3 py-2">{p.stok} {p.satuan}</td>
-                    <td className="px-3 py-2">
-                      <Button
-                        variant="ghost"
-                        size="icon-xs"
-                        disabled={p.stok <= 0}
-                        onClick={() => addToCart(p)}
-                      >
-                        <Plus className="size-3.5" />
-                      </Button>
-                    </td>
-                  </tr>
-                ))}
+                {products?.map((p) => {
+                  const price = getPrice(p);
+                  const hasCustom = priceMap[p.id] !== undefined;
+                  return (
+                    <tr key={p.id} className="border-t hover:bg-muted/50">
+                      <td className="px-2 py-2"><ProductThumb path={p.gambar} /></td>
+                      <td className="px-3 py-2 font-mono text-xs">{p.kode}</td>
+                      <td className="px-3 py-2">{p.nama}</td>
+                      <td className="px-3 py-2">
+                        {hasCustom ? (
+                          <span className="flex items-center gap-1.5">
+                            <span className="text-xs text-muted-foreground line-through">{formatRupiah(p.harga_jual)}</span>
+                            <Badge variant="secondary" className="text-xs">{formatRupiah(price)}</Badge>
+                          </span>
+                        ) : (
+                          formatRupiah(price)
+                        )}
+                      </td>
+                      <td className="px-3 py-2">{p.stok} {p.satuan}</td>
+                      <td className="px-3 py-2">
+                        <Button
+                          variant="ghost"
+                          size="icon-xs"
+                          disabled={p.stok <= 0}
+                          onClick={() => addToCart(p)}
+                        >
+                          <Plus className="size-3.5" />
+                        </Button>
+                      </td>
+                    </tr>
+                  );
+                })}
                 {products?.length === 0 && (
                   <tr><td colSpan={6} className="py-8 text-center text-muted-foreground">Produk tidak ditemukan</td></tr>
                 )}
@@ -127,10 +186,33 @@ export default function Sales() {
               <CardTitle className="text-base">Keranjang</CardTitle>
             </CardHeader>
             <CardContent>
+              <div className="mb-3">
+                <div className="flex items-center gap-2">
+                  <UserCircle className="size-4 text-muted-foreground" />
+                  <select
+                    className="h-9 w-full rounded-md border bg-background px-3 text-sm"
+                    value={selectedCustomer?.id ?? 0}
+                    onChange={(e) => handleCustomerChange(Number(e.target.value))}
+                  >
+                    <option value={0}>Umum (tanpa pelanggan)</option>
+                    {customers?.map((c) => (
+                      <option key={c.id} value={c.id}>{c.nama}</option>
+                    ))}
+                  </select>
+                </div>
+                {selectedCustomer && Object.keys(priceMap).length > 0 && (
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    {Object.keys(priceMap).length} harga khusus aktif
+                  </p>
+                )}
+              </div>
+
+              <Separator className="mb-3" />
+
               {cart.length === 0 ? (
                 <p className="py-8 text-center text-sm text-muted-foreground">Keranjang kosong</p>
               ) : (
-                <div className="max-h-[calc(100vh-440px)] space-y-2 overflow-y-auto">
+                <div className="max-h-[calc(100vh-520px)] space-y-2 overflow-y-auto">
                   {cart.map((item) => (
                     <div key={item.produk_id} className="flex items-center gap-2 rounded-md border p-2 text-sm">
                       <div className="flex-1">
