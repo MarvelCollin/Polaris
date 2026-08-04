@@ -83,3 +83,66 @@ export async function getSaleItems(saleId: number): Promise<SaleItem[]> {
     [saleId]
   );
 }
+
+export async function getSaleHistoryStats(startDate?: number, endDate?: number) {
+  const db = await getDb();
+  let where = "";
+  const params: number[] = [];
+
+  if (startDate && endDate) {
+    where = "WHERE dibuat_pada >= $1 AND dibuat_pada <= $2";
+    params.push(startDate, endDate);
+  }
+
+  const rows: { count: number; total: number; avg: number }[] = await db.select(
+    `SELECT COUNT(*) as count, COALESCE(SUM(total), 0) as total, COALESCE(AVG(total), 0) as avg FROM penjualan ${where}`,
+    params
+  );
+
+  return { count: rows[0].count, total: rows[0].total, avg: Math.round(rows[0].avg) };
+}
+
+export async function getSaleHistoryDaily(startDate?: number, endDate?: number): Promise<{ tanggal: string; total: number }[]> {
+  const db = await getDb();
+  let where = "WHERE 1=1";
+  const params: number[] = [];
+
+  if (startDate && endDate) {
+    where = "WHERE dibuat_pada >= $1 AND dibuat_pada <= $2";
+    params.push(startDate, endDate);
+  }
+
+  const rows: { day: string; total: number }[] = await db.select(
+    `SELECT date(dibuat_pada, 'unixepoch', 'localtime') as day, COALESCE(SUM(total), 0) as total
+     FROM penjualan ${where}
+     GROUP BY day ORDER BY day`,
+    params
+  );
+
+  return rows.map((r) => {
+    const d = new Date(r.day);
+    return { tanggal: `${d.getDate()}/${d.getMonth() + 1}`, total: r.total };
+  });
+}
+
+export async function getSaleHistoryTopProducts(startDate?: number, endDate?: number, limit: number = 5): Promise<{ nama: string; jumlah: number; total: number }[]> {
+  const db = await getDb();
+  let where = "";
+  const params: number[] = [];
+
+  if (startDate && endDate) {
+    where = "WHERE p.dibuat_pada >= $1 AND p.dibuat_pada <= $2";
+    params.push(startDate, endDate);
+  }
+
+  return await db.select(
+    `SELECT ip.nama_produk as nama, SUM(ip.jumlah) as jumlah, SUM(ip.subtotal) as total
+     FROM item_penjualan ip
+     JOIN penjualan p ON ip.penjualan_id = p.id
+     ${where}
+     GROUP BY ip.produk_id
+     ORDER BY total DESC
+     LIMIT $${params.length + 1}`,
+    [...params, limit]
+  );
+}
