@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { resetMock, mockDb } from "./setup";
-import { getProducts, getProduct, createProduct, updateProduct, deleteProduct, getLowStockProducts, generateProductCode } from "@/db/products";
+import { getProducts, getProduct, createProduct, updateProduct, deleteProduct, getLowStockProducts, generateProductCode, getFrequentProductIds } from "@/db/products";
 
 describe("products", () => {
   beforeEach(() => {
@@ -146,6 +146,26 @@ describe("products", () => {
     const call = mockDb.execute.mock.calls.find((c: unknown[]) => (c[0] as string).includes("INSERT INTO produk"));
     expect(call).toBeDefined();
     expect(call![1]).toContain("/path/to/image.jpg");
+  });
+
+  it("should fetch frequent product ids ordered by total quantity", async () => {
+    mockDb.select.mockResolvedValueOnce([
+      { produk_id: 5 },
+      { produk_id: 2 },
+      { produk_id: 8 },
+    ]);
+    const ids = await getFrequentProductIds(3);
+    expect(ids).toEqual([5, 2, 8]);
+    const call = mockDb.select.mock.calls[0];
+    expect((call[0] as string)).toContain("SUM(jumlah)");
+    expect((call[0] as string)).toContain("ORDER BY total_qty DESC");
+    expect(call[1]).toEqual([3]);
+  });
+
+  it("should return empty array when no sales exist", async () => {
+    mockDb.select.mockResolvedValueOnce([]);
+    const ids = await getFrequentProductIds();
+    expect(ids).toEqual([]);
   });
 
   it("should fetch low stock products", async () => {

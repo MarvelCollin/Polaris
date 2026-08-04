@@ -107,6 +107,19 @@ export async function deleteProduct(id: number): Promise<void> {
   await db.execute("DELETE FROM produk WHERE id = $1", [id]);
 }
 
+export async function getFrequentProductIds(limit: number = 8): Promise<number[]> {
+  const db = await getDb();
+  const rows: { produk_id: number }[] = await db.select(
+    `SELECT produk_id, SUM(jumlah) as total_qty
+     FROM item_penjualan
+     GROUP BY produk_id
+     ORDER BY total_qty DESC
+     LIMIT $1`,
+    [limit]
+  );
+  return rows.map((r) => r.produk_id);
+}
+
 export async function getLowStockProducts(): Promise<ProductWithCategory[]> {
   const db = await getDb();
   return await db.select(
