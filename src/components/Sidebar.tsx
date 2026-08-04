@@ -1,6 +1,7 @@
 import { NavLink } from "react-router-dom";
 import { Separator } from "@/components/ui/separator";
 import { useTheme } from "@/hooks/useTheme";
+import Logo from "@/assets/Logo.png";
 import {
   LayoutDashboard,
   ShoppingCart,
@@ -31,9 +32,12 @@ export default function Sidebar() {
 
   return (
     <aside className="flex h-screen w-56 flex-col border-r bg-sidebar text-sidebar-foreground">
-      <div className="p-4">
-        <h1 className="text-xl font-bold text-sidebar-primary">Polaris</h1>
-        <p className="text-xs text-muted-foreground">Toko Bangunan</p>
+      <div className="flex items-center gap-2.5 p-4">
+        <img src={Logo} alt="Sahabat Sentarum" className="size-10" />
+        <div>
+          <h1 className="text-base font-bold leading-tight text-sidebar-primary">Sahabat Sentarum</h1>
+          <p className="text-[10px] text-muted-foreground">Toko Bangunan</p>
+        </div>
       </div>
       <Separator />
       <nav className="flex flex-1 flex-col gap-0.5 p-2">
