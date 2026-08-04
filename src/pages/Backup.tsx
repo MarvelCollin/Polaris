@@ -23,6 +23,7 @@ import {
   setAutoBackup,
   DriveFile,
 } from "@/db/backup";
+import Spinner from "@/components/Spinner";
 import {
   Cloud,
   CloudOff,
@@ -54,16 +55,19 @@ export default function Backup() {
   async function checkConnection() {
     setLoading(true);
     try {
-      const refresh = await getStoredRefreshToken();
-      if (refresh) {
-        setConnected(true);
-        await loadBackups();
-      }
-      const status = await getAutoBackupStatus();
+      const [refresh, status] = await Promise.all([
+        getStoredRefreshToken(),
+        getAutoBackupStatus(),
+      ]);
       setAutoEnabled(status.enabled);
       setLastAutoDate(status.last_backup_date ?? null);
+      if (refresh) {
+        setConnected(true);
+        setLoading(false);
+        loadBackups();
+        return;
+      }
     } catch {
-      // not connected
     }
     setLoading(false);
   }
@@ -185,8 +189,8 @@ export default function Backup() {
 
   if (loading) {
     return (
-      <div className="flex h-64 items-center justify-center text-muted-foreground">
-        Memuat...
+      <div className="flex h-64 items-center justify-center">
+        <Spinner className="size-8" />
       </div>
     );
   }
