@@ -1,0 +1,105 @@
+import { useState, useCallback } from "react";
+import { useQuery } from "@/hooks/useQuery";
+import { getPurchases, getPurchaseItems } from "@/db/purchases";
+import { PurchaseItem, formatRupiah, formatTanggal } from "@/types/index";
+import { Button } from "@/components/ui/button";
+import {
+  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
+} from "@/components/ui/table";
+import Modal from "@/components/Modal";
+import Pagination from "@/components/Pagination";
+import { Eye } from "lucide-react";
+
+const PER_PAGE = 20;
+
+export default function PurchaseHistory() {
+  const [page, setPage] = useState(1);
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
+  const [detailItems, setDetailItems] = useState<PurchaseItem[] | null>(null);
+  const [detailSupplier, setDetailSupplier] = useState("");
+
+  const start = startDate ? Math.floor(new Date(startDate).getTime() / 1000) : undefined;
+  const end = endDate ? Math.floor(new Date(endDate + "T23:59:59").getTime() / 1000) : undefined;
+
+  const { data } = useQuery(
+    useCallback(() => getPurchases(start, end, PER_PAGE, (page - 1) * PER_PAGE), [start, end, page])
+  );
+
+  async function showDetail(purchaseId: number, supplier: string) {
+    const items = await getPurchaseItems(purchaseId);
+    setDetailItems(items);
+    setDetailSupplier(supplier);
+  }
+
+  return (
+    <div>
+      <h1 className="mb-4 text-2xl font-bold">Riwayat Pembelian</h1>
+
+      <div className="mb-4 flex items-center gap-3">
+        <input type="date" className="h-9 rounded-md border bg-background px-3 text-sm" value={startDate} onChange={(e) => { setStartDate(e.target.value); setPage(1); }} />
+        <span className="text-sm text-muted-foreground">s/d</span>
+        <input type="date" className="h-9 rounded-md border bg-background px-3 text-sm" value={endDate} onChange={(e) => { setEndDate(e.target.value); setPage(1); }} />
+      </div>
+
+      {data && data.data.length > 0 ? (
+        <>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Supplier</TableHead>
+                <TableHead>Ref. Faktur</TableHead>
+                <TableHead>Tanggal</TableHead>
+                <TableHead>Total</TableHead>
+                <TableHead className="w-16">Aksi</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {data.data.map((p) => (
+                <TableRow key={p.id}>
+                  <TableCell>{p.supplier}</TableCell>
+                  <TableCell className="font-mono text-xs">{p.referensi_faktur || "-"}</TableCell>
+                  <TableCell>{formatTanggal(p.dibuat_pada)}</TableCell>
+                  <TableCell>{formatRupiah(p.total)}</TableCell>
+                  <TableCell>
+                    <Button variant="ghost" size="icon-xs" onClick={() => showDetail(p.id, p.supplier)}>
+                      <Eye className="size-3.5" />
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+          <Pagination page={page} total={data.total} perPage={PER_PAGE} onChange={setPage} />
+        </>
+      ) : (
+        <p className="py-12 text-center text-sm text-muted-foreground">Belum ada pembelian</p>
+      )}
+
+      <Modal open={!!detailItems} onClose={() => setDetailItems(null)} title={`Detail Pembelian - ${detailSupplier}`}>
+        {detailItems && (
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Produk</TableHead>
+                <TableHead>Jumlah</TableHead>
+                <TableHead>Harga</TableHead>
+                <TableHead>Subtotal</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {detailItems.map((item) => (
+                <TableRow key={item.id}>
+                  <TableCell>{item.nama_produk}</TableCell>
+                  <TableCell>{item.jumlah}</TableCell>
+                  <TableCell>{formatRupiah(item.harga_satuan)}</TableCell>
+                  <TableCell>{formatRupiah(item.subtotal)}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        )}
+      </Modal>
+    </div>
+  );
+}

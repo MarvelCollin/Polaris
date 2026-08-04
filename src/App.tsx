@@ -1,36 +1,14 @@
-import { useState } from "react";
-import { invoke } from "@tauri-apps/api/core";
+import { Outlet } from "react-router-dom";
+import Sidebar from "./components/Sidebar";
 import "./App.css";
 
-function App() {
-  const [greetMsg, setGreetMsg] = useState("");
-  const [name, setName] = useState("");
-
-  async function greet() {
-    setGreetMsg(await invoke("greet", { name }));
-  }
-
+export default function App() {
   return (
-    <main className="container">
-      <h1>Polaris</h1>
-
-      <form
-        className="row"
-        onSubmit={(e) => {
-          e.preventDefault();
-          greet();
-        }}
-      >
-        <input
-          id="greet-input"
-          onChange={(e) => setName(e.currentTarget.value)}
-          placeholder="Enter a name..."
-        />
-        <button type="submit">Greet</button>
-      </form>
-      <p>{greetMsg}</p>
-    </main>
+    <div className="flex h-screen overflow-hidden">
+      <Sidebar />
+      <main className="flex-1 overflow-y-auto p-6">
+        <Outlet />
+      </main>
+    </div>
   );
 }
-
-export default App;
