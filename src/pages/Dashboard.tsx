@@ -19,22 +19,22 @@ export default function Dashboard() {
   const { data: recentSales } = useQuery(useCallback(() => getRecentSales(), []));
 
   return (
-    <div>
+    <div className="animate-fade-in">
       <h1 className="mb-6 text-2xl font-bold">Dashboard</h1>
 
       <div className="mb-6 grid grid-cols-4 gap-4">
-        <StatsCard title="Total Produk" value={String(stats?.totalProducts ?? 0)} />
-        <StatsCard title="Penjualan Hari Ini" value={formatRupiah(stats?.todaySales ?? 0)} variant="success" />
-        <StatsCard title="Pembelian Hari Ini" value={formatRupiah(stats?.todayPurchases ?? 0)} variant="warning" />
-        <StatsCard
+        <div className="animate-fade-in-up" style={{ animationDelay: "0ms" }}><StatsCard title="Total Produk" value={String(stats?.totalProducts ?? 0)} /></div>
+        <div className="animate-fade-in-up" style={{ animationDelay: "50ms", animationFillMode: "backwards" }}><StatsCard title="Penjualan Hari Ini" value={formatRupiah(stats?.todaySales ?? 0)} variant="success" /></div>
+        <div className="animate-fade-in-up" style={{ animationDelay: "100ms", animationFillMode: "backwards" }}><StatsCard title="Pembelian Hari Ini" value={formatRupiah(stats?.todayPurchases ?? 0)} variant="warning" /></div>
+        <div className="animate-fade-in-up" style={{ animationDelay: "150ms", animationFillMode: "backwards" }}><StatsCard
           title="Stok Rendah"
           value={String(stats?.lowStockCount ?? 0)}
           variant={stats?.lowStockCount ? "danger" : "default"}
-        />
+        /></div>
       </div>
 
       <div className="grid grid-cols-2 gap-6">
-        <div>
+        <div className="animate-fade-in-up" style={{ animationDelay: "200ms", animationFillMode: "backwards" }}>
           <h2 className="mb-3 text-base font-semibold">Stok Rendah</h2>
           {lowStock && lowStock.length > 0 ? (
             <Table>
@@ -64,7 +64,7 @@ export default function Dashboard() {
           )}
         </div>
 
-        <div>
+        <div className="animate-fade-in-up" style={{ animationDelay: "250ms", animationFillMode: "backwards" }}>
           <h2 className="mb-3 text-base font-semibold">Penjualan Terakhir</h2>
           {recentSales && recentSales.length > 0 ? (
             <Table>

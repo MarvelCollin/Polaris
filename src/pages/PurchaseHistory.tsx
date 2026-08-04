@@ -33,7 +33,7 @@ export default function PurchaseHistory() {
   }
 
   return (
-    <div>
+    <div className="animate-fade-in">
       <h1 className="mb-4 text-2xl font-bold">Riwayat Pembelian</h1>
 
       <div className="mb-4 flex items-center gap-3">

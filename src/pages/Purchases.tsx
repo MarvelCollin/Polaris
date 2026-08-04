@@ -72,11 +72,11 @@ export default function Purchases() {
   }
 
   return (
-    <div>
+    <div className="animate-fade-in">
       <h1 className="mb-4 text-2xl font-bold">Pembelian</h1>
 
       {success && (
-        <div className="mb-4 flex items-center gap-2 rounded-md bg-emerald-50 p-3 text-sm text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">
+        <div className="animate-fade-in-up mb-4 flex items-center gap-2 rounded-md bg-emerald-50 p-3 text-sm text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">
           <CheckCircle className="size-4" /> {success}
         </div>
       )}

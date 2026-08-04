@@ -121,7 +121,7 @@ export default function Products() {
   }
 
   return (
-    <div>
+    <div className="animate-fade-in">
       <div className="mb-4 flex items-center justify-between">
         <h1 className="text-2xl font-bold">Produk</h1>
         <Button onClick={openAdd}><Plus className="size-4" /> Tambah</Button>

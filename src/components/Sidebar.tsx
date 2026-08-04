@@ -28,13 +28,14 @@ export default function Sidebar() {
       </div>
       <Separator />
       <nav className="flex flex-1 flex-col gap-0.5 p-2">
-        {links.map((link) => (
+        {links.map((link, i) => (
           <NavLink
             key={link.to}
             to={link.to}
             end={link.to === "/"}
+            style={{ animationDelay: `${i * 30}ms`, animationFillMode: "backwards" }}
             className={({ isActive }) =>
-              `flex items-center gap-2.5 rounded-md px-3 py-2 text-sm font-medium transition-colors ${
+              `animate-slide-in-left flex items-center gap-2.5 rounded-md px-3 py-2 text-sm font-medium transition-colors ${
                 isActive
                   ? "bg-sidebar-accent text-sidebar-accent-foreground font-semibold"
                   : "text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
