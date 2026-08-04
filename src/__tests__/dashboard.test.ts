@@ -9,6 +9,7 @@ import {
   getSalesByCategory,
   getTopProducts,
   getTopCustomers,
+  getGrossProfitByProduct,
 } from "@/db/dashboard";
 
 describe("dashboard", () => {
@@ -195,5 +196,56 @@ describe("dashboard", () => {
     const call = mockDb.select.mock.calls[0][0] as string;
     expect(call).toContain("ORDER BY dibuat_pada DESC");
     expect(call).toContain("LIMIT 5");
+  });
+
+  it("should calculate gross profit by product with margin", async () => {
+    mockDb.select.mockResolvedValueOnce([
+      { nama: "Semen", jumlah: 100, pendapatan: 5800000, modal: 4500000 },
+      { nama: "Besi", jumlah: 50, pendapatan: 2750000, modal: 1900000 },
+    ]);
+
+    const result = await getGrossProfitByProduct(10);
+    expect(result).toHaveLength(2);
+    expect(result[0].nama).toBe("Semen");
+    expect(result[0].laba).toBe(5800000 - 4500000);
+    expect(result[0].margin).toBe(Math.round(((5800000 - 4500000) / 5800000) * 100));
+    expect(result[1].laba).toBe(2750000 - 1900000);
+  });
+
+  it("should return zero margin when pendapatan is zero", async () => {
+    mockDb.select.mockResolvedValueOnce([
+      { nama: "Produk Gratis", jumlah: 5, pendapatan: 0, modal: 0 },
+    ]);
+
+    const result = await getGrossProfitByProduct(10);
+    expect(result[0].margin).toBe(0);
+    expect(result[0].laba).toBe(0);
+  });
+
+  it("should query gross profit with hpp filter and limit", async () => {
+    mockDb.select.mockResolvedValueOnce([]);
+
+    await getGrossProfitByProduct(5);
+
+    const call = mockDb.select.mock.calls[0];
+    expect((call[0] as string)).toContain("hpp > 0");
+    expect((call[0] as string)).toContain("GROUP BY ip.produk_id");
+    expect(call[1]).toEqual([5]);
+  });
+
+  it("should return empty array when no products have hpp data", async () => {
+    mockDb.select.mockResolvedValueOnce([]);
+    const result = await getGrossProfitByProduct();
+    expect(result).toEqual([]);
+  });
+
+  it("should handle negative margin (loss) correctly", async () => {
+    mockDb.select.mockResolvedValueOnce([
+      { nama: "Promo Item", jumlah: 10, pendapatan: 100000, modal: 150000 },
+    ]);
+
+    const result = await getGrossProfitByProduct(10);
+    expect(result[0].laba).toBe(-50000);
+    expect(result[0].margin).toBe(Math.round(((-50000) / 100000) * 100));
   });
 });
