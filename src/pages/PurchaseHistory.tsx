@@ -3,6 +3,7 @@ import { useQuery } from "@/hooks/useQuery";
 import { useSort } from "@/hooks/useSort";
 import { useDebounce } from "@/hooks/useDebounce";
 import { getPurchases, getPurchaseItems, getPurchaseHistoryStats, getPurchaseHistoryDaily, getPurchaseHistoryTopProducts, getPurchaseHistoryTopSuppliers, getReturnedQtyMapPurchase, createPurchaseReturn } from "@/db/purchases";
+import { type ChartGroupBy } from "@/db/sales";
 import { Purchase, PurchaseItem, formatRupiah, formatTanggal } from "@/types/index";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -22,36 +23,7 @@ import {
   XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, PieChart, Pie, Cell,
 } from "recharts";
-
-const COLORS = ["#1b508a", "#e07828", "#2e7ab8", "#d4952e", "#3a8cc4"];
-
-function formatShortRupiah(value: number): string {
-  if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}jt`;
-  if (value >= 1_000) return `${(value / 1_000).toFixed(0)}rb`;
-  return String(value);
-}
-
-function ChartTooltip({ active, payload, label }: { active?: boolean; payload?: { name: string; value: number; color: string }[]; label?: string }) {
-  if (!active || !payload?.length) return null;
-  return (
-    <div className="rounded-md border bg-background p-2 text-xs shadow-md">
-      <p className="mb-1 font-medium">{label}</p>
-      {payload.map((entry, i) => (
-        <p key={i} style={{ color: entry.color }}>{entry.name}: {formatRupiah(entry.value)}</p>
-      ))}
-    </div>
-  );
-}
-
-function PieTooltip({ active, payload }: { active?: boolean; payload?: { name: string; value: number }[] }) {
-  if (!active || !payload?.length) return null;
-  return (
-    <div className="rounded-md border bg-background p-2 text-xs shadow-md">
-      <p className="font-medium">{payload[0].name}</p>
-      <p>{formatRupiah(payload[0].value)}</p>
-    </div>
-  );
-}
+import { CHART_COLORS, GROUP_LABELS, formatShortRupiah, ChartTooltip, PieTooltip } from "@/lib/chart-utils";
 
 const PER_PAGE = 20;
 
@@ -61,6 +33,7 @@ export default function PurchaseHistory() {
   const debouncedSearch = useDebounce(search);
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
+  const [chartGroup, setChartGroup] = useState<ChartGroupBy>("day");
   const [detailItems, setDetailItems] = useState<PurchaseItem[] | null>(null);
   const [detailSupplier, setDetailSupplier] = useState("");
 
@@ -74,7 +47,7 @@ export default function PurchaseHistory() {
     useCallback(() => getPurchaseHistoryStats(start, end), [start, end])
   );
   const { data: dailyData } = useQuery(
-    useCallback(() => getPurchaseHistoryDaily(start, end), [start, end])
+    useCallback(() => getPurchaseHistoryDaily(start, end, chartGroup), [start, end, chartGroup])
   );
   const { data: topProducts } = useQuery(
     useCallback(() => getPurchaseHistoryTopProducts(start, end, 5), [start, end])
@@ -163,7 +136,23 @@ export default function PurchaseHistory() {
         <div className="mb-4 grid grid-cols-6 gap-4">
           <Card className="col-span-3">
             <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-semibold">Tren Pembelian Harian</CardTitle>
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-sm font-semibold">Tren Pembelian</CardTitle>
+                <div className="flex gap-1">
+                  {(["day", "week", "month", "year"] as ChartGroupBy[]).map((g) => (
+                    <button
+                      key={g}
+                      type="button"
+                      onClick={() => setChartGroup(g)}
+                      className={`rounded-full px-2 py-0.5 text-[10px] font-medium transition-colors ${
+                        chartGroup === g ? "bg-primary text-primary-foreground" : "bg-secondary text-secondary-foreground hover:bg-accent"
+                      }`}
+                    >
+                      {GROUP_LABELS[g]}
+                    </button>
+                  ))}
+                </div>
+              </div>
             </CardHeader>
             <CardContent>
               {dailyData && dailyData.length > 0 ? (
@@ -227,7 +216,7 @@ export default function PurchaseHistory() {
                         paddingAngle={2}
                       >
                         {topSuppliers.map((_, i) => (
-                          <Cell key={i} fill={COLORS[i % COLORS.length]} />
+                          <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />
                         ))}
                       </Pie>
                       <Tooltip content={<PieTooltip />} />
@@ -236,7 +225,7 @@ export default function PurchaseHistory() {
                   <div className="mt-1 space-y-0.5 px-1">
                     {topSuppliers.map((s, i) => (
                       <div key={i} className="flex items-center gap-1 text-[10px]">
-                        <div className="size-2 shrink-0 rounded-full" style={{ backgroundColor: COLORS[i % COLORS.length] }} />
+                        <div className="size-2 shrink-0 rounded-full" style={{ backgroundColor: CHART_COLORS[i % CHART_COLORS.length] }} />
                         <span className="truncate text-muted-foreground">{s.supplier}</span>
                       </div>
                     ))}

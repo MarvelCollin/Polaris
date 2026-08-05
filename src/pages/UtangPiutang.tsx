@@ -8,12 +8,19 @@ import SearchInput from "@/components/SearchInput";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import Modal from "@/components/Modal";
 import StatsCard from "@/components/StatsCard";
 import { CreditCard, History } from "lucide-react";
+import {
+  BarChart, Bar, PieChart, Pie, Cell,
+  XAxis, YAxis, CartesianGrid, Tooltip,
+  ResponsiveContainer, Legend,
+} from "recharts";
+import { formatShortRupiah, ChartTooltip, PieTooltip } from "@/lib/chart-utils";
 
 type Tab = "piutang" | "utang";
 
@@ -54,6 +61,39 @@ export default function UtangPiutang() {
   const totalPiutang = saleDebts?.reduce((s, d) => s + d.sisa, 0) ?? 0;
   const totalUtang = purchaseDebts?.reduce((s, d) => s + d.sisa, 0) ?? 0;
 
+  const overviewData = useMemo(() => {
+    if (totalPiutang === 0 && totalUtang === 0) return [];
+    return [
+      { name: "Piutang", value: totalPiutang, fill: "#e07828" },
+      { name: "Utang", value: totalUtang, fill: "#1b508a" },
+    ];
+  }, [totalPiutang, totalUtang]);
+
+  const topCustomers = useMemo(() => {
+    if (!saleDebts || saleDebts.length === 0) return [];
+    const map = new Map<string, number>();
+    for (const d of saleDebts) {
+      const name = d.nama_pelanggan || "Umum";
+      map.set(name, (map.get(name) ?? 0) + d.sisa);
+    }
+    return [...map.entries()]
+      .map(([nama, sisa]) => ({ nama, sisa }))
+      .sort((a, b) => b.sisa - a.sisa)
+      .slice(0, 5);
+  }, [saleDebts]);
+
+  const topSuppliers = useMemo(() => {
+    if (!purchaseDebts || purchaseDebts.length === 0) return [];
+    const map = new Map<string, number>();
+    for (const d of purchaseDebts) {
+      map.set(d.supplier, (map.get(d.supplier) ?? 0) + d.sisa);
+    }
+    return [...map.entries()]
+      .map(([nama, sisa]) => ({ nama, sisa }))
+      .sort((a, b) => b.sisa - a.sisa)
+      .slice(0, 5);
+  }, [purchaseDebts]);
+
   function openPayModal(type: "sale" | "purchase", id: number, label: string, sisa: number) {
     setPayModalType(type);
     setPayModalId(id);
@@ -92,10 +132,86 @@ export default function UtangPiutang() {
     <div className="animate-fade-in">
       <h1 className="mb-4 text-2xl font-bold">Utang & Piutang</h1>
 
-      <div className="mb-6 grid grid-cols-2 gap-4">
-        <StatsCard title="Total Piutang (Pelanggan)" value={formatRupiah(totalPiutang)} variant="success" />
-        <StatsCard title="Total Utang (Supplier)" value={formatRupiah(totalUtang)} variant="danger" />
+      <div className="mb-4 grid grid-cols-4 gap-4">
+        <StatsCard title="Total Piutang" value={formatRupiah(totalPiutang)} variant="success" />
+        <StatsCard title="Total Utang" value={formatRupiah(totalUtang)} variant="danger" />
+        <StatsCard title="Jumlah Piutang" value={`${saleDebts?.length ?? 0} faktur`} variant="warning" />
+        <StatsCard title="Jumlah Utang" value={`${purchaseDebts?.length ?? 0} faktur`} variant="warning" />
       </div>
+
+      {(overviewData.length > 0 || topCustomers.length > 0 || topSuppliers.length > 0) && (
+        <div className="mb-4 grid grid-cols-6 gap-4">
+          {overviewData.length > 0 && (
+            <Card className="col-span-2">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-semibold">Piutang vs Utang</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <ResponsiveContainer width="100%" height={180}>
+                  <PieChart>
+                    <Pie
+                      data={overviewData}
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={45}
+                      outerRadius={70}
+                      paddingAngle={3}
+                      dataKey="value"
+                      nameKey="name"
+                    >
+                      {overviewData.map((entry, i) => (
+                        <Cell key={i} fill={entry.fill} />
+                      ))}
+                    </Pie>
+                    <Tooltip content={<PieTooltip />} />
+                    <Legend
+                      verticalAlign="bottom"
+                      height={30}
+                      formatter={(value: string) => <span className="text-xs">{value}</span>}
+                    />
+                  </PieChart>
+                </ResponsiveContainer>
+              </CardContent>
+            </Card>
+          )}
+          {topCustomers.length > 0 && (
+            <Card className="col-span-2">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-semibold">Top Piutang Pelanggan</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <ResponsiveContainer width="100%" height={180}>
+                  <BarChart data={topCustomers} layout="vertical">
+                    <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+                    <XAxis type="number" tick={{ fontSize: 10 }} tickFormatter={formatShortRupiah} />
+                    <YAxis type="category" dataKey="nama" tick={{ fontSize: 10 }} width={80} />
+                    <Tooltip content={<ChartTooltip />} />
+                    <Bar dataKey="sisa" name="Sisa Piutang" fill="#e07828" radius={[0, 4, 4, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </CardContent>
+            </Card>
+          )}
+          {topSuppliers.length > 0 && (
+            <Card className="col-span-2">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-semibold">Top Utang Supplier</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <ResponsiveContainer width="100%" height={180}>
+                  <BarChart data={topSuppliers} layout="vertical">
+                    <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+                    <XAxis type="number" tick={{ fontSize: 10 }} tickFormatter={formatShortRupiah} />
+                    <YAxis type="category" dataKey="nama" tick={{ fontSize: 10 }} width={80} />
+                    <Tooltip content={<ChartTooltip />} />
+                    <Bar dataKey="sisa" name="Sisa Utang" fill="#1b508a" radius={[0, 4, 4, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </CardContent>
+            </Card>
+          )}
+        </div>
+      )}
 
       <div className="mb-4 flex items-center gap-3">
         <div className="flex gap-1">

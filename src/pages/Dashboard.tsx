@@ -14,6 +14,7 @@ import {
   getPurchasesRecap,
   getGrossProfitByProduct,
 } from "@/db/dashboard";
+import { type ChartGroupBy } from "@/db/sales";
 import { formatRupiah, formatTanggal } from "@/types/index";
 import StatsCard from "@/components/StatsCard";
 import { Badge } from "@/components/ui/badge";
@@ -28,36 +29,7 @@ import {
   XAxis, YAxis, CartesianGrid, Tooltip, Legend,
   ResponsiveContainer,
 } from "recharts";
-
-const COLORS = ["#e07828", "#1b508a", "#d4952e", "#2e7ab8", "#c45a1a", "#3a8cc4", "#e8a84c", "#4a6e94", "#b84e14", "#5ba0d0"];
-
-function formatShortRupiah(value: number): string {
-  if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}jt`;
-  if (value >= 1_000) return `${(value / 1_000).toFixed(0)}rb`;
-  return String(value);
-}
-
-function ChartTooltipContent({ active, payload, label }: { active?: boolean; payload?: { name: string; value: number; color: string }[]; label?: string }) {
-  if (!active || !payload?.length) return null;
-  return (
-    <div className="rounded-md border bg-background p-2 text-xs shadow-md">
-      <p className="mb-1 font-medium">{label}</p>
-      {payload.map((entry, i) => (
-        <p key={i} style={{ color: entry.color }}>{entry.name}: {formatRupiah(entry.value)}</p>
-      ))}
-    </div>
-  );
-}
-
-function PieTooltipContent({ active, payload }: { active?: boolean; payload?: { name: string; value: number }[] }) {
-  if (!active || !payload?.length) return null;
-  return (
-    <div className="rounded-md border bg-background p-2 text-xs shadow-md">
-      <p className="font-medium">{payload[0].name}</p>
-      <p>{formatRupiah(payload[0].value)}</p>
-    </div>
-  );
-}
+import { CHART_COLORS, GROUP_LABELS, formatShortRupiah, ChartTooltip, PieTooltip } from "@/lib/chart-utils";
 
 type RecapPeriod = "day" | "week" | "month";
 const recapLabels: Record<RecapPeriod, string> = { day: "Hari Ini", week: "Minggu Ini", month: "Bulan Ini" };
@@ -65,10 +37,11 @@ const recapLabels: Record<RecapPeriod, string> = { day: "Hari Ini", week: "Mingg
 export default function Dashboard() {
   const navigate = useNavigate();
   const [recapPeriod, setRecapPeriod] = useState<RecapPeriod>("day");
+  const [chartGroup, setChartGroup] = useState<ChartGroupBy>("day");
   const { data: stats } = useQuery(useCallback(() => getDashboardStats(), []));
   const { data: lowStock } = useQuery(useCallback(() => getLowStockProducts(), []));
   const { data: recentSales } = useQuery(useCallback(() => getRecentSales(), []));
-  const { data: dailySales } = useQuery(useCallback(() => getDailySales(30), []));
+  const { data: dailySales } = useQuery(useCallback(() => getDailySales(chartGroup === "day" ? 30 : chartGroup === "week" ? 90 : chartGroup === "month" ? 365 : 1825, chartGroup), [chartGroup]));
   const { data: monthlyData } = useQuery(useCallback(() => getMonthlySalesVsPurchases(6), []));
   const { data: categoryData } = useQuery(useCallback(() => getSalesByCategory(), []));
   const { data: topProducts } = useQuery(useCallback(() => getTopProducts(5), []));
@@ -124,7 +97,23 @@ export default function Dashboard() {
       <div className="mb-6 grid grid-cols-3 gap-6">
         <Card className="col-span-2 animate-fade-in-up" style={{ animationDelay: "200ms", animationFillMode: "backwards" }}>
           <CardHeader className="pb-2">
-            <CardTitle className="cursor-pointer text-sm font-semibold hover:text-primary" onClick={() => navigate("/riwayat-jual")}>Penjualan 30 Hari Terakhir →</CardTitle>
+            <div className="flex items-center justify-between">
+              <CardTitle className="cursor-pointer text-sm font-semibold hover:text-primary" onClick={() => navigate("/riwayat-jual")}>Tren Penjualan →</CardTitle>
+              <div className="flex gap-1">
+                {(["day", "week", "month", "year"] as ChartGroupBy[]).map((g) => (
+                  <button
+                    key={g}
+                    type="button"
+                    onClick={() => setChartGroup(g)}
+                    className={`rounded-full px-2 py-0.5 text-[10px] font-medium transition-colors ${
+                      chartGroup === g ? "bg-primary text-primary-foreground" : "bg-secondary text-secondary-foreground hover:bg-accent"
+                    }`}
+                  >
+                    {GROUP_LABELS[g]}
+                  </button>
+                ))}
+              </div>
+            </div>
           </CardHeader>
           <CardContent>
             {dailySales && dailySales.length > 0 ? (
@@ -139,7 +128,7 @@ export default function Dashboard() {
                   <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
                   <XAxis dataKey="tanggal" tick={{ fontSize: 10 }} interval="preserveStartEnd" />
                   <YAxis tick={{ fontSize: 10 }} tickFormatter={formatShortRupiah} width={45} />
-                  <Tooltip content={<ChartTooltipContent />} />
+                  <Tooltip content={<ChartTooltip />} />
                   <Area type="monotone" dataKey="total" name="Penjualan" stroke="#e07828" fill="url(#colorSales)" strokeWidth={2} />
                 </AreaChart>
               </ResponsiveContainer>
@@ -169,16 +158,16 @@ export default function Dashboard() {
                       paddingAngle={2}
                     >
                       {categoryData.map((_, i) => (
-                        <Cell key={i} fill={COLORS[i % COLORS.length]} />
+                        <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />
                       ))}
                     </Pie>
-                    <Tooltip content={<PieTooltipContent />} />
+                    <Tooltip content={<PieTooltip />} />
                   </PieChart>
                 </ResponsiveContainer>
                 <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 px-2">
                   {categoryData.slice(0, 6).map((c, i) => (
                     <div key={i} className="flex items-center gap-1 text-[10px]">
-                      <div className="size-2 rounded-full" style={{ backgroundColor: COLORS[i % COLORS.length] }} />
+                      <div className="size-2 rounded-full" style={{ backgroundColor: CHART_COLORS[i % CHART_COLORS.length] }} />
                       <span className="text-muted-foreground">{c.kategori}</span>
                     </div>
                   ))}
@@ -203,7 +192,7 @@ export default function Dashboard() {
                   <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
                   <XAxis dataKey="bulan" tick={{ fontSize: 11 }} />
                   <YAxis tick={{ fontSize: 10 }} tickFormatter={formatShortRupiah} width={45} />
-                  <Tooltip content={<ChartTooltipContent />} />
+                  <Tooltip content={<ChartTooltip />} />
                   <Legend wrapperStyle={{ fontSize: 11 }} />
                   <Bar dataKey="penjualan" name="Penjualan" fill="#e07828" radius={[4, 4, 0, 0]} />
                   <Bar dataKey="pembelian" name="Pembelian" fill="#1b508a" radius={[4, 4, 0, 0]} />

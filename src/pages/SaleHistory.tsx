@@ -2,7 +2,7 @@ import { useState, useCallback } from "react";
 import { useQuery } from "@/hooks/useQuery";
 import { useSort } from "@/hooks/useSort";
 import { useDebounce } from "@/hooks/useDebounce";
-import { getSales, getSaleItems, getSaleHistoryStats, getSaleHistoryDaily, getSaleHistoryTopProducts, getReturnedQtyMap, createSaleReturn } from "@/db/sales";
+import { getSales, getSaleItems, getSaleHistoryStats, getSaleHistoryDaily, getSaleHistoryTopProducts, getReturnedQtyMap, createSaleReturn, type ChartGroupBy } from "@/db/sales";
 import { Sale, SaleItem, formatRupiah, formatTanggal } from "@/types/index";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -22,24 +22,7 @@ import {
   XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer,
 } from "recharts";
-
-function formatShortRupiah(value: number): string {
-  if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}jt`;
-  if (value >= 1_000) return `${(value / 1_000).toFixed(0)}rb`;
-  return String(value);
-}
-
-function ChartTooltip({ active, payload, label }: { active?: boolean; payload?: { name: string; value: number; color: string }[]; label?: string }) {
-  if (!active || !payload?.length) return null;
-  return (
-    <div className="rounded-md border bg-background p-2 text-xs shadow-md">
-      <p className="mb-1 font-medium">{label}</p>
-      {payload.map((entry, i) => (
-        <p key={i} style={{ color: entry.color }}>{entry.name}: {formatRupiah(entry.value)}</p>
-      ))}
-    </div>
-  );
-}
+import { GROUP_LABELS, formatShortRupiah, ChartTooltip } from "@/lib/chart-utils";
 
 const PER_PAGE = 20;
 
@@ -49,6 +32,7 @@ export default function SaleHistory() {
   const debouncedSearch = useDebounce(search);
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
+  const [chartGroup, setChartGroup] = useState<ChartGroupBy>("day");
   const [detailItems, setDetailItems] = useState<SaleItem[] | null>(null);
   const [detailInvoice, setDetailInvoice] = useState("");
 
@@ -62,7 +46,7 @@ export default function SaleHistory() {
     useCallback(() => getSaleHistoryStats(start, end), [start, end])
   );
   const { data: dailyData } = useQuery(
-    useCallback(() => getSaleHistoryDaily(start, end), [start, end])
+    useCallback(() => getSaleHistoryDaily(start, end, chartGroup), [start, end, chartGroup])
   );
   const { data: topProducts } = useQuery(
     useCallback(() => getSaleHistoryTopProducts(start, end, 5), [start, end])
@@ -151,7 +135,23 @@ export default function SaleHistory() {
         <div className="mb-4 grid grid-cols-5 gap-4">
           <Card className="col-span-3">
             <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-semibold">Tren Penjualan Harian</CardTitle>
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-sm font-semibold">Tren Penjualan</CardTitle>
+                <div className="flex gap-1">
+                  {(["day", "week", "month", "year"] as ChartGroupBy[]).map((g) => (
+                    <button
+                      key={g}
+                      type="button"
+                      onClick={() => setChartGroup(g)}
+                      className={`rounded-full px-2 py-0.5 text-[10px] font-medium transition-colors ${
+                        chartGroup === g ? "bg-primary text-primary-foreground" : "bg-secondary text-secondary-foreground hover:bg-accent"
+                      }`}
+                    >
+                      {GROUP_LABELS[g]}
+                    </button>
+                  ))}
+                </div>
+              </div>
             </CardHeader>
             <CardContent>
               {dailyData && dailyData.length > 0 ? (
