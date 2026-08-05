@@ -17,14 +17,16 @@ describe("dashboard", () => {
     resetMock();
   });
 
-  it("should return all dashboard stats including monthly and customer counts", async () => {
-    mockDb.select.mockResolvedValueOnce([{ count: 30 }]);
-    mockDb.select.mockResolvedValueOnce([{ total: 500000 }]);
-    mockDb.select.mockResolvedValueOnce([{ total: 300000 }]);
-    mockDb.select.mockResolvedValueOnce([{ count: 4 }]);
-    mockDb.select.mockResolvedValueOnce([{ total: 8000000 }]);
-    mockDb.select.mockResolvedValueOnce([{ total: 5000000 }]);
-    mockDb.select.mockResolvedValueOnce([{ count: 5 }]);
+  it("should return all dashboard stats in single query", async () => {
+    mockDb.select.mockResolvedValueOnce([{
+      totalProducts: 30,
+      todaySales: 500000,
+      todayPurchases: 300000,
+      lowStockCount: 4,
+      monthlySales: 8000000,
+      monthlyPurchases: 5000000,
+      totalCustomers: 5,
+    }]);
 
     const stats = await getDashboardStats();
     expect(stats.totalProducts).toBe(30);
@@ -35,47 +37,38 @@ describe("dashboard", () => {
     expect(stats.monthlyPurchases).toBe(5000000);
     expect(stats.monthlyProfit).toBe(3000000);
     expect(stats.totalCustomers).toBe(5);
+    expect(mockDb.select).toHaveBeenCalledTimes(1);
   });
 
-  it("should query today sales with correct time range", async () => {
-    mockDb.select.mockResolvedValueOnce([{ count: 0 }]);
-    mockDb.select.mockResolvedValueOnce([{ total: 0 }]);
-    mockDb.select.mockResolvedValueOnce([{ total: 0 }]);
-    mockDb.select.mockResolvedValueOnce([{ count: 0 }]);
-    mockDb.select.mockResolvedValueOnce([{ total: 0 }]);
-    mockDb.select.mockResolvedValueOnce([{ total: 0 }]);
-    mockDb.select.mockResolvedValueOnce([{ count: 0 }]);
+  it("should pass day and month timestamps to single stats query", async () => {
+    mockDb.select.mockResolvedValueOnce([{
+      totalProducts: 0, todaySales: 0, todayPurchases: 0,
+      lowStockCount: 0, monthlySales: 0, monthlyPurchases: 0, totalCustomers: 0,
+    }]);
 
     await getDashboardStats();
 
-    const salesCall = mockDb.select.mock.calls[1];
-    expect((salesCall[0] as string)).toContain("SUM(total)");
-    expect((salesCall[0] as string)).toContain("penjualan");
-    const params = salesCall[1] as number[];
+    const call = mockDb.select.mock.calls[0];
+    expect((call[0] as string)).toContain("SUM(total)");
+    const params = call[1] as number[];
     expect(params[1] - params[0]).toBe(86400);
   });
 
   it("should compute monthly profit as sales minus purchases", async () => {
-    mockDb.select.mockResolvedValueOnce([{ count: 0 }]);
-    mockDb.select.mockResolvedValueOnce([{ total: 0 }]);
-    mockDb.select.mockResolvedValueOnce([{ total: 0 }]);
-    mockDb.select.mockResolvedValueOnce([{ count: 0 }]);
-    mockDb.select.mockResolvedValueOnce([{ total: 10000000 }]);
-    mockDb.select.mockResolvedValueOnce([{ total: 7000000 }]);
-    mockDb.select.mockResolvedValueOnce([{ count: 0 }]);
+    mockDb.select.mockResolvedValueOnce([{
+      totalProducts: 0, todaySales: 0, todayPurchases: 0,
+      lowStockCount: 0, monthlySales: 10000000, monthlyPurchases: 7000000, totalCustomers: 0,
+    }]);
 
     const stats = await getDashboardStats();
     expect(stats.monthlyProfit).toBe(3000000);
   });
 
   it("should return negative profit when purchases exceed sales", async () => {
-    mockDb.select.mockResolvedValueOnce([{ count: 0 }]);
-    mockDb.select.mockResolvedValueOnce([{ total: 0 }]);
-    mockDb.select.mockResolvedValueOnce([{ total: 0 }]);
-    mockDb.select.mockResolvedValueOnce([{ count: 0 }]);
-    mockDb.select.mockResolvedValueOnce([{ total: 2000000 }]);
-    mockDb.select.mockResolvedValueOnce([{ total: 5000000 }]);
-    mockDb.select.mockResolvedValueOnce([{ count: 0 }]);
+    mockDb.select.mockResolvedValueOnce([{
+      totalProducts: 0, todaySales: 0, todayPurchases: 0,
+      lowStockCount: 0, monthlySales: 2000000, monthlyPurchases: 5000000, totalCustomers: 0,
+    }]);
 
     const stats = await getDashboardStats();
     expect(stats.monthlyProfit).toBe(-3000000);
@@ -86,7 +79,7 @@ describe("dashboard", () => {
     const todayMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     const todayKey = todayMidnight.toISOString().slice(0, 10);
     mockDb.select.mockResolvedValueOnce([
-      { day: todayKey, total: 500000 },
+      { grp: todayKey, total: 500000 },
     ]);
 
     const result = await getDailySales(7);
@@ -94,7 +87,7 @@ describe("dashboard", () => {
     expect(result[result.length - 1].total).toBe(500000);
     const call = mockDb.select.mock.calls[0][0] as string;
     expect(call).toContain("date(dibuat_pada");
-    expect(call).toContain("GROUP BY day");
+    expect(call).toContain("GROUP BY grp");
   });
 
   it("should fill missing days with zero in daily sales", async () => {
@@ -113,20 +106,20 @@ describe("dashboard", () => {
     });
   });
 
-  it("should fetch monthly sales vs purchases for N months", async () => {
-    for (let i = 0; i < 6; i++) {
-      mockDb.select.mockResolvedValueOnce([{ total: 1000000 * (i + 1) }]);
-      mockDb.select.mockResolvedValueOnce([{ total: 500000 * (i + 1) }]);
-    }
+  it("should fetch monthly sales vs purchases in 2 queries", async () => {
+    const now = new Date();
+    const key0 = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+    mockDb.select.mockResolvedValueOnce([{ grp: key0, total: 6000000 }]);
+    mockDb.select.mockResolvedValueOnce([{ grp: key0, total: 3000000 }]);
 
     const result = await getMonthlySalesVsPurchases(6);
     expect(result).toHaveLength(6);
     expect(result[0]).toHaveProperty("bulan");
     expect(result[0]).toHaveProperty("penjualan");
     expect(result[0]).toHaveProperty("pembelian");
-    expect(result[0].penjualan).toBe(1000000);
-    expect(result[0].pembelian).toBe(500000);
     expect(result[5].penjualan).toBe(6000000);
+    expect(result[5].pembelian).toBe(3000000);
+    expect(mockDb.select).toHaveBeenCalledTimes(2);
   });
 
   it("should fetch sales by category with joins", async () => {

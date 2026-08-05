@@ -94,21 +94,18 @@ describe("products", () => {
 
   it("should delete a product with no transactions", async () => {
     mockDb.select.mockResolvedValueOnce([{ count: 0 }]);
-    mockDb.select.mockResolvedValueOnce([{ count: 0 }]);
     await deleteProduct(1);
     expect(mockDb.execute).toHaveBeenCalledWith("DELETE FROM produk WHERE id = $1", [1]);
   });
 
   it("should throw when deleting a product with sales", async () => {
     mockDb.select.mockResolvedValueOnce([{ count: 5 }]);
-    mockDb.select.mockResolvedValueOnce([{ count: 0 }]);
     await expect(deleteProduct(1)).rejects.toThrow(
       "Produk tidak dapat dihapus karena sudah memiliki transaksi"
     );
   });
 
   it("should throw when deleting a product with purchases", async () => {
-    mockDb.select.mockResolvedValueOnce([{ count: 0 }]);
     mockDb.select.mockResolvedValueOnce([{ count: 3 }]);
     await expect(deleteProduct(1)).rejects.toThrow(
       "Produk tidak dapat dihapus karena sudah memiliki transaksi"

@@ -38,7 +38,6 @@ describe("sales", () => {
 
   it("should generate invoice number with date prefix", async () => {
     mockDb.select.mockResolvedValueOnce([{ count: 0 }]);
-    mockDb.execute.mockResolvedValueOnce({ lastInsertId: 1, rowsAffected: 1 });
 
     const items: CartEntry[] = [
       { produk_id: 1, nama: "Semen", satuan: "sak", jumlah: 1, harga: 58000, stok: 100 },
@@ -46,8 +45,10 @@ describe("sales", () => {
 
     await createSale(items, 58000);
 
-    const insertCall = mockDb.execute.mock.calls[0][1] as unknown[];
-    const invoiceNumber = insertCall[0] as string;
+    const insertCall = mockDb.execute.mock.calls.find(
+      (c: unknown[]) => (c[0] as string).includes("INSERT INTO penjualan")
+    );
+    const invoiceNumber = (insertCall![1] as unknown[])[0] as string;
     expect(invoiceNumber).toMatch(/^INV-\d{8}-0001$/);
   });
 
@@ -168,9 +169,10 @@ describe("sales", () => {
 
   it("should capture HPP per item at time of sale", async () => {
     mockDb.select.mockResolvedValueOnce([{ count: 0 }]);
-    mockDb.execute.mockResolvedValueOnce({ lastInsertId: 1, rowsAffected: 1 });
-    mockDb.select.mockResolvedValueOnce([{ harga_beli: 45000 }]);
-    mockDb.select.mockResolvedValueOnce([{ harga_beli: 38000 }]);
+    mockDb.select.mockResolvedValueOnce([
+      { id: 1, harga_beli: 45000 },
+      { id: 2, harga_beli: 38000 },
+    ]);
 
     const items: CartEntry[] = [
       { produk_id: 1, nama: "Semen", satuan: "sak", jumlah: 5, harga: 58000, stok: 100 },

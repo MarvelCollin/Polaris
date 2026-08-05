@@ -21,25 +21,29 @@ function getTable(sql: string): string {
   return "__unknown__";
 }
 
+async function defaultExecute(sql: string, _params?: unknown[]) {
+  const table = getTable(sql);
+  if (sql.match(/INSERT/i)) {
+    if (!rows[table]) rows[table] = [];
+    rows[table].push(_params ?? []);
+    return { lastInsertId: autoId++, rowsAffected: 1 };
+  }
+  return { lastInsertId: 0, rowsAffected: 1 };
+}
+
+async function defaultSelect(sql: string, _params?: unknown[]) {
+  if (sql.match(/COUNT\(\*\)/i)) {
+    return [{ count: 0 }];
+  }
+  if (sql.match(/COALESCE\(SUM/i)) {
+    return [{ total: 0 }];
+  }
+  return [];
+}
+
 const mockDb = {
-  execute: vi.fn(async (sql: string, _params?: unknown[]) => {
-    const table = getTable(sql);
-    if (sql.match(/INSERT/i)) {
-      if (!rows[table]) rows[table] = [];
-      rows[table].push(_params ?? []);
-      return { lastInsertId: autoId++, rowsAffected: 1 };
-    }
-    return { lastInsertId: 0, rowsAffected: 1 };
-  }),
-  select: vi.fn(async (sql: string, _params?: unknown[]) => {
-    if (sql.match(/COUNT\(\*\)/i)) {
-      return [{ count: 0 }];
-    }
-    if (sql.match(/COALESCE\(SUM/i)) {
-      return [{ total: 0 }];
-    }
-    return [];
-  }),
+  execute: vi.fn(defaultExecute),
+  select: vi.fn(defaultSelect),
 };
 
 vi.mock("@tauri-apps/plugin-sql", () => ({
@@ -51,8 +55,10 @@ vi.mock("@tauri-apps/plugin-sql", () => ({
 export { mockDb, rows, autoId };
 
 export function resetMock() {
-  mockDb.execute.mockClear();
-  mockDb.select.mockClear();
+  mockDb.execute.mockReset();
+  mockDb.select.mockReset();
+  mockDb.execute.mockImplementation(defaultExecute);
+  mockDb.select.mockImplementation(defaultSelect);
   Object.keys(rows).forEach((k) => delete rows[k]);
   autoId = 1;
 }

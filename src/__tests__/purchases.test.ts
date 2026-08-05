@@ -14,9 +14,10 @@ describe("purchases", () => {
 
   it("should create a purchase with items and increment stock", async () => {
     mockDb.select.mockResolvedValueOnce([{ count: 0 }]);
-    mockDb.execute.mockResolvedValueOnce({ lastInsertId: 1, rowsAffected: 1 });
-    mockDb.select.mockResolvedValueOnce([{ stok: 50, harga_beli: 50000 }]);
-    mockDb.select.mockResolvedValueOnce([{ stok: 20, harga_beli: 40000 }]);
+    mockDb.select.mockResolvedValueOnce([
+      { id: 1, stok: 50, harga_beli: 50000 },
+      { id: 2, stok: 20, harga_beli: 40000 },
+    ]);
 
     const items: PurchaseEntry[] = [
       { produk_id: 1, nama: "Semen", satuan: "sak", jumlah: 100, harga: 52000 },
@@ -42,16 +43,18 @@ describe("purchases", () => {
 
   it("should auto-generate purchase number", async () => {
     mockDb.select.mockResolvedValueOnce([{ count: 3 }]);
-    mockDb.execute.mockResolvedValueOnce({ lastInsertId: 2, rowsAffected: 1 });
-    mockDb.select.mockResolvedValueOnce([{ stok: 10, harga_beli: 50000 }]);
+    mockDb.select.mockResolvedValueOnce([{ id: 1, stok: 10, harga_beli: 50000 }]);
 
     const items: PurchaseEntry[] = [
       { produk_id: 1, nama: "Semen", satuan: "sak", jumlah: 10, harga: 52000 },
     ];
 
     await createPurchase("Toko ABC", items);
-    const call = mockDb.execute.mock.calls[0][1] as unknown[];
-    expect((call[1] as string)).toMatch(/^PO-\d{8}-0004$/);
+    const purchaseInsert = mockDb.execute.mock.calls.find(
+      (c: unknown[]) => (c[0] as string).includes("INSERT INTO pembelian")
+    );
+    const params = purchaseInsert![1] as unknown[];
+    expect((params[1] as string)).toMatch(/^PO-\d{8}-0004$/);
   });
 
   it("should fetch purchases with pagination", async () => {
@@ -93,8 +96,7 @@ describe("purchases", () => {
 
   it("should calculate weighted average HPP on purchase", async () => {
     mockDb.select.mockResolvedValueOnce([{ count: 0 }]);
-    mockDb.execute.mockResolvedValueOnce({ lastInsertId: 1, rowsAffected: 1 });
-    mockDb.select.mockResolvedValueOnce([{ stok: 100, harga_beli: 50000 }]);
+    mockDb.select.mockResolvedValueOnce([{ id: 1, stok: 100, harga_beli: 50000 }]);
 
     const items: PurchaseEntry[] = [
       { produk_id: 1, nama: "Semen", satuan: "sak", jumlah: 50, harga: 56000 },
@@ -114,7 +116,6 @@ describe("purchases", () => {
 
   it("should handle HPP when product has no prior stock data", async () => {
     mockDb.select.mockResolvedValueOnce([{ count: 0 }]);
-    mockDb.execute.mockResolvedValueOnce({ lastInsertId: 1, rowsAffected: 1 });
     mockDb.select.mockResolvedValueOnce([]);
 
     const items: PurchaseEntry[] = [
@@ -132,8 +133,7 @@ describe("purchases", () => {
 
   it("should save partial payment as utang", async () => {
     mockDb.select.mockResolvedValueOnce([{ count: 0 }]);
-    mockDb.execute.mockResolvedValueOnce({ lastInsertId: 1, rowsAffected: 1 });
-    mockDb.select.mockResolvedValueOnce([{ stok: 10, harga_beli: 50000 }]);
+    mockDb.select.mockResolvedValueOnce([{ id: 1, stok: 10, harga_beli: 50000 }]);
 
     const items: PurchaseEntry[] = [
       { produk_id: 1, nama: "Semen", satuan: "sak", jumlah: 10, harga: 52000 },
@@ -151,8 +151,7 @@ describe("purchases", () => {
 
   it("should default dibayar to total when not provided", async () => {
     mockDb.select.mockResolvedValueOnce([{ count: 0 }]);
-    mockDb.execute.mockResolvedValueOnce({ lastInsertId: 1, rowsAffected: 1 });
-    mockDb.select.mockResolvedValueOnce([{ stok: 5, harga_beli: 50000 }]);
+    mockDb.select.mockResolvedValueOnce([{ id: 1, stok: 5, harga_beli: 50000 }]);
 
     const items: PurchaseEntry[] = [
       { produk_id: 1, nama: "Semen", satuan: "sak", jumlah: 5, harga: 52000 },
@@ -311,8 +310,7 @@ describe("purchases", () => {
 
   it("should generate sequential purchase number within same day", async () => {
     mockDb.select.mockResolvedValueOnce([{ count: 5 }]);
-    mockDb.execute.mockResolvedValueOnce({ lastInsertId: 1, rowsAffected: 1 });
-    mockDb.select.mockResolvedValueOnce([{ stok: 10, harga_beli: 50000 }]);
+    mockDb.select.mockResolvedValueOnce([{ id: 1, stok: 10, harga_beli: 50000 }]);
 
     const items: PurchaseEntry[] = [
       { produk_id: 1, nama: "Semen", satuan: "sak", jumlah: 1, harga: 50000 },
