@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { memo, useState, useRef, useEffect, useMemo } from "react";
 import { Input } from "@/components/ui/input";
 import { Search } from "lucide-react";
 
@@ -15,15 +15,15 @@ interface Props {
   emptyLabel?: string;
 }
 
-export default function SearchableSelect({ options, value, onChange, placeholder = "Cari...", emptyLabel = "Pilih..." }: Props) {
+export default memo(function SearchableSelect({ options, value, onChange, placeholder = "Cari...", emptyLabel = "Pilih..." }: Props) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
   const ref = useRef<HTMLDivElement>(null);
 
-  const selected = options.find((o) => o.value === value);
-  const filtered = search
+  const selected = useMemo(() => options.find((o) => o.value === value), [options, value]);
+  const filtered = useMemo(() => search
     ? options.filter((o) => o.label.toLowerCase().includes(search.toLowerCase()))
-    : options;
+    : options, [options, search]);
 
   useEffect(() => {
     function handleClick(e: MouseEvent) {
@@ -90,4 +90,4 @@ export default function SearchableSelect({ options, value, onChange, placeholder
       )}
     </div>
   );
-}
+});
