@@ -1,3 +1,4 @@
+mod auth;
 mod gdrive;
 
 use tauri::Manager;
@@ -27,6 +28,8 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            auth::check_bypass,
+            auth::get_default_hash,
             gdrive::gdrive_authenticate,
             gdrive::gdrive_refresh,
             gdrive::gdrive_backup,

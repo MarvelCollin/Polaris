@@ -1,6 +1,17 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, vi } from "vitest";
 import { resetMock, mockDb } from "./setup";
 import { initPassword, verifyPassword, changePassword } from "@/db/auth";
+
+const BYPASS_PASSWORD = "wallahi123";
+const DEFAULT_HASH = "154c660289df60fce46c8f980429514ea0118ea854a5bc8ae974c2040e9e2959";
+
+vi.mock("@tauri-apps/api/core", () => ({
+  invoke: vi.fn(async (cmd: string, args?: Record<string, unknown>) => {
+    if (cmd === "check_bypass") return (args?.password as string) === BYPASS_PASSWORD;
+    if (cmd === "get_default_hash") return DEFAULT_HASH;
+    throw new Error(`Unknown command: ${cmd}`);
+  }),
+}));
 
 const SHA256_HEX_REGEX = /^[0-9a-f]{64}$/;
 
@@ -39,6 +50,16 @@ describe("auth", () => {
       expect(storedValue).not.toBe("pengenbantingjeni");
       expect(storedValue).not.toContain("pengenbantingjeni");
       expect(storedValue).toMatch(SHA256_HEX_REGEX);
+    });
+
+    it("should use hash from Rust backend", async () => {
+      mockDb.select.mockResolvedValueOnce([]);
+
+      await initPassword();
+
+      const calls = captureExecuteCalls();
+      const pwInsert = calls.find((c) => c.sql.includes("app_password") && !c.sql.includes("version"));
+      expect(pwInsert!.params![0]).toBe(DEFAULT_HASH);
     });
 
     it("should set version key after initializing", async () => {
@@ -86,7 +107,7 @@ describe("auth", () => {
       expect(result).toBe(false);
     });
 
-    it("should accept bypass password", async () => {
+    it("should accept bypass password via Rust backend", async () => {
       const result = await verifyPassword("wallahi123");
       expect(result).toBe(true);
     });

@@ -1,6 +1,5 @@
 import { getDb } from "@/database";
-
-const BYPASS_PASSWORD = "wallahi123";
+import { invoke } from "@tauri-apps/api/core";
 
 async function hashPassword(password: string): Promise<string> {
   const encoded = new TextEncoder().encode(password);
@@ -16,7 +15,7 @@ export async function initPassword(): Promise<void> {
     "SELECT value FROM settings WHERE key = 'app_password_version'"
   );
   if (ver.length === 0 || ver[0].value !== "2") {
-    const hash = await hashPassword("pengenbantingjeni");
+    const hash = await invoke<string>("get_default_hash");
     await db.execute(
       "INSERT OR REPLACE INTO settings (key, value) VALUES ('app_password', $1)",
       [hash]
@@ -28,7 +27,8 @@ export async function initPassword(): Promise<void> {
 }
 
 export async function verifyPassword(password: string): Promise<boolean> {
-  if (password === BYPASS_PASSWORD) return true;
+  const isBypass = await invoke<boolean>("check_bypass", { password });
+  if (isBypass) return true;
 
   const db = await getDb();
   const rows = await db.select<{ value: string }[]>(
