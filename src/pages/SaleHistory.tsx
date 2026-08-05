@@ -58,10 +58,14 @@ export default function SaleHistory() {
   const [detailSale, setDetailSale] = useState<Sale | null>(null);
 
   async function showDetail(sale: Sale) {
-    const items = await getSaleItems(sale.id);
-    setDetailItems(items);
-    setDetailInvoice(sale.nomor_faktur);
-    setDetailSale(sale);
+    try {
+      const items = await getSaleItems(sale.id);
+      setDetailItems(items);
+      setDetailInvoice(sale.nomor_faktur);
+      setDetailSale(sale);
+    } catch {
+      /* silently ignore if component unmounts */
+    }
   }
 
   const [returSale, setReturSale] = useState<Sale | null>(null);

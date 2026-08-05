@@ -1,8 +1,8 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import { useQuery } from "@/hooks/useQuery";
 import { useDebounce } from "@/hooks/useDebounce";
 import { useSort } from "@/hooks/useSort";
-import { getProducts, createProduct, updateProduct, deleteProduct, generateProductCode, updateStock } from "@/db/products";
+import { getProducts, createProduct, updateProduct, deleteProduct, generateProductCode, updateStock, getDistinctSatuan } from "@/db/products";
 import { getCategories } from "@/db/categories";
 import { ProductWithCategory } from "@/types/index";
 import { formatRupiah } from "@/types/index";
@@ -37,6 +37,7 @@ export default function Products() {
     useCallback(() => getProducts(debouncedSearch || undefined, catFilter || undefined), [debouncedSearch, catFilter])
   );
   const { data: categories } = useQuery(useCallback(() => getCategories(), []));
+  const { data: existingSatuan } = useQuery(useCallback(() => getDistinctSatuan(), []));
   const { sorted, sortKey, sortDir, toggleSort } = useSort<ProductWithCategory>(products);
 
   const [modalOpen, setModalOpen] = useState(false);
@@ -47,6 +48,22 @@ export default function Products() {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [stockTarget, setStockTarget] = useState<ProductWithCategory | null>(null);
   const [stockValue, setStockValue] = useState(0);
+  const [satuanOpen, setSatuanOpen] = useState(false);
+  const satuanRef = useRef<HTMLDivElement>(null);
+
+  const filteredSatuan = (existingSatuan ?? []).filter(
+    (s) => form.satuan.length > 0 && s.toLowerCase().includes(form.satuan.toLowerCase()) && s.toLowerCase() !== form.satuan.toLowerCase()
+  );
+
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (satuanRef.current && !satuanRef.current.contains(e.target as Node)) {
+        setSatuanOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, []);
 
   function set(key: string, value: string | number) {
     setForm((f) => ({ ...f, [key]: value }));
@@ -70,7 +87,7 @@ export default function Products() {
     });
     setError("");
     if (p.gambar) {
-      getImageUrl(p.gambar).then(setPreviewUrl);
+      getImageUrl(p.gambar).then(setPreviewUrl).catch(() => {});
     } else {
       setPreviewUrl(null);
     }
@@ -102,10 +119,15 @@ export default function Products() {
       return;
     }
     try {
+      const trimmedSatuan = form.satuan.trim();
+      const matchedSatuan = (existingSatuan ?? []).find(
+        (s) => s.toLowerCase() === trimmedSatuan.toLowerCase()
+      );
+      const normalizedForm = { ...form, satuan: matchedSatuan ?? trimmedSatuan };
       if (editing) {
-        await updateProduct(editing.id, form);
+        await updateProduct(editing.id, normalizedForm);
       } else {
-        await createProduct(form);
+        await createProduct(normalizedForm);
       }
       setModalOpen(false);
       refetch();
@@ -269,9 +291,31 @@ export default function Products() {
                 emptyLabel="Pilih..."
               />
             </div>
-            <div>
+            <div ref={satuanRef}>
               <Label>Satuan</Label>
-              <Input value={form.satuan} onChange={(e) => set("satuan", e.target.value)} placeholder="pcs, kg, sak" />
+              <div className="relative">
+                <Input
+                  value={form.satuan}
+                  onChange={(e) => { set("satuan", e.target.value); setSatuanOpen(true); }}
+                  onFocus={() => setSatuanOpen(true)}
+                  placeholder="pcs, kg, sak"
+                  autoComplete="off"
+                />
+                {satuanOpen && filteredSatuan.length > 0 && (
+                  <div className="absolute z-50 mt-1 max-h-40 w-full overflow-y-auto rounded-md border bg-popover shadow-md">
+                    {filteredSatuan.map((s) => (
+                      <button
+                        key={s}
+                        type="button"
+                        className="w-full px-3 py-2 text-left text-sm hover:bg-accent"
+                        onClick={() => { set("satuan", s); setSatuanOpen(false); }}
+                      >
+                        {s}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
           </div>
           <div className="grid grid-cols-2 gap-3">

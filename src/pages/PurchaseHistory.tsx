@@ -60,9 +60,13 @@ export default function PurchaseHistory() {
   const { sorted, sortKey, sortDir, toggleSort } = useSort<Purchase>(data?.data ?? null);
 
   async function showDetail(purchaseId: number, supplier: string) {
-    const items = await getPurchaseItems(purchaseId);
-    setDetailItems(items);
-    setDetailSupplier(supplier);
+    try {
+      const items = await getPurchaseItems(purchaseId);
+      setDetailItems(items);
+      setDetailSupplier(supplier);
+    } catch {
+      /* silently ignore if component unmounts */
+    }
   }
 
   const [returPurchase, setReturPurchase] = useState<Purchase | null>(null);
