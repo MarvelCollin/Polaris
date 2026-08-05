@@ -18,7 +18,10 @@ describe("database", () => {
   it("should set WAL pragma on init", async () => {
     const { getDb } = await import("@/database");
     await getDb();
-    expect(mockDb.execute).toHaveBeenCalledWith("PRAGMA journal_mode = WAL");
+    const calls = mockDb.execute.mock.calls.map((c: unknown[]) => c[0] as string);
+    expect(calls.some((c: string) => c.includes("PRAGMA journal_mode = WAL"))).toBe(true);
+    expect(calls.some((c: string) => c.includes("PRAGMA synchronous = NORMAL"))).toBe(true);
+    expect(calls.some((c: string) => c.includes("PRAGMA cache_size"))).toBe(true);
   });
 
   it("should create all tables on initDb", async () => {
