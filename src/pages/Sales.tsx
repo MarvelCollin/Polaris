@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useMemo } from "react";
+import { memo, useState, useCallback, useEffect, useMemo } from "react";
 import { useQuery } from "@/hooks/useQuery";
 import { useDebounce } from "@/hooks/useDebounce";
 import { getProducts, getFrequentProductIds } from "@/db/products";
@@ -15,6 +15,57 @@ import SearchInput from "@/components/SearchInput";
 import { Plus, Minus, Trash2, CheckCircle, UserCircle, Star, Percent } from "lucide-react";
 import ProductThumb from "@/components/ProductThumb";
 import SearchableSelect from "@/components/SearchableSelect";
+
+const SaleProductTile = memo(function SaleProductTile({
+  p, price, hasCustom, qty, onAdd,
+}: {
+  p: ProductWithCategory;
+  price: number;
+  hasCustom: boolean;
+  qty: number;
+  onAdd: (p: ProductWithCategory) => void;
+}) {
+  const outOfStock = p.stok <= 0;
+
+  return (
+    <button
+      type="button"
+      disabled={outOfStock}
+      onClick={() => onAdd(p)}
+      className={`relative flex flex-col rounded-lg border p-3 text-left transition-all ${
+        outOfStock
+          ? "cursor-not-allowed opacity-50"
+          : "cursor-pointer hover:border-primary hover:shadow-sm active:scale-[0.98]"
+      } ${qty > 0 ? "border-primary bg-primary/5" : ""}`}
+    >
+      {qty > 0 && (
+        <span className="absolute -right-1.5 -top-1.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-bold text-primary-foreground">
+          {qty}
+        </span>
+      )}
+      <div className="mb-1 flex items-start gap-2">
+        <ProductThumb path={p.gambar} size="h-12 w-12" />
+        <div className="min-w-0 flex-1">
+          <span className="text-sm font-medium leading-tight">{p.nama}</span>
+          <span className="mt-0.5 block font-mono text-[10px] text-muted-foreground">{p.kode}</span>
+        </div>
+      </div>
+      <div className="mt-auto pt-2">
+        {hasCustom ? (
+          <div className="flex items-center gap-1">
+            <span className="text-[10px] text-muted-foreground line-through">{formatRupiah(p.harga_jual)}</span>
+            <Badge variant="secondary" className="text-[10px]">{formatRupiah(price)}</Badge>
+          </div>
+        ) : (
+          <span className="text-sm font-semibold text-primary">{formatRupiah(price)}</span>
+        )}
+        <span className={`block text-[10px] ${p.stok <= p.stok_minimum ? "text-destructive" : "text-muted-foreground"}`}>
+          {p.stok} {p.satuan}
+        </span>
+      </div>
+    </button>
+  );
+});
 
 export default function Sales() {
   const [search, setSearch] = useState("");
@@ -76,19 +127,14 @@ export default function Sales() {
       .filter((p): p is ProductWithCategory => p !== undefined);
   }, [allProducts, frequentIds]);
 
-  const subtotal = cart.reduce((sum, item) => sum + item.jumlah * item.harga, 0);
-  const discountAmount = discountType === "percent"
+  const subtotal = useMemo(() => cart.reduce((sum, item) => sum + item.jumlah * item.harga, 0), [cart]);
+  const discountAmount = useMemo(() => discountType === "percent"
     ? Math.round(subtotal * Math.min(discountValue, 100) / 100)
-    : Math.min(discountValue, subtotal);
+    : Math.min(discountValue, subtotal), [discountType, discountValue, subtotal]);
   const total = subtotal - discountAmount;
   const change = paid - total;
 
-  function getPrice(p: { id: number; harga_jual: number }): number {
-    return priceMap[p.id] ?? p.harga_jual;
-  }
-
-  function addToCart(p: { id: number; nama: string; satuan: string; harga_jual: number; stok: number }) {
-    const price = getPrice(p);
+  const addToCart = useCallback((p: { id: number; nama: string; satuan: string; harga_jual: number; stok: number }) => {
     setCart((prev) => {
       const existing = prev.find((c) => c.produk_id === p.id);
       if (existing) {
@@ -96,11 +142,12 @@ export default function Sales() {
         return prev.map((c) => c.produk_id === p.id ? { ...c, jumlah: c.jumlah + 1 } : c);
       }
       if (p.stok <= 0) return prev;
+      const price = priceMap[p.id] ?? p.harga_jual;
       return [...prev, { produk_id: p.id, nama: p.nama, satuan: p.satuan, jumlah: 1, harga: price, stok: p.stok }];
     });
-  }
+  }, [priceMap]);
 
-  function updateQty(produkId: number, delta: number) {
+  const updateQty = useCallback((produkId: number, delta: number) => {
     setCart((prev) =>
       prev.map((c) => {
         if (c.produk_id !== produkId) return c;
@@ -109,11 +156,11 @@ export default function Sales() {
         return { ...c, jumlah: newQty };
       })
     );
-  }
+  }, []);
 
-  function removeFromCart(produkId: number) {
+  const removeFromCart = useCallback((produkId: number) => {
     setCart((prev) => prev.filter((c) => c.produk_id !== produkId));
-  }
+  }, []);
 
   function handleCustomerChange(customerId: number) {
     if (customerId === 0) {
@@ -155,55 +202,11 @@ export default function Sales() {
     }
   }
 
-  function isInCart(produkId: number): number {
-    return cart.find((c) => c.produk_id === produkId)?.jumlah ?? 0;
-  }
-
-  function ProductTile({ p }: { p: ProductWithCategory }) {
-    const price = getPrice(p);
-    const hasCustom = priceMap[p.id] !== undefined;
-    const qty = isInCart(p.id);
-    const outOfStock = p.stok <= 0;
-
-    return (
-      <button
-        type="button"
-        disabled={outOfStock}
-        onClick={() => addToCart(p)}
-        className={`relative flex flex-col rounded-lg border p-3 text-left transition-all ${
-          outOfStock
-            ? "cursor-not-allowed opacity-50"
-            : "cursor-pointer hover:border-primary hover:shadow-sm active:scale-[0.98]"
-        } ${qty > 0 ? "border-primary bg-primary/5" : ""}`}
-      >
-        {qty > 0 && (
-          <span className="absolute -right-1.5 -top-1.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-bold text-primary-foreground">
-            {qty}
-          </span>
-        )}
-        <div className="mb-1 flex items-start gap-2">
-          <ProductThumb path={p.gambar} size="h-12 w-12" />
-          <div className="min-w-0 flex-1">
-            <span className="text-sm font-medium leading-tight">{p.nama}</span>
-            <span className="mt-0.5 block font-mono text-[10px] text-muted-foreground">{p.kode}</span>
-          </div>
-        </div>
-        <div className="mt-auto pt-2">
-          {hasCustom ? (
-            <div className="flex items-center gap-1">
-              <span className="text-[10px] text-muted-foreground line-through">{formatRupiah(p.harga_jual)}</span>
-              <Badge variant="secondary" className="text-[10px]">{formatRupiah(price)}</Badge>
-            </div>
-          ) : (
-            <span className="text-sm font-semibold text-primary">{formatRupiah(price)}</span>
-          )}
-          <span className={`block text-[10px] ${p.stok <= p.stok_minimum ? "text-destructive" : "text-muted-foreground"}`}>
-            {p.stok} {p.satuan}
-          </span>
-        </div>
-      </button>
-    );
-  }
+  const cartQtyMap = useMemo(() => {
+    const map: Record<number, number> = {};
+    for (const c of cart) map[c.produk_id] = c.jumlah;
+    return map;
+  }, [cart]);
 
   return (
     <div className="animate-fade-in">
@@ -228,7 +231,14 @@ export default function Sales() {
               </div>
               <div className="grid grid-cols-4 gap-2 p-1">
                 {frequentProducts.map((p) => (
-                  <ProductTile key={p.id} p={p} />
+                  <SaleProductTile
+                    key={p.id}
+                    p={p}
+                    price={priceMap[p.id] ?? p.harga_jual}
+                    hasCustom={priceMap[p.id] !== undefined}
+                    qty={cartQtyMap[p.id] ?? 0}
+                    onAdd={addToCart}
+                  />
                 ))}
               </div>
             </div>
@@ -266,7 +276,14 @@ export default function Sales() {
             {filteredProducts.length > 0 ? (
               <div className="grid grid-cols-3 gap-2">
                 {filteredProducts.map((p) => (
-                  <ProductTile key={p.id} p={p} />
+                  <SaleProductTile
+                    key={p.id}
+                    p={p}
+                    price={priceMap[p.id] ?? p.harga_jual}
+                    hasCustom={priceMap[p.id] !== undefined}
+                    qty={cartQtyMap[p.id] ?? 0}
+                    onAdd={addToCart}
+                  />
                 ))}
               </div>
             ) : (
