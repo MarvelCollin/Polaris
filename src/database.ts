@@ -225,4 +225,10 @@ export async function initDb() {
 
   await database.execute(`CREATE INDEX IF NOT EXISTS idx_retur_penjualan ON retur_penjualan(penjualan_id)`);
   await database.execute(`CREATE INDEX IF NOT EXISTS idx_retur_pembelian ON retur_pembelian(pembelian_id)`);
+  await database.execute(`CREATE INDEX IF NOT EXISTS idx_item_retur_penjualan_retur ON item_retur_penjualan(retur_id)`);
+  await database.execute(`CREATE INDEX IF NOT EXISTS idx_item_retur_pembelian_retur ON item_retur_pembelian(retur_id)`);
+  await database.execute(`CREATE INDEX IF NOT EXISTS idx_item_retur_penjualan_produk ON item_retur_penjualan(produk_id)`);
+  await database.execute(`CREATE INDEX IF NOT EXISTS idx_item_retur_pembelian_produk ON item_retur_pembelian(produk_id)`);
+  await database.execute(`CREATE INDEX IF NOT EXISTS idx_pembelian_supplier ON pembelian(supplier)`);
+  await database.execute(`CREATE INDEX IF NOT EXISTS idx_produk_stok ON produk(stok, stok_minimum)`);
 }

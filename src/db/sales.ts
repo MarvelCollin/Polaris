@@ -30,31 +30,41 @@ export async function createSale(
   const kembalian = Math.max(0, dibayar - total);
   const nomor = await generateInvoiceNumber();
 
-  const result = await db.execute(
-    "INSERT INTO penjualan (nomor_faktur, total, dibayar, kembalian, pelanggan_id, nama_pelanggan, diskon) VALUES ($1, $2, $3, $4, $5, $6, $7)",
-    [nomor, total, dibayar, kembalian, pelangganId ?? null, namaPelanggan ?? null, diskon]
+  const produkIds = items.map((i) => i.produk_id);
+  const placeholders = produkIds.map((_, i) => `$${i + 1}`).join(",");
+  const hppRows: { id: number; harga_beli: number }[] = await db.select(
+    `SELECT id, harga_beli FROM produk WHERE id IN (${placeholders})`,
+    produkIds
   );
-  const saleId = result.lastInsertId ?? 0;
+  const hppMap = new Map(hppRows.map((r) => [r.id, r.harga_beli]));
 
-  for (const item of items) {
-    const produk: { harga_beli: number }[] = await db.select(
-      "SELECT harga_beli FROM produk WHERE id = $1",
-      [item.produk_id]
+  await db.execute("BEGIN TRANSACTION");
+  try {
+    const result = await db.execute(
+      "INSERT INTO penjualan (nomor_faktur, total, dibayar, kembalian, pelanggan_id, nama_pelanggan, diskon) VALUES ($1, $2, $3, $4, $5, $6, $7)",
+      [nomor, total, dibayar, kembalian, pelangganId ?? null, namaPelanggan ?? null, diskon]
     );
-    const hpp = produk.length > 0 ? produk[0].harga_beli : 0;
+    const saleId = result.lastInsertId ?? 0;
 
-    await db.execute(
-      `INSERT INTO item_penjualan (penjualan_id, produk_id, nama_produk, jumlah, harga_satuan, subtotal, hpp)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-      [saleId, item.produk_id, item.nama, item.jumlah, item.harga, item.jumlah * item.harga, hpp]
-    );
-    await db.execute(
-      "UPDATE produk SET stok = stok - $1, diperbarui_pada = strftime('%s','now') WHERE id = $2",
-      [item.jumlah, item.produk_id]
-    );
+    for (const item of items) {
+      const hpp = hppMap.get(item.produk_id) ?? 0;
+      await db.execute(
+        `INSERT INTO item_penjualan (penjualan_id, produk_id, nama_produk, jumlah, harga_satuan, subtotal, hpp)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+        [saleId, item.produk_id, item.nama, item.jumlah, item.harga, item.jumlah * item.harga, hpp]
+      );
+      await db.execute(
+        "UPDATE produk SET stok = stok - $1, diperbarui_pada = strftime('%s','now') WHERE id = $2",
+        [item.jumlah, item.produk_id]
+      );
+    }
+
+    await db.execute("COMMIT");
+    return saleId;
+  } catch (e) {
+    await db.execute("ROLLBACK");
+    throw e;
   }
-
-  return saleId;
 }
 
 export async function getSales(
@@ -241,25 +251,32 @@ export async function createSaleReturn(
   const db = await getDb();
   const total = items.reduce((sum, i) => sum + i.jumlah * i.harga_satuan, 0);
 
-  const result = await db.execute(
-    "INSERT INTO retur_penjualan (penjualan_id, total, alasan) VALUES ($1, $2, $3)",
-    [saleId, total, alasan || null]
-  );
-  const returId = result.lastInsertId ?? 0;
+  await db.execute("BEGIN TRANSACTION");
+  try {
+    const result = await db.execute(
+      "INSERT INTO retur_penjualan (penjualan_id, total, alasan) VALUES ($1, $2, $3)",
+      [saleId, total, alasan || null]
+    );
+    const returId = result.lastInsertId ?? 0;
 
-  for (const item of items) {
-    await db.execute(
-      `INSERT INTO item_retur_penjualan (retur_id, produk_id, nama_produk, jumlah, harga_satuan, subtotal)
-       VALUES ($1, $2, $3, $4, $5, $6)`,
-      [returId, item.produk_id, item.nama_produk, item.jumlah, item.harga_satuan, item.jumlah * item.harga_satuan]
-    );
-    await db.execute(
-      "UPDATE produk SET stok = stok + $1, diperbarui_pada = strftime('%s','now') WHERE id = $2",
-      [item.jumlah, item.produk_id]
-    );
+    for (const item of items) {
+      await db.execute(
+        `INSERT INTO item_retur_penjualan (retur_id, produk_id, nama_produk, jumlah, harga_satuan, subtotal)
+         VALUES ($1, $2, $3, $4, $5, $6)`,
+        [returId, item.produk_id, item.nama_produk, item.jumlah, item.harga_satuan, item.jumlah * item.harga_satuan]
+      );
+      await db.execute(
+        "UPDATE produk SET stok = stok + $1, diperbarui_pada = strftime('%s','now') WHERE id = $2",
+        [item.jumlah, item.produk_id]
+      );
+    }
+
+    await db.execute("COMMIT");
+    return returId;
+  } catch (e) {
+    await db.execute("ROLLBACK");
+    throw e;
   }
-
-  return returId;
 }
 
 export async function getSaleReturns(saleId: number): Promise<ReturPenjualan[]> {

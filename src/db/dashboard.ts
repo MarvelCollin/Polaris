@@ -11,47 +11,36 @@ export async function getDashboardStats() {
   const startOfMonth = toUnixTimestamp(new Date(now.getFullYear(), now.getMonth(), 1));
   const endOfMonth = toUnixTimestamp(new Date(now.getFullYear(), now.getMonth() + 1, 1));
 
-  const totalProducts: { count: number }[] = await db.select(
-    "SELECT COUNT(*) as count FROM produk"
+  const rows: {
+    totalProducts: number;
+    todaySales: number;
+    todayPurchases: number;
+    lowStockCount: number;
+    monthlySales: number;
+    monthlyPurchases: number;
+    totalCustomers: number;
+  }[] = await db.select(
+    `SELECT
+       (SELECT COUNT(*) FROM produk) as totalProducts,
+       (SELECT COALESCE(SUM(total), 0) FROM penjualan WHERE dibuat_pada >= $1 AND dibuat_pada < $2) as todaySales,
+       (SELECT COALESCE(SUM(total), 0) FROM pembelian WHERE dibuat_pada >= $1 AND dibuat_pada < $2) as todayPurchases,
+       (SELECT COUNT(*) FROM produk WHERE stok <= stok_minimum) as lowStockCount,
+       (SELECT COALESCE(SUM(total), 0) FROM penjualan WHERE dibuat_pada >= $3 AND dibuat_pada < $4) as monthlySales,
+       (SELECT COALESCE(SUM(total), 0) FROM pembelian WHERE dibuat_pada >= $3 AND dibuat_pada < $4) as monthlyPurchases,
+       (SELECT COUNT(*) FROM pelanggan) as totalCustomers`,
+    [startOfDay, endOfDay, startOfMonth, endOfMonth]
   );
 
-  const todaySales: { total: number }[] = await db.select(
-    "SELECT COALESCE(SUM(total), 0) as total FROM penjualan WHERE dibuat_pada >= $1 AND dibuat_pada < $2",
-    [startOfDay, endOfDay]
-  );
-
-  const todayPurchases: { total: number }[] = await db.select(
-    "SELECT COALESCE(SUM(total), 0) as total FROM pembelian WHERE dibuat_pada >= $1 AND dibuat_pada < $2",
-    [startOfDay, endOfDay]
-  );
-
-  const lowStock: { count: number }[] = await db.select(
-    "SELECT COUNT(*) as count FROM produk WHERE stok <= stok_minimum"
-  );
-
-  const monthlySales: { total: number }[] = await db.select(
-    "SELECT COALESCE(SUM(total), 0) as total FROM penjualan WHERE dibuat_pada >= $1 AND dibuat_pada < $2",
-    [startOfMonth, endOfMonth]
-  );
-
-  const monthlyPurchases: { total: number }[] = await db.select(
-    "SELECT COALESCE(SUM(total), 0) as total FROM pembelian WHERE dibuat_pada >= $1 AND dibuat_pada < $2",
-    [startOfMonth, endOfMonth]
-  );
-
-  const totalCustomers: { count: number }[] = await db.select(
-    "SELECT COUNT(*) as count FROM pelanggan"
-  );
-
+  const r = rows[0];
   return {
-    totalProducts: totalProducts[0].count,
-    todaySales: todaySales[0].total,
-    todayPurchases: todayPurchases[0].total,
-    lowStockCount: lowStock[0].count,
-    monthlySales: monthlySales[0].total,
-    monthlyPurchases: monthlyPurchases[0].total,
-    monthlyProfit: monthlySales[0].total - monthlyPurchases[0].total,
-    totalCustomers: totalCustomers[0].count,
+    totalProducts: r.totalProducts,
+    todaySales: r.todaySales,
+    todayPurchases: r.todayPurchases,
+    lowStockCount: r.lowStockCount,
+    monthlySales: r.monthlySales,
+    monthlyPurchases: r.monthlyPurchases,
+    monthlyProfit: r.monthlySales - r.monthlyPurchases,
+    totalCustomers: r.totalCustomers,
   };
 }
 
@@ -74,43 +63,45 @@ export async function getDailySales(days: number = 30, groupBy: ChartGroupBy = "
     return rows.map((r) => ({ tanggal: formatGroupLabel(r.grp, groupBy), total: r.total }));
   }
 
+  const rowMap = new Map(rows.map((r) => [r.grp, r.total]));
   const result: { tanggal: string; total: number }[] = [];
   for (let i = 0; i < days; i++) {
     const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - days + 1 + i);
     const key = d.toISOString().slice(0, 10);
     const label = `${d.getDate()}/${d.getMonth() + 1}`;
-    const found = rows.find((r) => r.grp === key);
-    result.push({ tanggal: label, total: found?.total ?? 0 });
+    result.push({ tanggal: label, total: rowMap.get(key) ?? 0 });
   }
   return result;
 }
 
 export async function getMonthlySalesVsPurchases(months: number = 6): Promise<{ bulan: string; penjualan: number; pembelian: number }[]> {
   const db = await getDb();
-  const result: { bulan: string; penjualan: number; pembelian: number }[] = [];
   const now = new Date();
+  const startTs = toUnixTimestamp(new Date(now.getFullYear(), now.getMonth() - months + 1, 1));
 
+  const salesRows: { grp: string; total: number }[] = await db.select(
+    `SELECT strftime('%Y-%m', dibuat_pada, 'unixepoch', 'localtime') as grp, COALESCE(SUM(total), 0) as total
+     FROM penjualan WHERE dibuat_pada >= $1 GROUP BY grp ORDER BY grp`,
+    [startTs]
+  );
+  const purchaseRows: { grp: string; total: number }[] = await db.select(
+    `SELECT strftime('%Y-%m', dibuat_pada, 'unixepoch', 'localtime') as grp, COALESCE(SUM(total), 0) as total
+     FROM pembelian WHERE dibuat_pada >= $1 GROUP BY grp ORDER BY grp`,
+    [startTs]
+  );
+
+  const salesMap = new Map(salesRows.map((r) => [r.grp, r.total]));
+  const purchaseMap = new Map(purchaseRows.map((r) => [r.grp, r.total]));
+
+  const result: { bulan: string; penjualan: number; pembelian: number }[] = [];
   for (let i = months - 1; i >= 0; i--) {
-    const start = new Date(now.getFullYear(), now.getMonth() - i, 1);
-    const end = new Date(now.getFullYear(), now.getMonth() - i + 1, 1);
-    const startTs = toUnixTimestamp(start);
-    const endTs = toUnixTimestamp(end);
-
-    const bulanLabel = start.toLocaleDateString("id-ID", { month: "short", year: "2-digit" });
-
-    const sales: { total: number }[] = await db.select(
-      "SELECT COALESCE(SUM(total), 0) as total FROM penjualan WHERE dibuat_pada >= $1 AND dibuat_pada < $2",
-      [startTs, endTs]
-    );
-    const purchases: { total: number }[] = await db.select(
-      "SELECT COALESCE(SUM(total), 0) as total FROM pembelian WHERE dibuat_pada >= $1 AND dibuat_pada < $2",
-      [startTs, endTs]
-    );
-
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+    const bulanLabel = d.toLocaleDateString("id-ID", { month: "short", year: "2-digit" });
     result.push({
       bulan: bulanLabel,
-      penjualan: sales[0].total,
-      pembelian: purchases[0].total,
+      penjualan: salesMap.get(key) ?? 0,
+      pembelian: purchaseMap.get(key) ?? 0,
     });
   }
   return result;

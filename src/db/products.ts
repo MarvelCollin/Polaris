@@ -101,15 +101,12 @@ export async function updateStock(id: number, stok: number): Promise<void> {
 
 export async function deleteProduct(id: number): Promise<void> {
   const db = await getDb();
-  const sales: { count: number }[] = await db.select(
-    "SELECT COUNT(*) as count FROM item_penjualan WHERE produk_id = $1",
+  const rows: { count: number }[] = await db.select(
+    `SELECT (SELECT COUNT(*) FROM item_penjualan WHERE produk_id = $1)
+          + (SELECT COUNT(*) FROM item_pembelian WHERE produk_id = $1) as count`,
     [id]
   );
-  const purchases: { count: number }[] = await db.select(
-    "SELECT COUNT(*) as count FROM item_pembelian WHERE produk_id = $1",
-    [id]
-  );
-  if (sales[0].count > 0 || purchases[0].count > 0) {
+  if (rows[0].count > 0) {
     throw new Error("Produk tidak dapat dihapus karena sudah memiliki transaksi");
   }
   await db.execute("DELETE FROM produk WHERE id = $1", [id]);
@@ -126,6 +123,14 @@ export async function getFrequentProductIds(limit: number = 8): Promise<number[]
     [limit]
   );
   return rows.map((r) => r.produk_id);
+}
+
+export async function getDistinctSatuan(): Promise<string[]> {
+  const db = await getDb();
+  const rows: { satuan: string }[] = await db.select(
+    "SELECT satuan FROM produk GROUP BY UPPER(satuan) ORDER BY satuan"
+  );
+  return rows.map((r) => r.satuan);
 }
 
 export async function getLowStockProducts(): Promise<ProductWithCategory[]> {
