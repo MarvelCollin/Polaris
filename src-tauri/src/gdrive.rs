@@ -292,7 +292,14 @@ pub async fn gdrive_backup(
     access_token: String,
 ) -> Result<DriveFile, String> {
     let db_path = get_db_path(&app)?;
-    backup_internal(&db_path, &access_token).await
+    let result = backup_internal(&db_path, &access_token).await?;
+
+    let app_dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
+    let mut config = load_auto_config(&app_dir);
+    config.last_backup_date = Some(Local::now().format("%Y-%m-%d").to_string());
+    save_auto_config(&app_dir, &config).ok();
+
+    Ok(result)
 }
 
 #[tauri::command]
@@ -418,17 +425,22 @@ pub async fn gdrive_get_auto_backup_status(
 fn register_wake_task() -> Result<(), String> {
     let exe = std::env::current_exe().map_err(|e| e.to_string())?;
     let exe_path = exe.to_string_lossy().replace('\\', "\\\\");
+    let exe_name = exe
+        .file_name()
+        .map(|n| n.to_string_lossy().to_string())
+        .unwrap_or_default();
 
-    let ps = format!(
-        "$action = New-ScheduledTaskAction -Execute '{}'\n\
+    let script = format!(
+        "$action = New-ScheduledTaskAction -Execute 'powershell.exe' -Argument '-WindowStyle Hidden -Command \"if (-not (Get-Process -Name \\\"{}\\\" -ErrorAction SilentlyContinue)) {{ Start-Process \\\"{}\\\" }}\"'\n\
          $trigger = New-ScheduledTaskTrigger -Daily -At '00:00'\n\
          $settings = New-ScheduledTaskSettingsSet -WakeToRun -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable\n\
          Register-ScheduledTask -TaskName 'SahabatSentarumAutoBackup' -Action $action -Trigger $trigger -Settings $settings -Force",
+        exe_name.trim_end_matches(".exe"),
         exe_path
     );
 
     let output = std::process::Command::new("powershell")
-        .args(["-ExecutionPolicy", "Bypass", "-Command", &ps])
+        .args(["-ExecutionPolicy", "Bypass", "-Command", &script])
         .output()
         .map_err(|e| format!("Gagal mendaftarkan scheduled task: {}", e))?;
 
@@ -455,13 +467,17 @@ fn unregister_wake_task() -> Result<(), String> {
 
 // Background loop — runs every 60s, backs up if enabled and none done today
 pub async fn auto_backup_loop(app: tauri::AppHandle) {
-    tokio::time::sleep(Duration::from_secs(30)).await;
+    tokio::time::sleep(Duration::from_secs(5)).await;
+
+    if let Err(e) = try_auto_backup(&app).await {
+        eprintln!("Auto backup (startup): {}", e);
+    }
 
     loop {
+        tokio::time::sleep(Duration::from_secs(60)).await;
         if let Err(e) = try_auto_backup(&app).await {
             eprintln!("Auto backup: {}", e);
         }
-        tokio::time::sleep(Duration::from_secs(60)).await;
     }
 }
 
