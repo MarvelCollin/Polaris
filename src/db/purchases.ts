@@ -165,7 +165,7 @@ export async function getPurchaseHistoryStats(startDate?: number, endDate?: numb
 
 export async function getPurchaseHistoryDaily(startDate?: number, endDate?: number, groupBy: ChartGroupBy = "day"): Promise<{ tanggal: string; total: number }[]> {
   const db = await getDb();
-  let where = "WHERE 1=1";
+  let where = "";
   const params: number[] = [];
 
   if (startDate && endDate) {
