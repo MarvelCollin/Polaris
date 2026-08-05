@@ -1,5 +1,6 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
+import LazySection from "@/components/LazySection";
 import { useQuery } from "@/hooks/useQuery";
 import {
   getDashboardStats,
@@ -49,6 +50,10 @@ export default function Dashboard() {
   const { data: grossProfit } = useQuery(useCallback(() => getGrossProfitByProduct(10), []));
   const { data: salesRecap } = useQuery(useCallback(() => getSalesRecap(recapPeriod), [recapPeriod]));
   const { data: purchasesRecap } = useQuery(useCallback(() => getPurchasesRecap(recapPeriod), [recapPeriod]));
+
+  const grossProfitTotal = useMemo(() => grossProfit?.reduce((s, p) => s + p.laba, 0) ?? 0, [grossProfit]);
+  const salesRecapTotal = useMemo(() => salesRecap?.reduce((s, r) => s + r.total, 0) ?? 0, [salesRecap]);
+  const purchasesRecapTotal = useMemo(() => purchasesRecap?.reduce((s, r) => s + r.total, 0) ?? 0, [purchasesRecap]);
 
   return (
     <div className="animate-fade-in">
@@ -180,7 +185,7 @@ export default function Dashboard() {
         </Card>
       </div>
 
-      <div className="mb-6 grid grid-cols-3 gap-6">
+      <LazySection height={350} className="mb-6 grid grid-cols-3 gap-6">
         <Card className="col-span-2 animate-fade-in-up" style={{ animationDelay: "300ms", animationFillMode: "backwards" }}>
           <CardHeader className="pb-2">
             <CardTitle className="cursor-pointer text-sm font-semibold hover:text-primary" onClick={() => navigate("/riwayat-jual")}>Penjualan vs Pembelian (6 Bulan) →</CardTitle>
@@ -231,9 +236,9 @@ export default function Dashboard() {
             )}
           </CardContent>
         </Card>
-      </div>
+      </LazySection>
 
-      <div className="mb-6 grid grid-cols-3 gap-6">
+      <LazySection height={300} className="mb-6 grid grid-cols-3 gap-6">
         <Card className="animate-fade-in-up" style={{ animationDelay: "350ms", animationFillMode: "backwards" }}>
           <CardHeader className="pb-2">
             <CardTitle className="cursor-pointer text-sm font-semibold hover:text-primary" onClick={() => navigate("/produk")}>Stok Rendah →</CardTitle>
@@ -324,10 +329,11 @@ export default function Dashboard() {
             )}
           </CardContent>
         </Card>
-      </div>
+      </LazySection>
 
       {grossProfit && grossProfit.length > 0 && (
-        <Card className="mb-6 animate-fade-in-up" style={{ animationDelay: "450ms", animationFillMode: "backwards" }}>
+        <LazySection height={300} className="mb-6">
+        <Card className="animate-fade-in-up" style={{ animationDelay: "450ms", animationFillMode: "backwards" }}>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-semibold">Laba Kotor per Produk</CardTitle>
           </CardHeader>
@@ -364,15 +370,16 @@ export default function Dashboard() {
             </Table>
             <div className="mt-2 flex justify-between border-t pt-2 text-sm font-bold">
               <span>Total Laba Kotor</span>
-              <span className={grossProfit.reduce((s, p) => s + p.laba, 0) >= 0 ? "text-green-600 dark:text-green-400" : "text-destructive"}>
-                {formatRupiah(grossProfit.reduce((s, p) => s + p.laba, 0))}
+              <span className={grossProfitTotal >= 0 ? "text-green-600 dark:text-green-400" : "text-destructive"}>
+                {formatRupiah(grossProfitTotal)}
               </span>
             </div>
           </CardContent>
         </Card>
+        </LazySection>
       )}
 
-      <div className="mb-6">
+      <LazySection height={400} className="mb-6">
         <div className="mb-3 flex items-center gap-3">
           <h2 className="text-lg font-semibold">Rekap Transaksi</h2>
           <div className="flex gap-1">
@@ -420,7 +427,7 @@ export default function Dashboard() {
                   </Table>
                   <div className="mt-2 flex justify-between border-t pt-2 text-sm font-bold">
                     <span>Total</span>
-                    <span>{formatRupiah(salesRecap.reduce((s, r) => s + r.total, 0))}</span>
+                    <span>{formatRupiah(salesRecapTotal)}</span>
                   </div>
                 </>
               ) : (
@@ -456,7 +463,7 @@ export default function Dashboard() {
                   </Table>
                   <div className="mt-2 flex justify-between border-t pt-2 text-sm font-bold">
                     <span>Total</span>
-                    <span>{formatRupiah(purchasesRecap.reduce((s, r) => s + r.total, 0))}</span>
+                    <span>{formatRupiah(purchasesRecapTotal)}</span>
                   </div>
                 </>
               ) : (
@@ -465,7 +472,7 @@ export default function Dashboard() {
             </CardContent>
           </Card>
         </div>
-      </div>
+      </LazySection>
     </div>
   );
 }
