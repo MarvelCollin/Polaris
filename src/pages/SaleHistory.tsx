@@ -4,6 +4,7 @@ import { useSort } from "@/hooks/useSort";
 import { useDebounce } from "@/hooks/useDebounce";
 import { getSales, getSaleItems, getSaleHistoryStats, getSaleHistoryDaily, getSaleHistoryTopProducts, getReturnedQtyMap, createSaleReturn, type ChartGroupBy } from "@/db/sales";
 import { Sale, SaleItem, formatRupiah, formatTanggal } from "@/types/index";
+import { toUnixTimestamp } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -36,8 +37,8 @@ export default function SaleHistory() {
   const [detailItems, setDetailItems] = useState<SaleItem[] | null>(null);
   const [detailInvoice, setDetailInvoice] = useState("");
 
-  const start = startDate ? Math.floor(new Date(startDate).getTime() / 1000) : undefined;
-  const end = endDate ? Math.floor(new Date(endDate + "T23:59:59").getTime() / 1000) : undefined;
+  const start = startDate ? toUnixTimestamp(new Date(startDate)) : undefined;
+  const end = endDate ? toUnixTimestamp(new Date(endDate + "T23:59:59")) : undefined;
 
   const { data, refetch } = useQuery(
     useCallback(() => getSales(start, end, PER_PAGE, (page - 1) * PER_PAGE, debouncedSearch || undefined), [start, end, page, debouncedSearch])

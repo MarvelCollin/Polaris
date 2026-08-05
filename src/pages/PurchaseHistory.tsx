@@ -5,6 +5,7 @@ import { useDebounce } from "@/hooks/useDebounce";
 import { getPurchases, getPurchaseItems, getPurchaseHistoryStats, getPurchaseHistoryDaily, getPurchaseHistoryTopProducts, getPurchaseHistoryTopSuppliers, getReturnedQtyMapPurchase, createPurchaseReturn } from "@/db/purchases";
 import { type ChartGroupBy } from "@/db/sales";
 import { Purchase, PurchaseItem, formatRupiah, formatTanggal } from "@/types/index";
+import { toUnixTimestamp } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -37,8 +38,8 @@ export default function PurchaseHistory() {
   const [detailItems, setDetailItems] = useState<PurchaseItem[] | null>(null);
   const [detailSupplier, setDetailSupplier] = useState("");
 
-  const start = startDate ? Math.floor(new Date(startDate).getTime() / 1000) : undefined;
-  const end = endDate ? Math.floor(new Date(endDate + "T23:59:59").getTime() / 1000) : undefined;
+  const start = startDate ? toUnixTimestamp(new Date(startDate)) : undefined;
+  const end = endDate ? toUnixTimestamp(new Date(endDate + "T23:59:59")) : undefined;
 
   const { data, refetch } = useQuery(
     useCallback(() => getPurchases(start, end, PER_PAGE, (page - 1) * PER_PAGE, debouncedSearch || undefined), [start, end, page, debouncedSearch])

@@ -1,11 +1,12 @@
 import { getDb } from "../database";
 import { Sale, SaleItem, CartEntry, SaleDebt, Payment, ReturPenjualan, ReturItem } from "../types";
+import { toUnixTimestamp } from "../lib/utils";
 
 async function generateInvoiceNumber(): Promise<string> {
   const db = await getDb();
   const now = new Date();
   const dateStr = now.toISOString().slice(0, 10).replace(/-/g, "");
-  const startOfDay = Math.floor(new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime() / 1000);
+  const startOfDay = toUnixTimestamp(new Date(now.getFullYear(), now.getMonth(), now.getDate()));
   const endOfDay = startOfDay + 86400;
 
   const rows: { count: number }[] = await db.select(
@@ -148,7 +149,33 @@ export async function getSaleHistoryStats(startDate?: number, endDate?: number) 
   return { count: rows[0].count, total: rows[0].total, avg: Math.round(rows[0].avg) };
 }
 
-export async function getSaleHistoryDaily(startDate?: number, endDate?: number): Promise<{ tanggal: string; total: number }[]> {
+export type ChartGroupBy = "day" | "week" | "month" | "year";
+
+export const GROUP_SQL: Record<ChartGroupBy, string> = {
+  day: "date(dibuat_pada, 'unixepoch', 'localtime')",
+  week: "strftime('%Y-W%W', dibuat_pada, 'unixepoch', 'localtime')",
+  month: "strftime('%Y-%m', dibuat_pada, 'unixepoch', 'localtime')",
+  year: "strftime('%Y', dibuat_pada, 'unixepoch', 'localtime')",
+};
+
+const MONTH_NAMES = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"];
+
+export function formatGroupLabel(key: string, groupBy: ChartGroupBy): string {
+  if (groupBy === "day") {
+    const d = new Date(key);
+    return `${d.getDate()}/${d.getMonth() + 1}`;
+  }
+  if (groupBy === "week") {
+    return `W${key.split("W")[1]}`;
+  }
+  if (groupBy === "month") {
+    const [y, m] = key.split("-");
+    return `${MONTH_NAMES[parseInt(m) - 1]} ${y.slice(2)}`;
+  }
+  return key;
+}
+
+export async function getSaleHistoryDaily(startDate?: number, endDate?: number, groupBy: ChartGroupBy = "day"): Promise<{ tanggal: string; total: number }[]> {
   const db = await getDb();
   let where = "WHERE 1=1";
   const params: number[] = [];
@@ -158,17 +185,15 @@ export async function getSaleHistoryDaily(startDate?: number, endDate?: number):
     params.push(startDate, endDate);
   }
 
-  const rows: { day: string; total: number }[] = await db.select(
-    `SELECT date(dibuat_pada, 'unixepoch', 'localtime') as day, COALESCE(SUM(total), 0) as total
+  const groupExpr = GROUP_SQL[groupBy];
+  const rows: { grp: string; total: number }[] = await db.select(
+    `SELECT ${groupExpr} as grp, COALESCE(SUM(total), 0) as total
      FROM penjualan ${where}
-     GROUP BY day ORDER BY day`,
+     GROUP BY grp ORDER BY grp`,
     params
   );
 
-  return rows.map((r) => {
-    const d = new Date(r.day);
-    return { tanggal: `${d.getDate()}/${d.getMonth() + 1}`, total: r.total };
-  });
+  return rows.map((r) => ({ tanggal: formatGroupLabel(r.grp, groupBy), total: r.total }));
 }
 
 export async function getSaleHistoryTopProducts(startDate?: number, endDate?: number, limit: number = 5): Promise<{ nama: string; jumlah: number; total: number }[]> {

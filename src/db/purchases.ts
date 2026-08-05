@@ -1,5 +1,7 @@
 import { getDb } from "../database";
 import { Purchase, PurchaseItem, PurchaseEntry, PurchaseDebt, Payment, ReturPembelian, ReturItem } from "../types";
+import { type ChartGroupBy, GROUP_SQL, formatGroupLabel } from "./sales";
+import { toUnixTimestamp } from "../lib/utils";
 
 export async function getDistinctSuppliers(): Promise<string[]> {
   const db = await getDb();
@@ -13,7 +15,7 @@ async function generatePurchaseNumber(): Promise<string> {
   const db = await getDb();
   const now = new Date();
   const dateStr = now.toISOString().slice(0, 10).replace(/-/g, "");
-  const startOfDay = Math.floor(new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime() / 1000);
+  const startOfDay = toUnixTimestamp(new Date(now.getFullYear(), now.getMonth(), now.getDate()));
   const endOfDay = startOfDay + 86400;
 
   const rows: { count: number }[] = await db.select(
@@ -161,7 +163,7 @@ export async function getPurchaseHistoryStats(startDate?: number, endDate?: numb
   return { count: rows[0].count, total: rows[0].total, avg: Math.round(rows[0].avg) };
 }
 
-export async function getPurchaseHistoryDaily(startDate?: number, endDate?: number): Promise<{ tanggal: string; total: number }[]> {
+export async function getPurchaseHistoryDaily(startDate?: number, endDate?: number, groupBy: ChartGroupBy = "day"): Promise<{ tanggal: string; total: number }[]> {
   const db = await getDb();
   let where = "WHERE 1=1";
   const params: number[] = [];
@@ -171,17 +173,15 @@ export async function getPurchaseHistoryDaily(startDate?: number, endDate?: numb
     params.push(startDate, endDate);
   }
 
-  const rows: { day: string; total: number }[] = await db.select(
-    `SELECT date(dibuat_pada, 'unixepoch', 'localtime') as day, COALESCE(SUM(total), 0) as total
+  const groupExpr = GROUP_SQL[groupBy];
+  const rows: { grp: string; total: number }[] = await db.select(
+    `SELECT ${groupExpr} as grp, COALESCE(SUM(total), 0) as total
      FROM pembelian ${where}
-     GROUP BY day ORDER BY day`,
+     GROUP BY grp ORDER BY grp`,
     params
   );
 
-  return rows.map((r) => {
-    const d = new Date(r.day);
-    return { tanggal: `${d.getDate()}/${d.getMonth() + 1}`, total: r.total };
-  });
+  return rows.map((r) => ({ tanggal: formatGroupLabel(r.grp, groupBy), total: r.total }));
 }
 
 export async function getPurchaseHistoryTopProducts(startDate?: number, endDate?: number, limit: number = 5): Promise<{ nama: string; jumlah: number; total: number }[]> {

@@ -1,13 +1,15 @@
 import { getDb } from "../database";
 import { ProductWithCategory, Sale } from "../types";
+import { type ChartGroupBy, GROUP_SQL, formatGroupLabel } from "./sales";
+import { toUnixTimestamp } from "../lib/utils";
 
 export async function getDashboardStats() {
   const db = await getDb();
   const now = new Date();
-  const startOfDay = Math.floor(new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime() / 1000);
+  const startOfDay = toUnixTimestamp(new Date(now.getFullYear(), now.getMonth(), now.getDate()));
   const endOfDay = startOfDay + 86400;
-  const startOfMonth = Math.floor(new Date(now.getFullYear(), now.getMonth(), 1).getTime() / 1000);
-  const endOfMonth = Math.floor(new Date(now.getFullYear(), now.getMonth() + 1, 1).getTime() / 1000);
+  const startOfMonth = toUnixTimestamp(new Date(now.getFullYear(), now.getMonth(), 1));
+  const endOfMonth = toUnixTimestamp(new Date(now.getFullYear(), now.getMonth() + 1, 1));
 
   const totalProducts: { count: number }[] = await db.select(
     "SELECT COUNT(*) as count FROM produk"
@@ -53,26 +55,31 @@ export async function getDashboardStats() {
   };
 }
 
-export async function getDailySales(days: number = 30): Promise<{ tanggal: string; total: number }[]> {
+export async function getDailySales(days: number = 30, groupBy: ChartGroupBy = "day"): Promise<{ tanggal: string; total: number }[]> {
   const db = await getDb();
   const now = new Date();
-  const startDate = Math.floor(new Date(now.getFullYear(), now.getMonth(), now.getDate() - days + 1).getTime() / 1000);
+  const startDate = toUnixTimestamp(new Date(now.getFullYear(), now.getMonth(), now.getDate() - days + 1));
 
-  const rows: { day: string; total: number }[] = await db.select(
-    `SELECT date(dibuat_pada, 'unixepoch', 'localtime') as day, COALESCE(SUM(total), 0) as total
+  const groupExpr = GROUP_SQL[groupBy];
+  const rows: { grp: string; total: number }[] = await db.select(
+    `SELECT ${groupExpr} as grp, COALESCE(SUM(total), 0) as total
      FROM penjualan
      WHERE dibuat_pada >= $1
-     GROUP BY day
-     ORDER BY day`,
+     GROUP BY grp
+     ORDER BY grp`,
     [startDate]
   );
+
+  if (groupBy !== "day") {
+    return rows.map((r) => ({ tanggal: formatGroupLabel(r.grp, groupBy), total: r.total }));
+  }
 
   const result: { tanggal: string; total: number }[] = [];
   for (let i = 0; i < days; i++) {
     const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - days + 1 + i);
     const key = d.toISOString().slice(0, 10);
     const label = `${d.getDate()}/${d.getMonth() + 1}`;
-    const found = rows.find((r) => r.day === key);
+    const found = rows.find((r) => r.grp === key);
     result.push({ tanggal: label, total: found?.total ?? 0 });
   }
   return result;
@@ -86,8 +93,8 @@ export async function getMonthlySalesVsPurchases(months: number = 6): Promise<{ 
   for (let i = months - 1; i >= 0; i--) {
     const start = new Date(now.getFullYear(), now.getMonth() - i, 1);
     const end = new Date(now.getFullYear(), now.getMonth() - i + 1, 1);
-    const startTs = Math.floor(start.getTime() / 1000);
-    const endTs = Math.floor(end.getTime() / 1000);
+    const startTs = toUnixTimestamp(start);
+    const endTs = toUnixTimestamp(end);
 
     const bulanLabel = start.toLocaleDateString("id-ID", { month: "short", year: "2-digit" });
 
@@ -152,12 +159,12 @@ export async function getSalesRecap(period: "day" | "week" | "month"): Promise<{
   let startTs: number;
 
   if (period === "day") {
-    startTs = Math.floor(new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime() / 1000);
+    startTs = toUnixTimestamp(new Date(now.getFullYear(), now.getMonth(), now.getDate()));
   } else if (period === "week") {
     const dayOfWeek = now.getDay() || 7;
-    startTs = Math.floor(new Date(now.getFullYear(), now.getMonth(), now.getDate() - dayOfWeek + 1).getTime() / 1000);
+    startTs = toUnixTimestamp(new Date(now.getFullYear(), now.getMonth(), now.getDate() - dayOfWeek + 1));
   } else {
-    startTs = Math.floor(new Date(now.getFullYear(), now.getMonth(), 1).getTime() / 1000);
+    startTs = toUnixTimestamp(new Date(now.getFullYear(), now.getMonth(), 1));
   }
 
   return await db.select(
@@ -177,12 +184,12 @@ export async function getPurchasesRecap(period: "day" | "week" | "month"): Promi
   let startTs: number;
 
   if (period === "day") {
-    startTs = Math.floor(new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime() / 1000);
+    startTs = toUnixTimestamp(new Date(now.getFullYear(), now.getMonth(), now.getDate()));
   } else if (period === "week") {
     const dayOfWeek = now.getDay() || 7;
-    startTs = Math.floor(new Date(now.getFullYear(), now.getMonth(), now.getDate() - dayOfWeek + 1).getTime() / 1000);
+    startTs = toUnixTimestamp(new Date(now.getFullYear(), now.getMonth(), now.getDate() - dayOfWeek + 1));
   } else {
-    startTs = Math.floor(new Date(now.getFullYear(), now.getMonth(), 1).getTime() / 1000);
+    startTs = toUnixTimestamp(new Date(now.getFullYear(), now.getMonth(), 1));
   }
 
   return await db.select(
