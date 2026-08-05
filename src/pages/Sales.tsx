@@ -1,6 +1,7 @@
 import { memo, useState, useCallback, useEffect, useMemo } from "react";
 import { useQuery } from "@/hooks/useQuery";
 import { useDebounce } from "@/hooks/useDebounce";
+import { useIncrementalRender } from "@/hooks/useIncrementalRender";
 import { getProducts, getFrequentProductIds } from "@/db/products";
 import { getCategories } from "@/db/categories";
 import { createSale } from "@/db/sales";
@@ -32,7 +33,7 @@ const SaleProductTile = memo(function SaleProductTile({
       type="button"
       disabled={outOfStock}
       onClick={() => onAdd(p)}
-      className={`relative flex flex-col rounded-lg border p-3 text-left transition-all ${
+      className={`relative flex flex-col rounded-lg border p-3 text-left transition-[border-color,box-shadow,transform] duration-150 ${
         outOfStock
           ? "cursor-not-allowed opacity-50"
           : "cursor-pointer hover:border-primary hover:shadow-sm active:scale-[0.98]"
@@ -202,6 +203,8 @@ export default function Sales() {
     }
   }
 
+  const { visible: visibleProducts, Sentinel } = useIncrementalRender(filteredProducts, 48);
+
   const cartQtyMap = useMemo(() => {
     const map: Record<number, number> = {};
     for (const c of cart) map[c.produk_id] = c.jumlah;
@@ -273,9 +276,9 @@ export default function Sales() {
           </div>
 
           <div className="max-h-[calc(100vh-320px)] overflow-y-auto rounded-md p-1">
-            {filteredProducts.length > 0 ? (
+            {visibleProducts.length > 0 ? (
               <div className="grid grid-cols-3 gap-2">
-                {filteredProducts.map((p) => (
+                {visibleProducts.map((p) => (
                   <SaleProductTile
                     key={p.id}
                     p={p}
@@ -285,10 +288,11 @@ export default function Sales() {
                     onAdd={addToCart}
                   />
                 ))}
+                <Sentinel />
               </div>
-            ) : (
+            ) : filteredProducts.length === 0 ? (
               <p className="py-12 text-center text-sm text-muted-foreground">Produk tidak ditemukan</p>
-            )}
+            ) : null}
           </div>
         </div>
 

@@ -1,6 +1,7 @@
 import { memo, useState, useCallback, useMemo, useRef, useEffect } from "react";
 import { useQuery } from "@/hooks/useQuery";
 import { useDebounce } from "@/hooks/useDebounce";
+import { useIncrementalRender } from "@/hooks/useIncrementalRender";
 import { getProducts } from "@/db/products";
 import { getCategories } from "@/db/categories";
 import { createPurchase, getDistinctSuppliers } from "@/db/purchases";
@@ -24,7 +25,7 @@ const PurchaseProductTile = memo(function PurchaseProductTile({
     <button
       type="button"
       onClick={() => onAdd(p)}
-      className={`relative flex flex-col rounded-lg border p-3 text-left transition-all cursor-pointer hover:border-primary hover:shadow-sm active:scale-[0.98] ${
+      className={`relative flex flex-col rounded-lg border p-3 text-left transition-[border-color,box-shadow,transform] duration-150 cursor-pointer hover:border-primary hover:shadow-sm active:scale-[0.98] ${
         qty > 0 ? "border-primary bg-primary/5" : ""
       }`}
     >
@@ -131,6 +132,8 @@ export default function Purchases() {
     setItems((prev) => prev.filter((c) => c.produk_id !== produkId));
   }, []);
 
+  const { visible: visibleProducts, Sentinel } = useIncrementalRender(filteredProducts, 48);
+
   const cartQtyMap = useMemo(() => {
     const map: Record<number, number> = {};
     for (const c of items) map[c.produk_id] = c.jumlah;
@@ -208,9 +211,9 @@ export default function Purchases() {
           </div>
 
           <div className="max-h-[calc(100vh-260px)] overflow-y-auto rounded-md p-1">
-            {filteredProducts.length > 0 ? (
+            {visibleProducts.length > 0 ? (
               <div className="grid grid-cols-3 gap-2">
-                {filteredProducts.map((p) => (
+                {visibleProducts.map((p) => (
                   <PurchaseProductTile
                     key={p.id}
                     p={p}
@@ -218,10 +221,11 @@ export default function Purchases() {
                     onAdd={addItem}
                   />
                 ))}
+                <Sentinel />
               </div>
-            ) : (
+            ) : filteredProducts.length === 0 ? (
               <p className="py-12 text-center text-sm text-muted-foreground">Produk tidak ditemukan</p>
-            )}
+            ) : null}
           </div>
         </div>
 
