@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo, useRef, useEffect } from "react";
+import { memo, useState, useCallback, useMemo, useRef, useEffect } from "react";
 import { useQuery } from "@/hooks/useQuery";
 import { useDebounce } from "@/hooks/useDebounce";
 import { getProducts } from "@/db/products";
@@ -12,6 +12,43 @@ import { Separator } from "@/components/ui/separator";
 import SearchInput from "@/components/SearchInput";
 import { Plus, Minus, Trash2, CheckCircle } from "lucide-react";
 import ProductThumb from "@/components/ProductThumb";
+
+const PurchaseProductTile = memo(function PurchaseProductTile({
+  p, qty, onAdd,
+}: {
+  p: ProductWithCategory;
+  qty: number;
+  onAdd: (p: ProductWithCategory) => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={() => onAdd(p)}
+      className={`relative flex flex-col rounded-lg border p-3 text-left transition-all cursor-pointer hover:border-primary hover:shadow-sm active:scale-[0.98] ${
+        qty > 0 ? "border-primary bg-primary/5" : ""
+      }`}
+    >
+      {qty > 0 && (
+        <span className="absolute -right-1.5 -top-1.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-bold text-primary-foreground">
+          {qty}
+        </span>
+      )}
+      <div className="mb-1 flex items-start gap-2">
+        <ProductThumb path={p.gambar} size="h-12 w-12" />
+        <div className="min-w-0 flex-1">
+          <span className="text-sm font-medium leading-tight">{p.nama}</span>
+          <span className="mt-0.5 block font-mono text-[10px] text-muted-foreground">{p.kode}</span>
+        </div>
+      </div>
+      <div className="mt-auto pt-2">
+        <span className="text-sm font-semibold text-primary">{formatRupiah(p.harga_beli)}</span>
+        <span className={`block text-[10px] ${p.stok <= p.stok_minimum ? "text-destructive" : "text-muted-foreground"}`}>
+          Stok: {p.stok} {p.satuan}
+        </span>
+      </div>
+    </button>
+  );
+});
 
 export default function Purchases() {
   const [search, setSearch] = useState("");
@@ -61,9 +98,9 @@ export default function Purchases() {
     return list;
   }, [allProducts, selectedCat, debouncedSearch]);
 
-  const total = items.reduce((sum, item) => sum + item.jumlah * item.harga, 0);
+  const total = useMemo(() => items.reduce((sum, item) => sum + item.jumlah * item.harga, 0), [items]);
 
-  function addItem(p: { id: number; nama: string; satuan: string; harga_beli: number }) {
+  const addItem = useCallback((p: { id: number; nama: string; satuan: string; harga_beli: number }) => {
     setItems((prev) => {
       const existing = prev.find((c) => c.produk_id === p.id);
       if (existing) {
@@ -71,9 +108,9 @@ export default function Purchases() {
       }
       return [...prev, { produk_id: p.id, nama: p.nama, satuan: p.satuan, jumlah: 1, harga: p.harga_beli }];
     });
-  }
+  }, []);
 
-  function updateQty(produkId: number, delta: number) {
+  const updateQty = useCallback((produkId: number, delta: number) => {
     setItems((prev) =>
       prev.map((c) => {
         if (c.produk_id !== produkId) return c;
@@ -82,21 +119,23 @@ export default function Purchases() {
         return { ...c, jumlah: newQty };
       })
     );
-  }
+  }, []);
 
-  function updatePrice(produkId: number, harga: number) {
+  const updatePrice = useCallback((produkId: number, harga: number) => {
     setItems((prev) =>
       prev.map((c) => c.produk_id === produkId ? { ...c, harga } : c)
     );
-  }
+  }, []);
 
-  function removeItem(produkId: number) {
+  const removeItem = useCallback((produkId: number) => {
     setItems((prev) => prev.filter((c) => c.produk_id !== produkId));
-  }
+  }, []);
 
-  function isInCart(produkId: number): number {
-    return items.find((c) => c.produk_id === produkId)?.jumlah ?? 0;
-  }
+  const cartQtyMap = useMemo(() => {
+    const map: Record<number, number> = {};
+    for (const c of items) map[c.produk_id] = c.jumlah;
+    return map;
+  }, [items]);
 
   async function handleSave() {
     if (!supplier.trim() || items.length === 0) return;
@@ -122,39 +161,6 @@ export default function Purchases() {
     } catch (e) {
       alert(e instanceof Error ? e.message : String(e));
     }
-  }
-
-  function ProductTile({ p }: { p: ProductWithCategory }) {
-    const qty = isInCart(p.id);
-
-    return (
-      <button
-        type="button"
-        onClick={() => addItem(p)}
-        className={`relative flex flex-col rounded-lg border p-3 text-left transition-all cursor-pointer hover:border-primary hover:shadow-sm active:scale-[0.98] ${
-          qty > 0 ? "border-primary bg-primary/5" : ""
-        }`}
-      >
-        {qty > 0 && (
-          <span className="absolute -right-1.5 -top-1.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-bold text-primary-foreground">
-            {qty}
-          </span>
-        )}
-        <div className="mb-1 flex items-start gap-2">
-          <ProductThumb path={p.gambar} size="h-12 w-12" />
-          <div className="min-w-0 flex-1">
-            <span className="text-sm font-medium leading-tight">{p.nama}</span>
-            <span className="mt-0.5 block font-mono text-[10px] text-muted-foreground">{p.kode}</span>
-          </div>
-        </div>
-        <div className="mt-auto pt-2">
-          <span className="text-sm font-semibold text-primary">{formatRupiah(p.harga_beli)}</span>
-          <span className={`block text-[10px] ${p.stok <= p.stok_minimum ? "text-destructive" : "text-muted-foreground"}`}>
-            Stok: {p.stok} {p.satuan}
-          </span>
-        </div>
-      </button>
-    );
   }
 
   return (
@@ -205,7 +211,12 @@ export default function Purchases() {
             {filteredProducts.length > 0 ? (
               <div className="grid grid-cols-3 gap-2">
                 {filteredProducts.map((p) => (
-                  <ProductTile key={p.id} p={p} />
+                  <PurchaseProductTile
+                    key={p.id}
+                    p={p}
+                    qty={cartQtyMap[p.id] ?? 0}
+                    onAdd={addItem}
+                  />
                 ))}
               </div>
             ) : (
