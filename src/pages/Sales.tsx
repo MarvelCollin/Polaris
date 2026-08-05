@@ -234,11 +234,11 @@ export default function Sales() {
             </div>
           )}
 
-          <div className="mb-3 flex gap-1.5 overflow-x-auto pb-1">
+          <div className="mb-3 flex flex-wrap gap-1.5">
             <button
               type="button"
               onClick={() => setSelectedCat(0)}
-              className={`shrink-0 rounded-full px-3 py-1 text-xs font-medium transition-colors ${
+              className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
                 selectedCat === 0
                   ? "bg-primary text-primary-foreground"
                   : "bg-secondary text-secondary-foreground hover:bg-accent"
@@ -251,7 +251,7 @@ export default function Sales() {
                 key={c.id}
                 type="button"
                 onClick={() => setSelectedCat(c.id)}
-                className={`shrink-0 rounded-full px-3 py-1 text-xs font-medium transition-colors ${
+                className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
                   selectedCat === c.id
                     ? "bg-primary text-primary-foreground"
                     : "bg-secondary text-secondary-foreground hover:bg-accent"
