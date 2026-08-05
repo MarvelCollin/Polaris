@@ -3,11 +3,6 @@ import { getDb } from "../database";
 export async function seedDatabase() {
   const db = await getDb();
 
-  const existing: { count: number }[] = await db.select(
-    "SELECT COUNT(*) as count FROM kategori"
-  );
-  if (existing[0].count > 0) return;
-
   const categories = [
     "Semen",
     "Besi & Baja",
@@ -19,16 +14,37 @@ export async function seedDatabase() {
     "Atap",
     "Pasir & Batu",
     "Alat Pertukangan",
+    "Lem & Perekat",
+    "Pintu & Jendela",
+    "Plafon & Gypsum",
+    "Waterproofing",
+    "Baut, Mur & Paku",
+    "Kunci & Handle",
+    "Tangga & Scaffolding",
+    "Alat Ukur",
+    "Kawat & Jaring",
+    "Talang & Saluran",
   ];
 
   const categoryIds: Record<string, number> = {};
   for (const nama of categories) {
-    const result = await db.execute(
-      "INSERT INTO kategori (nama) VALUES ($1)",
-      [nama]
+    const existing: { id: number }[] = await db.select(
+      "SELECT id FROM kategori WHERE nama = $1", [nama]
     );
-    categoryIds[nama] = result.lastInsertId ?? 0;
+    if (existing.length > 0) {
+      categoryIds[nama] = existing[0].id;
+    } else {
+      const result = await db.execute(
+        "INSERT INTO kategori (nama) VALUES ($1)", [nama]
+      );
+      categoryIds[nama] = result.lastInsertId ?? 0;
+    }
   }
+
+  const existingProducts: { count: number }[] = await db.select(
+    "SELECT COUNT(*) as count FROM produk"
+  );
+  if (existingProducts[0].count > 0) return;
 
   const products = [
     { kode: "SMN-001", nama: "Semen Tiga Roda 50kg", kategori: "Semen", satuan: "sak", harga_beli: 52000, harga_jual: 58000, stok: 150, stok_minimum: 20 },
@@ -61,6 +77,39 @@ export async function seedDatabase() {
     { kode: "PSR-003", nama: "Bata Merah", kategori: "Pasir & Batu", satuan: "buah", harga_beli: 800, harga_jual: 1200, stok: 5000, stok_minimum: 500 },
     { kode: "ALT-001", nama: "Palu Besi 1kg", kategori: "Alat Pertukangan", satuan: "buah", harga_beli: 35000, harga_jual: 50000, stok: 15, stok_minimum: 3 },
     { kode: "ALT-002", nama: "Gergaji Besi", kategori: "Alat Pertukangan", satuan: "buah", harga_beli: 25000, harga_jual: 38000, stok: 10, stok_minimum: 3 },
+    { kode: "LEM-001", nama: "Lem Kayu Rajawali 1kg", kategori: "Lem & Perekat", satuan: "botol", harga_beli: 18000, harga_jual: 25000, stok: 40, stok_minimum: 8 },
+    { kode: "LEM-002", nama: "Lem Besi Dextone", kategori: "Lem & Perekat", satuan: "buah", harga_beli: 8000, harga_jual: 12000, stok: 60, stok_minimum: 10 },
+    { kode: "LEM-003", nama: "Silikon Sealant Wacker", kategori: "Lem & Perekat", satuan: "tube", harga_beli: 35000, harga_jual: 48000, stok: 30, stok_minimum: 5 },
+    { kode: "LEM-004", nama: "Lem Semen MU 380", kategori: "Lem & Perekat", satuan: "sak", harga_beli: 65000, harga_jual: 82000, stok: 25, stok_minimum: 5 },
+    { kode: "PNT-001", nama: "Pintu Panel Meranti", kategori: "Pintu & Jendela", satuan: "buah", harga_beli: 350000, harga_jual: 450000, stok: 8, stok_minimum: 2 },
+    { kode: "PNT-002", nama: "Pintu PVC Kamar Mandi", kategori: "Pintu & Jendela", satuan: "buah", harga_beli: 180000, harga_jual: 250000, stok: 12, stok_minimum: 3 },
+    { kode: "PNT-003", nama: "Jendela Aluminium 60x120", kategori: "Pintu & Jendela", satuan: "buah", harga_beli: 280000, harga_jual: 380000, stok: 10, stok_minimum: 2 },
+    { kode: "PNT-004", nama: "Kusen Aluminium 4 inch", kategori: "Pintu & Jendela", satuan: "batang", harga_beli: 95000, harga_jual: 125000, stok: 20, stok_minimum: 5 },
+    { kode: "PLF-001", nama: "Plafon PVC Shunda", kategori: "Plafon & Gypsum", satuan: "lembar", harga_beli: 32000, harga_jual: 45000, stok: 50, stok_minimum: 10 },
+    { kode: "PLF-002", nama: "Gypsum Board Jayaboard 9mm", kategori: "Plafon & Gypsum", satuan: "lembar", harga_beli: 65000, harga_jual: 85000, stok: 30, stok_minimum: 5 },
+    { kode: "PLF-003", nama: "Rangka Hollow Galvalum 2x4", kategori: "Plafon & Gypsum", satuan: "batang", harga_beli: 28000, harga_jual: 38000, stok: 80, stok_minimum: 15 },
+    { kode: "WTP-001", nama: "Aquaproof 4kg", kategori: "Waterproofing", satuan: "kaleng", harga_beli: 120000, harga_jual: 165000, stok: 15, stok_minimum: 3 },
+    { kode: "WTP-002", nama: "Sika Top Seal 107 25kg", kategori: "Waterproofing", satuan: "set", harga_beli: 450000, harga_jual: 580000, stok: 8, stok_minimum: 2 },
+    { kode: "WTP-003", nama: "Membran Waterproofing per m2", kategori: "Waterproofing", satuan: "m2", harga_beli: 55000, harga_jual: 75000, stok: 40, stok_minimum: 10 },
+    { kode: "BMR-001", nama: "Paku 2 inch 1kg", kategori: "Baut, Mur & Paku", satuan: "kg", harga_beli: 18000, harga_jual: 25000, stok: 50, stok_minimum: 10 },
+    { kode: "BMR-002", nama: "Paku 4 inch 1kg", kategori: "Baut, Mur & Paku", satuan: "kg", harga_beli: 18000, harga_jual: 25000, stok: 40, stok_minimum: 8 },
+    { kode: "BMR-003", nama: "Baut Roofing 12x50mm", kategori: "Baut, Mur & Paku", satuan: "dus", harga_beli: 45000, harga_jual: 62000, stok: 30, stok_minimum: 5 },
+    { kode: "BMR-004", nama: "Sekrup Gypsum 1 inch", kategori: "Baut, Mur & Paku", satuan: "dus", harga_beli: 22000, harga_jual: 32000, stok: 35, stok_minimum: 5 },
+    { kode: "BMR-005", nama: "Fisher S8 + Sekrup", kategori: "Baut, Mur & Paku", satuan: "dus", harga_beli: 30000, harga_jual: 42000, stok: 25, stok_minimum: 5 },
+    { kode: "KCI-001", nama: "Kunci Pintu Yale", kategori: "Kunci & Handle", satuan: "set", harga_beli: 85000, harga_jual: 120000, stok: 15, stok_minimum: 3 },
+    { kode: "KCI-002", nama: "Handle Pintu Dekkson", kategori: "Kunci & Handle", satuan: "set", harga_beli: 65000, harga_jual: 95000, stok: 20, stok_minimum: 4 },
+    { kode: "KCI-003", nama: "Engsel Pintu 4 inch", kategori: "Kunci & Handle", satuan: "pasang", harga_beli: 12000, harga_jual: 18000, stok: 50, stok_minimum: 10 },
+    { kode: "KCI-004", nama: "Door Closer Dekkson", kategori: "Kunci & Handle", satuan: "buah", harga_beli: 150000, harga_jual: 210000, stok: 8, stok_minimum: 2 },
+    { kode: "TGA-001", nama: "Tangga Aluminium 2m", kategori: "Tangga & Scaffolding", satuan: "buah", harga_beli: 350000, harga_jual: 480000, stok: 5, stok_minimum: 1 },
+    { kode: "TGA-002", nama: "Scaffolding Frame 1.7m", kategori: "Tangga & Scaffolding", satuan: "set", harga_beli: 280000, harga_jual: 380000, stok: 10, stok_minimum: 2 },
+    { kode: "AUK-001", nama: "Meteran Roll 5m", kategori: "Alat Ukur", satuan: "buah", harga_beli: 15000, harga_jual: 25000, stok: 30, stok_minimum: 5 },
+    { kode: "AUK-002", nama: "Waterpass Aluminium 60cm", kategori: "Alat Ukur", satuan: "buah", harga_beli: 45000, harga_jual: 65000, stok: 10, stok_minimum: 2 },
+    { kode: "AUK-003", nama: "Benang Lot 100m", kategori: "Alat Ukur", satuan: "roll", harga_beli: 8000, harga_jual: 15000, stok: 20, stok_minimum: 5 },
+    { kode: "KWT-001", nama: "Kawat Ayam 1m x 30m", kategori: "Kawat & Jaring", satuan: "roll", harga_beli: 85000, harga_jual: 115000, stok: 15, stok_minimum: 3 },
+    { kode: "KWT-002", nama: "Wiremesh M8 2.1x5.4m", kategori: "Kawat & Jaring", satuan: "lembar", harga_beli: 320000, harga_jual: 420000, stok: 10, stok_minimum: 2 },
+    { kode: "TLG-001", nama: "Talang PVC 4m", kategori: "Talang & Saluran", satuan: "batang", harga_beli: 45000, harga_jual: 62000, stok: 25, stok_minimum: 5 },
+    { kode: "TLG-002", nama: "Tutup Saluran Besi 30x30", kategori: "Talang & Saluran", satuan: "buah", harga_beli: 55000, harga_jual: 78000, stok: 15, stok_minimum: 3 },
+    { kode: "TLG-003", nama: "Pipa Talang Air Hujan 3m", kategori: "Talang & Saluran", satuan: "batang", harga_beli: 35000, harga_jual: 50000, stok: 20, stok_minimum: 5 },
   ];
 
   const produkIds: Record<string, number> = {};
