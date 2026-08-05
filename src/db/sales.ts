@@ -159,13 +159,14 @@ export async function getSaleHistoryStats(startDate?: number, endDate?: number) 
   return { count: rows[0].count, total: rows[0].total, avg: Math.round(rows[0].avg) };
 }
 
-export type ChartGroupBy = "day" | "week" | "month" | "year";
+export type ChartGroupBy = "day" | "week" | "month" | "year" | "all";
 
 export const GROUP_SQL: Record<ChartGroupBy, string> = {
   day: "date(dibuat_pada, 'unixepoch', 'localtime')",
   week: "strftime('%Y-W%W', dibuat_pada, 'unixepoch', 'localtime')",
   month: "strftime('%Y-%m', dibuat_pada, 'unixepoch', 'localtime')",
   year: "strftime('%Y', dibuat_pada, 'unixepoch', 'localtime')",
+  all: "strftime('%Y-%m', dibuat_pada, 'unixepoch', 'localtime')",
 };
 
 const MONTH_NAMES = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"];
@@ -178,7 +179,7 @@ export function formatGroupLabel(key: string, groupBy: ChartGroupBy): string {
   if (groupBy === "week") {
     return `W${key.split("W")[1]}`;
   }
-  if (groupBy === "month") {
+  if (groupBy === "month" || groupBy === "all") {
     const [y, m] = key.split("-");
     return `${MONTH_NAMES[parseInt(m) - 1]} ${y.slice(2)}`;
   }

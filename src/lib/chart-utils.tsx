@@ -3,7 +3,7 @@ import { type ChartGroupBy } from "@/db/sales";
 
 export const CHART_COLORS = ["#e07828", "#1b508a", "#d4952e", "#2e7ab8", "#c45a1a", "#3a8cc4", "#e8a84c", "#4a6e94", "#b84e14", "#5ba0d0"];
 
-export const GROUP_LABELS: Record<ChartGroupBy, string> = { day: "Harian", week: "Mingguan", month: "Bulanan", year: "Tahunan" };
+export const GROUP_LABELS: Record<ChartGroupBy, string> = { day: "Harian", week: "Mingguan", month: "Bulanan", year: "Tahunan", all: "Semua" };
 
 export function formatShortRupiah(value: number): string {
   if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}jt`;

@@ -42,7 +42,7 @@ export default function Dashboard() {
   const { data: stats } = useQuery(useCallback(() => getDashboardStats(), []));
   const { data: lowStock } = useQuery(useCallback(() => getLowStockProducts(), []));
   const { data: recentSales } = useQuery(useCallback(() => getRecentSales(), []));
-  const { data: dailySales } = useQuery(useCallback(() => getDailySales(chartGroup === "day" ? 30 : chartGroup === "week" ? 90 : chartGroup === "month" ? 365 : 1825, chartGroup), [chartGroup]));
+  const { data: dailySales } = useQuery(useCallback(() => getDailySales(chartGroup === "day" ? 30 : chartGroup === "week" ? 90 : chartGroup === "month" ? 365 : chartGroup === "year" ? 1825 : 0, chartGroup), [chartGroup]));
   const { data: monthlyData } = useQuery(useCallback(() => getMonthlySalesVsPurchases(6), []));
   const { data: categoryData } = useQuery(useCallback(() => getSalesByCategory(), []));
   const { data: topProducts } = useQuery(useCallback(() => getTopProducts(5), []));
@@ -99,13 +99,38 @@ export default function Dashboard() {
         </div>
       </div>
 
+      <div className="mb-6 grid grid-cols-4 gap-4">
+        <div className="animate-fade-in-up" style={{ animationDelay: "200ms", animationFillMode: "backwards" }}>
+          <StatsCard title="Total Penjualan" value={formatRupiah(stats?.allTimeSales ?? 0)} variant="success" to="/riwayat-jual" />
+        </div>
+        <div className="animate-fade-in-up" style={{ animationDelay: "250ms", animationFillMode: "backwards" }}>
+          <StatsCard title="Total Pembelian" value={formatRupiah(stats?.allTimePurchases ?? 0)} variant="warning" to="/riwayat-beli" />
+        </div>
+        <div className="animate-fade-in-up" style={{ animationDelay: "300ms", animationFillMode: "backwards" }}>
+          <StatsCard
+            title="Laba Bersih Total"
+            value={formatRupiah(stats?.allTimeProfit ?? 0)}
+            variant={(stats?.allTimeProfit ?? 0) >= 0 ? "success" : "danger"}
+            to="/riwayat-jual"
+          />
+        </div>
+        <div className="animate-fade-in-up" style={{ animationDelay: "350ms", animationFillMode: "backwards" }}>
+          <StatsCard
+            title="Laba Kotor Total (HPP)"
+            value={formatRupiah(stats?.allTimeGrossProfit ?? 0)}
+            variant={(stats?.allTimeGrossProfit ?? 0) >= 0 ? "success" : "danger"}
+            to="/riwayat-jual"
+          />
+        </div>
+      </div>
+
       <div className="mb-6 grid grid-cols-3 gap-6">
         <Card className="col-span-2 animate-fade-in-up" style={{ animationDelay: "200ms", animationFillMode: "backwards" }}>
           <CardHeader className="pb-2">
             <div className="flex items-center justify-between">
               <CardTitle className="cursor-pointer text-sm font-semibold hover:text-primary" onClick={() => navigate("/riwayat-jual")}>Tren Penjualan →</CardTitle>
               <div className="flex gap-1">
-                {(["day", "week", "month", "year"] as ChartGroupBy[]).map((g) => (
+                {(["day", "week", "month", "year", "all"] as ChartGroupBy[]).map((g) => (
                   <button
                     key={g}
                     type="button"

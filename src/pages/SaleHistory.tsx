@@ -143,7 +143,7 @@ export default function SaleHistory() {
               <div className="flex items-center justify-between">
                 <CardTitle className="text-sm font-semibold">Tren Penjualan</CardTitle>
                 <div className="flex gap-1">
-                  {(["day", "week", "month", "year"] as ChartGroupBy[]).map((g) => (
+                  {(["day", "week", "month", "year", "all"] as ChartGroupBy[]).map((g) => (
                     <button
                       key={g}
                       type="button"

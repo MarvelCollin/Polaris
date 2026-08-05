@@ -19,6 +19,9 @@ export async function getDashboardStats() {
     monthlySales: number;
     monthlyPurchases: number;
     totalCustomers: number;
+    allTimeSales: number;
+    allTimePurchases: number;
+    allTimeGrossProfit: number;
   }[] = await db.select(
     `SELECT
        (SELECT COUNT(*) FROM produk) as totalProducts,
@@ -27,7 +30,10 @@ export async function getDashboardStats() {
        (SELECT COUNT(*) FROM produk WHERE stok <= stok_minimum) as lowStockCount,
        (SELECT COALESCE(SUM(total), 0) FROM penjualan WHERE dibuat_pada >= $3 AND dibuat_pada < $4) as monthlySales,
        (SELECT COALESCE(SUM(total), 0) FROM pembelian WHERE dibuat_pada >= $3 AND dibuat_pada < $4) as monthlyPurchases,
-       (SELECT COUNT(*) FROM pelanggan) as totalCustomers`,
+       (SELECT COUNT(*) FROM pelanggan) as totalCustomers,
+       (SELECT COALESCE(SUM(total), 0) FROM penjualan) as allTimeSales,
+       (SELECT COALESCE(SUM(total), 0) FROM pembelian) as allTimePurchases,
+       (SELECT COALESCE(SUM(ip.subtotal - ip.jumlah * ip.hpp), 0) FROM item_penjualan ip WHERE ip.hpp > 0) as allTimeGrossProfit`,
     [startOfDay, endOfDay, startOfMonth, endOfMonth]
   );
 
@@ -41,15 +47,30 @@ export async function getDashboardStats() {
     monthlyPurchases: r.monthlyPurchases,
     monthlyProfit: r.monthlySales - r.monthlyPurchases,
     totalCustomers: r.totalCustomers,
+    allTimeSales: r.allTimeSales,
+    allTimePurchases: r.allTimePurchases,
+    allTimeProfit: r.allTimeSales - r.allTimePurchases,
+    allTimeGrossProfit: r.allTimeGrossProfit,
   };
 }
 
 export async function getDailySales(days: number = 30, groupBy: ChartGroupBy = "day"): Promise<{ tanggal: string; total: number }[]> {
   const db = await getDb();
+  const groupExpr = GROUP_SQL[groupBy];
+
+  if (groupBy === "all") {
+    const rows: { grp: string; total: number }[] = await db.select(
+      `SELECT ${groupExpr} as grp, COALESCE(SUM(total), 0) as total
+       FROM penjualan
+       GROUP BY grp
+       ORDER BY grp`
+    );
+    return rows.map((r) => ({ tanggal: formatGroupLabel(r.grp, groupBy), total: r.total }));
+  }
+
   const now = new Date();
   const startDate = toUnixTimestamp(new Date(now.getFullYear(), now.getMonth(), now.getDate() - days + 1));
 
-  const groupExpr = GROUP_SQL[groupBy];
   const rows: { grp: string; total: number }[] = await db.select(
     `SELECT ${groupExpr} as grp, COALESCE(SUM(total), 0) as total
      FROM penjualan
