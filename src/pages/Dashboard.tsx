@@ -69,8 +69,8 @@ export default function Dashboard() {
         <div className="animate-fade-in-up" style={{ animationDelay: "100ms", animationFillMode: "backwards" }}>
           <StatsCard
             title="Laba Kotor Bulan Ini"
-            value={formatRupiah(stats?.monthlyProfit ?? 0)}
-            variant={(stats?.monthlyProfit ?? 0) >= 0 ? "success" : "danger"}
+            value={formatRupiah(stats?.monthlyGrossProfit ?? 0)}
+            variant={(stats?.monthlyGrossProfit ?? 0) >= 0 ? "success" : "danger"}
             to="/riwayat-jual"
           />
         </div>
@@ -108,7 +108,7 @@ export default function Dashboard() {
         </div>
         <div className="animate-fade-in-up" style={{ animationDelay: "300ms", animationFillMode: "backwards" }}>
           <StatsCard
-            title="Laba Bersih Total"
+            title="Selisih Jual - Beli"
             value={formatRupiah(stats?.allTimeProfit ?? 0)}
             variant={(stats?.allTimeProfit ?? 0) >= 0 ? "success" : "danger"}
             to="/riwayat-jual"

@@ -22,6 +22,7 @@ export async function getDashboardStats() {
     allTimeSales: number;
     allTimePurchases: number;
     allTimeGrossProfit: number;
+    monthlyGrossProfit: number;
   }[] = await db.select(
     `SELECT
        (SELECT COUNT(*) FROM produk) as totalProducts,
@@ -33,7 +34,8 @@ export async function getDashboardStats() {
        (SELECT COUNT(*) FROM pelanggan) as totalCustomers,
        (SELECT COALESCE(SUM(total), 0) FROM penjualan) as allTimeSales,
        (SELECT COALESCE(SUM(total), 0) FROM pembelian) as allTimePurchases,
-       (SELECT COALESCE(SUM(ip.subtotal - ip.jumlah * ip.hpp), 0) FROM item_penjualan ip WHERE ip.hpp > 0) as allTimeGrossProfit`,
+       (SELECT COALESCE(SUM(ip.subtotal - ip.jumlah * ip.hpp), 0) FROM item_penjualan ip WHERE ip.hpp > 0) as allTimeGrossProfit,
+       (SELECT COALESCE(SUM(ip.subtotal - ip.jumlah * ip.hpp), 0) FROM item_penjualan ip JOIN penjualan p ON ip.penjualan_id = p.id WHERE ip.hpp > 0 AND p.dibuat_pada >= $3 AND p.dibuat_pada < $4) as monthlyGrossProfit`,
     [startOfDay, endOfDay, startOfMonth, endOfMonth]
   );
 
@@ -45,7 +47,7 @@ export async function getDashboardStats() {
     lowStockCount: r.lowStockCount,
     monthlySales: r.monthlySales,
     monthlyPurchases: r.monthlyPurchases,
-    monthlyProfit: r.monthlySales - r.monthlyPurchases,
+    monthlyGrossProfit: r.monthlyGrossProfit,
     totalCustomers: r.totalCustomers,
     allTimeSales: r.allTimeSales,
     allTimePurchases: r.allTimePurchases,
