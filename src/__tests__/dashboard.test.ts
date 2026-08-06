@@ -26,6 +26,10 @@ describe("dashboard", () => {
       monthlySales: 8000000,
       monthlyPurchases: 5000000,
       totalCustomers: 5,
+      allTimeSales: 0,
+      allTimePurchases: 0,
+      allTimeGrossProfit: 0,
+      monthlyGrossProfit: 3000000,
     }]);
 
     const stats = await getDashboardStats();
@@ -35,7 +39,7 @@ describe("dashboard", () => {
     expect(stats.lowStockCount).toBe(4);
     expect(stats.monthlySales).toBe(8000000);
     expect(stats.monthlyPurchases).toBe(5000000);
-    expect(stats.monthlyProfit).toBe(3000000);
+    expect(stats.monthlyGrossProfit).toBe(3000000);
     expect(stats.totalCustomers).toBe(5);
     expect(mockDb.select).toHaveBeenCalledTimes(1);
   });
@@ -44,6 +48,7 @@ describe("dashboard", () => {
     mockDb.select.mockResolvedValueOnce([{
       totalProducts: 0, todaySales: 0, todayPurchases: 0,
       lowStockCount: 0, monthlySales: 0, monthlyPurchases: 0, totalCustomers: 0,
+      allTimeSales: 0, allTimePurchases: 0, allTimeGrossProfit: 0, monthlyGrossProfit: 0,
     }]);
 
     await getDashboardStats();
@@ -54,24 +59,26 @@ describe("dashboard", () => {
     expect(params[1] - params[0]).toBe(86400);
   });
 
-  it("should compute monthly profit as sales minus purchases", async () => {
+  it("should return monthly gross profit from HPP-based SQL calculation", async () => {
     mockDb.select.mockResolvedValueOnce([{
       totalProducts: 0, todaySales: 0, todayPurchases: 0,
       lowStockCount: 0, monthlySales: 10000000, monthlyPurchases: 7000000, totalCustomers: 0,
+      allTimeSales: 0, allTimePurchases: 0, allTimeGrossProfit: 0, monthlyGrossProfit: 4500000,
     }]);
 
     const stats = await getDashboardStats();
-    expect(stats.monthlyProfit).toBe(3000000);
+    expect(stats.monthlyGrossProfit).toBe(4500000);
   });
 
-  it("should return negative profit when purchases exceed sales", async () => {
+  it("should return zero monthly gross profit when no sales with HPP", async () => {
     mockDb.select.mockResolvedValueOnce([{
       totalProducts: 0, todaySales: 0, todayPurchases: 0,
       lowStockCount: 0, monthlySales: 2000000, monthlyPurchases: 5000000, totalCustomers: 0,
+      allTimeSales: 0, allTimePurchases: 0, allTimeGrossProfit: 0, monthlyGrossProfit: 0,
     }]);
 
     const stats = await getDashboardStats();
-    expect(stats.monthlyProfit).toBe(-3000000);
+    expect(stats.monthlyGrossProfit).toBe(0);
   });
 
   it("should fetch daily sales for the last N days", async () => {

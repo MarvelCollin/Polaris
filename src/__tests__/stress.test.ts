@@ -13,13 +13,14 @@ describe("stress: query count optimization", () => {
     mockDb.select.mockResolvedValueOnce([{
       totalProducts: 1000, todaySales: 50000000, todayPurchases: 30000000,
       lowStockCount: 42, monthlySales: 500000000, monthlyPurchases: 300000000, totalCustomers: 200,
+      allTimeSales: 0, allTimePurchases: 0, allTimeGrossProfit: 0, monthlyGrossProfit: 200000000,
     }]);
 
     const stats = await getDashboardStats();
 
     expect(mockDb.select).toHaveBeenCalledTimes(1);
     expect(stats.totalProducts).toBe(1000);
-    expect(stats.monthlyProfit).toBe(200000000);
+    expect(stats.monthlyGrossProfit).toBe(200000000);
   });
 
   it("getMonthlySalesVsPurchases uses exactly 2 queries instead of 12", async () => {
@@ -218,12 +219,13 @@ describe("stress: large dataset performance", () => {
     mockDb.select.mockResolvedValueOnce([{
       totalProducts: 0, todaySales: 0, todayPurchases: 0,
       lowStockCount: 0, monthlySales: 0, monthlyPurchases: 0, totalCustomers: 0,
+      allTimeSales: 0, allTimePurchases: 0, allTimeGrossProfit: 0, monthlyGrossProfit: 0,
     }]);
 
     const stats = await getDashboardStats();
 
     expect(stats.totalProducts).toBe(0);
-    expect(stats.monthlyProfit).toBe(0);
+    expect(stats.monthlyGrossProfit).toBe(0);
     expect(stats.todaySales).toBe(0);
   });
 

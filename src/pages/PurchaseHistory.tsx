@@ -275,10 +275,10 @@ export default function PurchaseHistory() {
                   <TableCell className="font-mono text-xs">{p.referensi_faktur || "-"}</TableCell>
                   <TableCell>{formatTanggal(p.dibuat_pada)}</TableCell>
                   <TableCell>{formatRupiah(p.total)}</TableCell>
-                  <TableCell>{formatRupiah(p.dibayar)}</TableCell>
-                  <TableCell>{p.dibayar >= p.total ? "-" : formatRupiah(p.total - p.dibayar)}</TableCell>
+                  <TableCell>{formatRupiah(p.dibayar + p.total_pembayaran)}</TableCell>
+                  <TableCell>{p.sisa <= 0 ? "-" : formatRupiah(p.sisa)}</TableCell>
                   <TableCell>
-                    {p.dibayar >= p.total ? (
+                    {p.sisa <= 0 ? (
                       <Badge variant="default">Lunas</Badge>
                     ) : (
                       <Badge variant="destructive">Utang</Badge>

@@ -79,23 +79,29 @@ export async function getSales(
   const params: (number | string)[] = [];
 
   if (startDate && endDate) {
-    conditions.push(`dibuat_pada >= $${params.length + 1} AND dibuat_pada <= $${params.length + 2}`);
+    conditions.push(`p.dibuat_pada >= $${params.length + 1} AND p.dibuat_pada <= $${params.length + 2}`);
     params.push(startDate, endDate);
   }
   if (search) {
-    conditions.push(`(nomor_faktur LIKE $${params.length + 1} OR nama_pelanggan LIKE $${params.length + 1})`);
+    conditions.push(`(p.nomor_faktur LIKE $${params.length + 1} OR p.nama_pelanggan LIKE $${params.length + 1})`);
     params.push(`%${search}%`);
   }
 
   const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
 
   const countRows: { count: number }[] = await db.select(
-    `SELECT COUNT(*) as count FROM penjualan ${where}`,
+    `SELECT COUNT(*) as count FROM penjualan p ${where}`,
     params
   );
 
   const data: Sale[] = await db.select(
-    `SELECT * FROM penjualan ${where} ORDER BY dibuat_pada DESC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
+    `SELECT p.*, COALESCE(pay.total_bayar, 0) as total_pembayaran,
+       (p.total - p.dibayar - COALESCE(pay.total_bayar, 0)) as sisa
+     FROM penjualan p
+     LEFT JOIN (SELECT penjualan_id, SUM(jumlah) as total_bayar FROM pembayaran_penjualan GROUP BY penjualan_id) pay
+       ON pay.penjualan_id = p.id
+     ${where}
+     ORDER BY p.dibuat_pada DESC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
     [...params, limit, offset]
   );
 

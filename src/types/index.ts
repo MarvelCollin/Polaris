@@ -51,6 +51,8 @@ export interface Sale {
   pelanggan_id: number | null;
   nama_pelanggan: string | null;
   dibuat_pada: number;
+  total_pembayaran: number;
+  sisa: number;
 }
 
 export interface SaleItem {
@@ -70,6 +72,8 @@ export interface Purchase {
   total: number;
   dibayar: number;
   dibuat_pada: number;
+  total_pembayaran: number;
+  sisa: number;
 }
 
 export interface PurchaseItem {

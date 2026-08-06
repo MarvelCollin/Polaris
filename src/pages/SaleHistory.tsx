@@ -234,10 +234,10 @@ export default function SaleHistory() {
                   <TableCell>{s.nama_pelanggan || "Umum"}</TableCell>
                   <TableCell>{formatTanggal(s.dibuat_pada)}</TableCell>
                   <TableCell>{formatRupiah(s.total)}</TableCell>
-                  <TableCell>{formatRupiah(s.dibayar)}</TableCell>
+                  <TableCell>{formatRupiah(s.dibayar + s.total_pembayaran)}</TableCell>
                   <TableCell>{formatRupiah(s.kembalian)}</TableCell>
                   <TableCell>
-                    {s.dibayar >= s.total ? (
+                    {s.sisa <= 0 ? (
                       <Badge variant="default">Lunas</Badge>
                     ) : (
                       <Badge variant="destructive">Piutang</Badge>
