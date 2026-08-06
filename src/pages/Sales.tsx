@@ -33,7 +33,7 @@ const SaleProductTile = memo(function SaleProductTile({
       type="button"
       disabled={outOfStock}
       onClick={() => onAdd(p)}
-      className={`relative flex flex-col rounded-lg border p-3 text-left transition-[border-color,box-shadow,transform] duration-150 ${
+      className={`relative flex items-center gap-3 rounded-lg border p-3 text-left transition-[border-color,box-shadow,transform] duration-150 ${
         outOfStock
           ? "cursor-not-allowed opacity-50"
           : "cursor-pointer hover:border-primary hover:shadow-sm active:scale-[0.98]"
@@ -44,25 +44,23 @@ const SaleProductTile = memo(function SaleProductTile({
           {qty}
         </span>
       )}
-      <div className="mb-1 flex items-start gap-2">
-        <ProductThumb path={p.gambar} size="h-12 w-12" />
-        <div className="min-w-0 flex-1">
-          <span className="text-sm font-medium leading-tight">{p.nama}</span>
-          <span className="mt-0.5 block font-mono text-[10px] text-muted-foreground">{p.kode}</span>
+      <ProductThumb path={p.gambar} size="h-16 w-16" />
+      <div className="min-w-0 flex-1">
+        <span className="text-sm font-medium leading-tight">{p.nama}</span>
+        <span className="mt-0.5 block font-mono text-[10px] text-muted-foreground">{p.kode}</span>
+        <div className="mt-1">
+          {hasCustom ? (
+            <div className="flex items-center gap-1">
+              <span className="text-[10px] text-muted-foreground line-through">{formatRupiah(p.harga_jual)}</span>
+              <Badge variant="secondary" className="text-[10px]">{formatRupiah(price)}</Badge>
+            </div>
+          ) : (
+            <span className="text-sm font-semibold text-primary">{formatRupiah(price)}</span>
+          )}
+          <span className={`block text-[10px] ${p.stok <= p.stok_minimum ? "text-destructive" : "text-muted-foreground"}`}>
+            {p.stok} {p.satuan}
+          </span>
         </div>
-      </div>
-      <div className="mt-auto pt-2">
-        {hasCustom ? (
-          <div className="flex items-center gap-1">
-            <span className="text-[10px] text-muted-foreground line-through">{formatRupiah(p.harga_jual)}</span>
-            <Badge variant="secondary" className="text-[10px]">{formatRupiah(price)}</Badge>
-          </div>
-        ) : (
-          <span className="text-sm font-semibold text-primary">{formatRupiah(price)}</span>
-        )}
-        <span className={`block text-[10px] ${p.stok <= p.stok_minimum ? "text-destructive" : "text-muted-foreground"}`}>
-          {p.stok} {p.satuan}
-        </span>
       </div>
     </button>
   );

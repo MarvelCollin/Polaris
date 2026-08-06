@@ -25,7 +25,7 @@ const PurchaseProductTile = memo(function PurchaseProductTile({
     <button
       type="button"
       onClick={() => onAdd(p)}
-      className={`relative flex flex-col rounded-lg border p-3 text-left transition-[border-color,box-shadow,transform] duration-150 cursor-pointer hover:border-primary hover:shadow-sm active:scale-[0.98] ${
+      className={`relative flex items-center gap-3 rounded-lg border p-3 text-left transition-[border-color,box-shadow,transform] duration-150 cursor-pointer hover:border-primary hover:shadow-sm active:scale-[0.98] ${
         qty > 0 ? "border-primary bg-primary/5" : ""
       }`}
     >
@@ -34,18 +34,16 @@ const PurchaseProductTile = memo(function PurchaseProductTile({
           {qty}
         </span>
       )}
-      <div className="mb-1 flex items-start gap-2">
-        <ProductThumb path={p.gambar} size="h-12 w-12" />
-        <div className="min-w-0 flex-1">
-          <span className="text-sm font-medium leading-tight">{p.nama}</span>
-          <span className="mt-0.5 block font-mono text-[10px] text-muted-foreground">{p.kode}</span>
+      <ProductThumb path={p.gambar} size="h-16 w-16" />
+      <div className="min-w-0 flex-1">
+        <span className="text-sm font-medium leading-tight">{p.nama}</span>
+        <span className="mt-0.5 block font-mono text-[10px] text-muted-foreground">{p.kode}</span>
+        <div className="mt-1">
+          <span className="text-sm font-semibold text-primary">{formatRupiah(p.harga_beli)}</span>
+          <span className={`block text-[10px] ${p.stok <= p.stok_minimum ? "text-destructive" : "text-muted-foreground"}`}>
+            {p.stok} {p.satuan}
+          </span>
         </div>
-      </div>
-      <div className="mt-auto pt-2">
-        <span className="text-sm font-semibold text-primary">{formatRupiah(p.harga_beli)}</span>
-        <span className={`block text-[10px] ${p.stok <= p.stok_minimum ? "text-destructive" : "text-muted-foreground"}`}>
-          Stok: {p.stok} {p.satuan}
-        </span>
       </div>
     </button>
   );
@@ -210,7 +208,7 @@ export default function Purchases() {
             ))}
           </div>
 
-          <div className="max-h-[calc(100vh-260px)] overflow-y-auto rounded-md p-1">
+          <div className="max-h-[calc(100vh-320px)] overflow-y-auto rounded-md p-1">
             {visibleProducts.length > 0 ? (
               <div className="grid grid-cols-3 gap-2">
                 {visibleProducts.map((p) => (
@@ -271,12 +269,15 @@ export default function Purchases() {
                     <div key={item.produk_id} className="flex items-center gap-2 rounded-md border p-2 text-sm">
                       <div className="flex-1">
                         <p className="font-medium">{item.nama}</p>
-                        <Input
-                          type="number"
-                          value={item.harga || ""}
-                          onChange={(e) => updatePrice(item.produk_id, Number(e.target.value))}
-                          className="mt-1 h-7 w-28 text-xs"
-                        />
+                        <div className="mt-1 flex items-center gap-1">
+                          <Input
+                            type="number"
+                            value={item.harga || ""}
+                            onChange={(e) => updatePrice(item.produk_id, Number(e.target.value))}
+                            className="h-7 w-28 text-xs"
+                          />
+                          <span className="text-xs text-muted-foreground">/ {item.satuan}</span>
+                        </div>
                       </div>
                       <div className="flex items-center gap-1">
                         <Button variant="outline" size="icon-xs" onClick={() => updateQty(item.produk_id, -1)}>
@@ -299,6 +300,11 @@ export default function Purchases() {
               <Separator className="my-3" />
 
               <div className="space-y-2">
+                <div className="flex justify-between text-sm text-muted-foreground">
+                  <span>Subtotal</span>
+                  <span>{formatRupiah(total)}</span>
+                </div>
+
                 <div className="flex justify-between text-lg font-bold">
                   <span>Total</span>
                   <span>{formatRupiah(total)}</span>
