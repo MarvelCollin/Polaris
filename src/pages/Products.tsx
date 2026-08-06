@@ -1,21 +1,17 @@
-import { useState, useCallback, useRef, useEffect } from "react";
+import { memo, useState, useCallback, useMemo, useRef, useEffect } from "react";
 import { useQuery } from "@/hooks/useQuery";
 import { useDebounce } from "@/hooks/useDebounce";
-import { useSort } from "@/hooks/useSort";
+import { useIncrementalRender } from "@/hooks/useIncrementalRender";
 import { getProducts, createProduct, updateProduct, deleteProduct, generateProductCode, updateStock, getDistinctSatuan } from "@/db/products";
 import { getCategories } from "@/db/categories";
 import { ProductWithCategory } from "@/types/index";
 import { formatRupiah } from "@/types/index";
 import { pickAndSaveImage, getImageUrl } from "@/lib/images";
 import ProductThumb from "@/components/ProductThumb";
-import SortableHead from "@/components/SortableHead";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import {
-  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
-} from "@/components/ui/table";
 import Modal from "@/components/Modal";
 import ConfirmDialog from "@/components/ConfirmDialog";
 import SearchInput from "@/components/SearchInput";
@@ -28,17 +24,67 @@ const emptyForm = {
   gambar: null as string | null,
 };
 
+const ProductTile = memo(function ProductTile({
+  p, onEdit, onDelete, onStock,
+}: {
+  p: ProductWithCategory;
+  onEdit: (p: ProductWithCategory) => void;
+  onDelete: (p: ProductWithCategory) => void;
+  onStock: (p: ProductWithCategory) => void;
+}) {
+  return (
+    <div className="relative flex items-center gap-3 rounded-lg border p-3 text-left transition-[border-color,box-shadow] duration-150 hover:border-primary hover:shadow-sm">
+      <ProductThumb path={p.gambar} size="h-16 w-16" />
+      <div className="min-w-0 flex-1">
+        <span className="text-sm font-medium leading-tight">{p.nama}</span>
+        <span className="mt-0.5 block font-mono text-[10px] text-muted-foreground">{p.kode}</span>
+        <Badge variant="secondary" className="mt-1 text-[10px]">{p.kategori_nama}</Badge>
+        <div className="mt-1">
+          <span className="text-xs text-muted-foreground">Beli: {formatRupiah(p.harga_beli)}</span>
+          <span className="ml-2 text-sm font-semibold text-primary">Jual: {formatRupiah(p.harga_jual)}</span>
+          <span className={`block text-[10px] ${p.stok <= p.stok_minimum ? "text-destructive" : "text-muted-foreground"}`}>
+            {p.stok} {p.satuan}
+          </span>
+        </div>
+      </div>
+      <div className="flex flex-col gap-1">
+        <Button variant="ghost" size="icon-xs" onClick={() => onStock(p)} title="Update Stok">
+          <PackagePlus className="size-3.5" />
+        </Button>
+        <Button variant="ghost" size="icon-xs" onClick={() => onEdit(p)}>
+          <Pencil className="size-3.5" />
+        </Button>
+        <Button variant="ghost" size="icon-xs" onClick={() => onDelete(p)}>
+          <Trash2 className="size-3.5 text-destructive" />
+        </Button>
+      </div>
+    </div>
+  );
+});
+
 export default function Products() {
   const [search, setSearch] = useState("");
   const [catFilter, setCatFilter] = useState(0);
   const debouncedSearch = useDebounce(search);
 
-  const { data: products, refetch } = useQuery(
-    useCallback(() => getProducts(debouncedSearch || undefined, catFilter || undefined), [debouncedSearch, catFilter])
+  const { data: allProducts, refetch } = useQuery(
+    useCallback(() => getProducts(), [])
   );
   const { data: categories } = useQuery(useCallback(() => getCategories(), []));
   const { data: existingSatuan } = useQuery(useCallback(() => getDistinctSatuan(), []));
-  const { sorted, sortKey, sortDir, toggleSort } = useSort<ProductWithCategory>(products);
+
+  const filteredProducts = useMemo(() => {
+    if (!allProducts) return [];
+    let list = allProducts;
+    if (catFilter) {
+      list = list.filter((p) => p.kategori_id === catFilter);
+    }
+    if (debouncedSearch) {
+      const q = debouncedSearch.toLowerCase();
+      list = list.filter((p) => p.nama.toLowerCase().includes(q) || p.kode.toLowerCase().includes(q));
+    }
+    return list;
+  }, [allProducts, catFilter, debouncedSearch]);
 
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<ProductWithCategory | null>(null);
@@ -164,84 +210,68 @@ export default function Products() {
     }
   }
 
-  const sh = (label: string, key: string, className?: string) => (
-    <SortableHead label={label} sortKey={key} active={sortKey === key} dir={sortDir} onSort={toggleSort} className={className} />
-  );
+  const { visible: visibleProducts, Sentinel } = useIncrementalRender(filteredProducts, 48);
 
   return (
     <div className="animate-fade-in">
       <div className="mb-4 flex items-center justify-between">
         <h1 className="text-2xl font-bold">Produk</h1>
-        <Button onClick={openAdd}><Plus className="size-4" /> Tambah</Button>
-      </div>
-
-      <div className="mb-4 flex items-center gap-3">
-        <SearchInput value={search} onChange={setSearch} placeholder="Cari kode atau nama..." />
-        <div className="w-48">
-          <SearchableSelect
-            options={categories?.map((c) => ({ value: c.id, label: c.nama })) ?? []}
-            value={catFilter}
-            onChange={setCatFilter}
-            placeholder="Cari kategori..."
-            emptyLabel="Semua Kategori"
-          />
+        <div className="flex items-center gap-3">
+          <span className="text-sm text-muted-foreground">{filteredProducts.length} produk</span>
+          <Button onClick={openAdd}><Plus className="size-4" /> Tambah</Button>
         </div>
       </div>
 
-      {sorted && sorted.length > 0 ? (
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead className="w-14">Foto</TableHead>
-              {sh("Kode", "kode")}
-              {sh("Nama", "nama")}
-              {sh("Kategori", "kategori_nama")}
-              {sh("Satuan", "satuan")}
-              {sh("Harga Beli", "harga_beli")}
-              {sh("Harga Jual", "harga_jual")}
-              {sh("Stok", "stok")}
-              <TableHead className="w-20">Aksi</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {sorted.map((p) => (
-              <TableRow key={p.id}>
-                <TableCell>
-                  <ProductThumb path={p.gambar} size="h-10 w-10" />
-                </TableCell>
-                <TableCell className="font-mono text-xs">{p.kode}</TableCell>
-                <TableCell>{p.nama}</TableCell>
-                <TableCell>{p.kategori_nama}</TableCell>
-                <TableCell>{p.satuan}</TableCell>
-                <TableCell>{formatRupiah(p.harga_beli)}</TableCell>
-                <TableCell>{formatRupiah(p.harga_jual)}</TableCell>
-                <TableCell>
-                  {p.stok <= p.stok_minimum ? (
-                    <Badge variant="destructive">{p.stok}</Badge>
-                  ) : (
-                    <Badge variant="secondary">{p.stok}</Badge>
-                  )}
-                </TableCell>
-                <TableCell>
-                  <div className="flex gap-1">
-                    <Button variant="ghost" size="icon-xs" onClick={() => openStock(p)} title="Update Stok">
-                      <PackagePlus className="size-3.5" />
-                    </Button>
-                    <Button variant="ghost" size="icon-xs" onClick={() => openEdit(p)}>
-                      <Pencil className="size-3.5" />
-                    </Button>
-                    <Button variant="ghost" size="icon-xs" onClick={() => setDeleteTarget(p)}>
-                      <Trash2 className="size-3.5 text-destructive" />
-                    </Button>
-                  </div>
-                </TableCell>
-              </TableRow>
+      <div className="mb-3">
+        <SearchInput value={search} onChange={setSearch} placeholder="Cari kode atau nama..." />
+      </div>
+
+      <div className="mb-3 flex flex-wrap gap-1.5">
+        <button
+          type="button"
+          onClick={() => setCatFilter(0)}
+          className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
+            catFilter === 0
+              ? "bg-primary text-primary-foreground"
+              : "bg-secondary text-secondary-foreground hover:bg-accent"
+          }`}
+        >
+          Semua
+        </button>
+        {categories?.map((c) => (
+          <button
+            key={c.id}
+            type="button"
+            onClick={() => setCatFilter(c.id)}
+            className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
+              catFilter === c.id
+                ? "bg-primary text-primary-foreground"
+                : "bg-secondary text-secondary-foreground hover:bg-accent"
+            }`}
+          >
+            {c.nama}
+          </button>
+        ))}
+      </div>
+
+      <div className="max-h-[calc(100vh-260px)] overflow-y-auto rounded-md p-1">
+        {visibleProducts.length > 0 ? (
+          <div className="grid grid-cols-4 gap-2">
+            {visibleProducts.map((p) => (
+              <ProductTile
+                key={p.id}
+                p={p}
+                onEdit={openEdit}
+                onDelete={setDeleteTarget}
+                onStock={openStock}
+              />
             ))}
-          </TableBody>
-        </Table>
-      ) : (
-        <p className="py-12 text-center text-sm text-muted-foreground">Belum ada produk</p>
-      )}
+            <Sentinel />
+          </div>
+        ) : filteredProducts.length === 0 ? (
+          <p className="py-12 text-center text-sm text-muted-foreground">Produk tidak ditemukan</p>
+        ) : null}
+      </div>
 
       <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={editing ? "Edit Produk" : "Tambah Produk"}>
         <div className="space-y-3">
