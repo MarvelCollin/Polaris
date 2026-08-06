@@ -262,6 +262,8 @@ export default function PurchaseHistory() {
                 {sh("Ref. Faktur", "referensi_faktur")}
                 {sh("Tanggal", "dibuat_pada")}
                 {sh("Total", "total")}
+                {sh("Dibayar", "dibayar")}
+                <TableHead>Sisa</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead className="w-24">Aksi</TableHead>
               </TableRow>
@@ -273,6 +275,8 @@ export default function PurchaseHistory() {
                   <TableCell className="font-mono text-xs">{p.referensi_faktur || "-"}</TableCell>
                   <TableCell>{formatTanggal(p.dibuat_pada)}</TableCell>
                   <TableCell>{formatRupiah(p.total)}</TableCell>
+                  <TableCell>{formatRupiah(p.dibayar)}</TableCell>
+                  <TableCell>{p.dibayar >= p.total ? "-" : formatRupiah(p.total - p.dibayar)}</TableCell>
                   <TableCell>
                     {p.dibayar >= p.total ? (
                       <Badge variant="default">Lunas</Badge>
