@@ -77,7 +77,7 @@ describe("purchases", () => {
     await getPurchases(start, end, 50, 0);
 
     const countCall = mockDb.select.mock.calls[0];
-    expect((countCall[0] as string)).toContain("dibuat_pada >= $1 AND dibuat_pada <= $2");
+    expect((countCall[0] as string)).toContain("p.dibuat_pada >= $1 AND p.dibuat_pada <= $2");
     expect(countCall[1]).toEqual([start, end]);
   });
 
