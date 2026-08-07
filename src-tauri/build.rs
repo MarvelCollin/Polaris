@@ -8,6 +8,7 @@ fn main() {
                 match key {
                     "client_id" => println!("cargo:rustc-env=GDRIVE_CLIENT_ID={}", value),
                     "client_secret" => println!("cargo:rustc-env=GDRIVE_CLIENT_SECRET={}", value),
+                    "midtrans_server_key" => println!("cargo:rustc-env=MIDTRANS_SERVER_KEY={}", value),
                     _ => {}
                 }
             }
@@ -16,7 +17,8 @@ fn main() {
     } else {
         println!("cargo:rustc-env=GDRIVE_CLIENT_ID=");
         println!("cargo:rustc-env=GDRIVE_CLIENT_SECRET=");
-        println!("cargo:warning=gdrive_secrets.toml not found, Google Drive backup disabled");
+        println!("cargo:rustc-env=MIDTRANS_SERVER_KEY=");
+        println!("cargo:warning=gdrive_secrets.toml not found, secrets disabled");
     }
 
     tauri_build::build()
