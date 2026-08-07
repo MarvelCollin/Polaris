@@ -1,5 +1,6 @@
 mod auth;
 mod gdrive;
+mod midtrans;
 
 use tauri::Manager;
 
@@ -38,6 +39,9 @@ pub fn run() {
             gdrive::gdrive_delete_backup,
             gdrive::gdrive_set_auto_backup,
             gdrive::gdrive_get_auto_backup_status,
+            midtrans::midtrans_create_qris,
+            midtrans::midtrans_check_status,
+            midtrans::midtrans_cancel,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
