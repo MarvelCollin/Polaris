@@ -59,4 +59,14 @@ describe("database", () => {
     expect(calls.some((c: string) => c.includes("ALTER TABLE penjualan ADD COLUMN pelanggan_id"))).toBe(true);
     expect(calls.some((c: string) => c.includes("ALTER TABLE penjualan ADD COLUMN nama_pelanggan"))).toBe(true);
   });
+
+  it("should only backfill purchase payments for old schemas", async () => {
+    mockDb.select.mockResolvedValueOnce([{ name: "dibayar" }]);
+
+    const { initDb } = await import("@/database");
+    await initDb();
+
+    const calls = mockDb.execute.mock.calls.map((c: unknown[]) => c[0] as string);
+    expect(calls.some((c: string) => c.includes("UPDATE pembelian SET dibayar = total"))).toBe(false);
+  });
 });

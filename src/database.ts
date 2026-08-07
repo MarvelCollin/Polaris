@@ -124,6 +124,9 @@ export async function initDb() {
     )
   `);
 
+  const pembelianColumns: { name: string }[] = await database.select("PRAGMA table_info(pembelian)");
+  const hasDibayarColumn = pembelianColumns.some((column) => column.name === "dibayar");
+
   try { await database.execute("ALTER TABLE produk ADD COLUMN gambar TEXT"); } catch (_) {}
   try { await database.execute("ALTER TABLE penjualan ADD COLUMN pelanggan_id INTEGER REFERENCES pelanggan(id)"); } catch (_) {}
   try { await database.execute("ALTER TABLE penjualan ADD COLUMN nama_pelanggan TEXT"); } catch (_) {}
@@ -132,9 +135,11 @@ export async function initDb() {
   try { await database.execute("ALTER TABLE penjualan ADD COLUMN diskon REAL NOT NULL DEFAULT 0"); } catch (_) {}
   try { await database.execute("ALTER TABLE item_penjualan ADD COLUMN hpp REAL NOT NULL DEFAULT 0"); } catch (_) {}
 
-  await database.execute(`
-    UPDATE pembelian SET dibayar = total WHERE dibayar = 0 AND total > 0
-  `);
+  if (!hasDibayarColumn) {
+    await database.execute(`
+      UPDATE pembelian SET dibayar = total WHERE dibayar = 0 AND total > 0
+    `);
+  }
 
   await database.execute(`
     CREATE TABLE IF NOT EXISTS pembayaran_pembelian (

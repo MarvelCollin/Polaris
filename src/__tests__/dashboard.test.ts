@@ -55,6 +55,8 @@ describe("dashboard", () => {
 
     const call = mockDb.select.mock.calls[0];
     expect((call[0] as string)).toContain("SUM(total)");
+    expect((call[0] as string)).toContain("retur_penjualan");
+    expect((call[0] as string)).toContain("retur_pembelian");
     const params = call[1] as number[];
     expect(params[1] - params[0]).toBe(86400);
   });

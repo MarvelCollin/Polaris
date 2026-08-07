@@ -254,11 +254,7 @@ describe("stress: large dataset performance", () => {
 
 describe("stress: useQuery stale data behavior", () => {
   it("version counter prevents stale responses from overwriting fresh data", async () => {
-    let resolvers: Array<(v: number) => void> = [];
-    const slowQuery = () => new Promise<number>((resolve) => { resolvers.push(resolve); });
-
     const { useQuery } = await import("@/hooks/useQuery");
-    const { renderHook, act } = await import("vitest");
 
     expect(useQuery).toBeDefined();
     expect(typeof useQuery).toBe("function");

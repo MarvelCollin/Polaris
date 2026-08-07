@@ -95,11 +95,16 @@ export async function getSales(
   );
 
   const data: Sale[] = await db.select(
-    `SELECT p.*, COALESCE(pay.total_bayar, 0) as total_pembayaran,
-       (p.total - p.dibayar - COALESCE(pay.total_bayar, 0)) as sisa
+    `SELECT p.id, p.nomor_faktur,
+       (p.total - COALESCE(ret.total_retur, 0)) as total,
+       p.dibayar, p.kembalian, p.dibuat_pada, p.pelanggan_id, p.nama_pelanggan, p.diskon,
+       COALESCE(pay.total_bayar, 0) as total_pembayaran,
+       ((p.total - COALESCE(ret.total_retur, 0)) - p.dibayar - COALESCE(pay.total_bayar, 0)) as sisa
      FROM penjualan p
      LEFT JOIN (SELECT penjualan_id, SUM(jumlah) as total_bayar FROM pembayaran_penjualan GROUP BY penjualan_id) pay
        ON pay.penjualan_id = p.id
+     LEFT JOIN (SELECT penjualan_id, SUM(total) as total_retur FROM retur_penjualan GROUP BY penjualan_id) ret
+       ON ret.penjualan_id = p.id
      ${where}
      ORDER BY p.dibuat_pada DESC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
     [...params, limit, offset]
@@ -119,14 +124,18 @@ export async function getSaleItems(saleId: number): Promise<SaleItem[]> {
 export async function getSaleDebts(): Promise<SaleDebt[]> {
   const db = await getDb();
   return await db.select(
-    `SELECT p.id, p.nomor_faktur, p.nama_pelanggan, p.total, p.dibayar,
+    `SELECT p.id, p.nomor_faktur, p.nama_pelanggan,
+       (p.total - COALESCE(ret.total_retur, 0)) as total,
+       p.dibayar,
        COALESCE(pay.total_bayar, 0) as total_pembayaran,
-       (p.total - p.dibayar - COALESCE(pay.total_bayar, 0)) as sisa,
+       ((p.total - COALESCE(ret.total_retur, 0)) - p.dibayar - COALESCE(pay.total_bayar, 0)) as sisa,
        p.dibuat_pada
      FROM penjualan p
      LEFT JOIN (SELECT penjualan_id, SUM(jumlah) as total_bayar FROM pembayaran_penjualan GROUP BY penjualan_id) pay
        ON pay.penjualan_id = p.id
-     WHERE (p.total - p.dibayar - COALESCE(pay.total_bayar, 0)) > 0
+     LEFT JOIN (SELECT penjualan_id, SUM(total) as total_retur FROM retur_penjualan GROUP BY penjualan_id) ret
+       ON ret.penjualan_id = p.id
+     WHERE ((p.total - COALESCE(ret.total_retur, 0)) - p.dibayar - COALESCE(pay.total_bayar, 0)) > 0
      ORDER BY p.dibuat_pada DESC`
   );
 }
@@ -153,12 +162,18 @@ export async function getSaleHistoryStats(startDate?: number, endDate?: number) 
   const params: number[] = [];
 
   if (startDate && endDate) {
-    where = "WHERE dibuat_pada >= $1 AND dibuat_pada <= $2";
+    where = "WHERE p.dibuat_pada >= $1 AND p.dibuat_pada <= $2";
     params.push(startDate, endDate);
   }
 
   const rows: { count: number; total: number; avg: number }[] = await db.select(
-    `SELECT COUNT(*) as count, COALESCE(SUM(total), 0) as total, COALESCE(AVG(total), 0) as avg FROM penjualan ${where}`,
+    `SELECT COUNT(*) as count,
+       COALESCE(SUM(p.total - COALESCE(ret.total_retur, 0)), 0) as total,
+       COALESCE(AVG(p.total - COALESCE(ret.total_retur, 0)), 0) as avg
+     FROM penjualan p
+     LEFT JOIN (SELECT penjualan_id, SUM(total) as total_retur FROM retur_penjualan GROUP BY penjualan_id) ret
+       ON ret.penjualan_id = p.id
+     ${where}`,
     params
   );
 
@@ -174,6 +189,10 @@ export const GROUP_SQL: Record<ChartGroupBy, string> = {
   year: "strftime('%Y', dibuat_pada, 'unixepoch', 'localtime')",
   all: "strftime('%Y-%m', dibuat_pada, 'unixepoch', 'localtime')",
 };
+
+export function groupSqlFor(alias: string, groupBy: ChartGroupBy): string {
+  return GROUP_SQL[groupBy].replace(/dibuat_pada/g, `${alias}.dibuat_pada`);
+}
 
 const MONTH_NAMES = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"];
 
@@ -198,14 +217,17 @@ export async function getSaleHistoryDaily(startDate?: number, endDate?: number, 
   const params: number[] = [];
 
   if (startDate && endDate) {
-    where = "WHERE dibuat_pada >= $1 AND dibuat_pada <= $2";
+    where = "WHERE p.dibuat_pada >= $1 AND p.dibuat_pada <= $2";
     params.push(startDate, endDate);
   }
 
-  const groupExpr = GROUP_SQL[groupBy];
+  const groupExpr = groupSqlFor("p", groupBy);
   const rows: { grp: string; total: number }[] = await db.select(
-    `SELECT ${groupExpr} as grp, COALESCE(SUM(total), 0) as total
-     FROM penjualan ${where}
+    `SELECT ${groupExpr} as grp, COALESCE(SUM(p.total - COALESCE(ret.total_retur, 0)), 0) as total
+     FROM penjualan p
+     LEFT JOIN (SELECT penjualan_id, SUM(total) as total_retur FROM retur_penjualan GROUP BY penjualan_id) ret
+       ON ret.penjualan_id = p.id
+     ${where}
      GROUP BY grp ORDER BY grp`,
     params
   );
@@ -224,11 +246,20 @@ export async function getSaleHistoryTopProducts(startDate?: number, endDate?: nu
   }
 
   return await db.select(
-    `SELECT ip.nama_produk as nama, SUM(ip.jumlah) as jumlah, SUM(ip.subtotal) as total
+    `SELECT ip.nama_produk as nama,
+       SUM(ip.jumlah - COALESCE(ret.jumlah_retur, 0)) as jumlah,
+       SUM(ip.subtotal - COALESCE(ret.total_retur, 0)) as total
      FROM item_penjualan ip
      JOIN penjualan p ON ip.penjualan_id = p.id
+     LEFT JOIN (
+       SELECT r.penjualan_id, ir.produk_id, SUM(ir.jumlah) as jumlah_retur, SUM(ir.subtotal) as total_retur
+       FROM item_retur_penjualan ir
+       JOIN retur_penjualan r ON ir.retur_id = r.id
+       GROUP BY r.penjualan_id, ir.produk_id
+     ) ret ON ret.penjualan_id = p.id AND ret.produk_id = ip.produk_id
      ${where}
      GROUP BY ip.produk_id
+     HAVING jumlah > 0
      ORDER BY total DESC
      LIMIT $${params.length + 1}`,
     [...params, limit]

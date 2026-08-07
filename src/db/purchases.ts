@@ -1,6 +1,6 @@
 import { getDb } from "../database";
 import { Purchase, PurchaseItem, PurchaseEntry, PurchaseDebt, Payment, ReturPembelian, ReturItem } from "../types";
-import { type ChartGroupBy, GROUP_SQL, formatGroupLabel } from "./sales";
+import { type ChartGroupBy, groupSqlFor, formatGroupLabel } from "./sales";
 import { toUnixTimestamp } from "../lib/utils";
 
 export async function getDistinctSuppliers(): Promise<string[]> {
@@ -112,11 +112,16 @@ export async function getPurchases(
   );
 
   const data: Purchase[] = await db.select(
-    `SELECT p.*, COALESCE(pay.total_bayar, 0) as total_pembayaran,
-       (p.total - p.dibayar - COALESCE(pay.total_bayar, 0)) as sisa
+    `SELECT p.id, p.supplier, p.referensi_faktur,
+       (p.total - COALESCE(ret.total_retur, 0)) as total,
+       p.dibayar, p.dibuat_pada,
+       COALESCE(pay.total_bayar, 0) as total_pembayaran,
+       ((p.total - COALESCE(ret.total_retur, 0)) - p.dibayar - COALESCE(pay.total_bayar, 0)) as sisa
      FROM pembelian p
      LEFT JOIN (SELECT pembelian_id, SUM(jumlah) as total_bayar FROM pembayaran_pembelian GROUP BY pembelian_id) pay
        ON pay.pembelian_id = p.id
+     LEFT JOIN (SELECT pembelian_id, SUM(total) as total_retur FROM retur_pembelian GROUP BY pembelian_id) ret
+       ON ret.pembelian_id = p.id
      ${where}
      ORDER BY p.dibuat_pada DESC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
     [...params, limit, offset]
@@ -136,14 +141,18 @@ export async function getPurchaseItems(purchaseId: number): Promise<PurchaseItem
 export async function getPurchaseDebts(): Promise<PurchaseDebt[]> {
   const db = await getDb();
   return await db.select(
-    `SELECT p.id, p.supplier, p.referensi_faktur, p.total, p.dibayar,
+    `SELECT p.id, p.supplier, p.referensi_faktur,
+       (p.total - COALESCE(ret.total_retur, 0)) as total,
+       p.dibayar,
        COALESCE(pay.total_bayar, 0) as total_pembayaran,
-       (p.total - p.dibayar - COALESCE(pay.total_bayar, 0)) as sisa,
+       ((p.total - COALESCE(ret.total_retur, 0)) - p.dibayar - COALESCE(pay.total_bayar, 0)) as sisa,
        p.dibuat_pada
      FROM pembelian p
      LEFT JOIN (SELECT pembelian_id, SUM(jumlah) as total_bayar FROM pembayaran_pembelian GROUP BY pembelian_id) pay
        ON pay.pembelian_id = p.id
-     WHERE (p.total - p.dibayar - COALESCE(pay.total_bayar, 0)) > 0
+     LEFT JOIN (SELECT pembelian_id, SUM(total) as total_retur FROM retur_pembelian GROUP BY pembelian_id) ret
+       ON ret.pembelian_id = p.id
+     WHERE ((p.total - COALESCE(ret.total_retur, 0)) - p.dibayar - COALESCE(pay.total_bayar, 0)) > 0
      ORDER BY p.dibuat_pada DESC`
   );
 }
@@ -170,12 +179,18 @@ export async function getPurchaseHistoryStats(startDate?: number, endDate?: numb
   const params: number[] = [];
 
   if (startDate && endDate) {
-    where = "WHERE dibuat_pada >= $1 AND dibuat_pada <= $2";
+    where = "WHERE p.dibuat_pada >= $1 AND p.dibuat_pada <= $2";
     params.push(startDate, endDate);
   }
 
   const rows: { count: number; total: number; avg: number }[] = await db.select(
-    `SELECT COUNT(*) as count, COALESCE(SUM(total), 0) as total, COALESCE(AVG(total), 0) as avg FROM pembelian ${where}`,
+    `SELECT COUNT(*) as count,
+       COALESCE(SUM(p.total - COALESCE(ret.total_retur, 0)), 0) as total,
+       COALESCE(AVG(p.total - COALESCE(ret.total_retur, 0)), 0) as avg
+     FROM pembelian p
+     LEFT JOIN (SELECT pembelian_id, SUM(total) as total_retur FROM retur_pembelian GROUP BY pembelian_id) ret
+       ON ret.pembelian_id = p.id
+     ${where}`,
     params
   );
 
@@ -188,14 +203,17 @@ export async function getPurchaseHistoryDaily(startDate?: number, endDate?: numb
   const params: number[] = [];
 
   if (startDate && endDate) {
-    where = "WHERE dibuat_pada >= $1 AND dibuat_pada <= $2";
+    where = "WHERE p.dibuat_pada >= $1 AND p.dibuat_pada <= $2";
     params.push(startDate, endDate);
   }
 
-  const groupExpr = GROUP_SQL[groupBy];
+  const groupExpr = groupSqlFor("p", groupBy);
   const rows: { grp: string; total: number }[] = await db.select(
-    `SELECT ${groupExpr} as grp, COALESCE(SUM(total), 0) as total
-     FROM pembelian ${where}
+    `SELECT ${groupExpr} as grp, COALESCE(SUM(p.total - COALESCE(ret.total_retur, 0)), 0) as total
+     FROM pembelian p
+     LEFT JOIN (SELECT pembelian_id, SUM(total) as total_retur FROM retur_pembelian GROUP BY pembelian_id) ret
+       ON ret.pembelian_id = p.id
+     ${where}
      GROUP BY grp ORDER BY grp`,
     params
   );
@@ -214,11 +232,20 @@ export async function getPurchaseHistoryTopProducts(startDate?: number, endDate?
   }
 
   return await db.select(
-    `SELECT ip.nama_produk as nama, SUM(ip.jumlah) as jumlah, SUM(ip.subtotal) as total
+    `SELECT ip.nama_produk as nama,
+       SUM(ip.jumlah - COALESCE(ret.jumlah_retur, 0)) as jumlah,
+       SUM(ip.subtotal - COALESCE(ret.total_retur, 0)) as total
      FROM item_pembelian ip
      JOIN pembelian p ON ip.pembelian_id = p.id
+     LEFT JOIN (
+       SELECT r.pembelian_id, ir.produk_id, SUM(ir.jumlah) as jumlah_retur, SUM(ir.subtotal) as total_retur
+       FROM item_retur_pembelian ir
+       JOIN retur_pembelian r ON ir.retur_id = r.id
+       GROUP BY r.pembelian_id, ir.produk_id
+     ) ret ON ret.pembelian_id = p.id AND ret.produk_id = ip.produk_id
      ${where}
      GROUP BY ip.produk_id
+     HAVING jumlah > 0
      ORDER BY total DESC
      LIMIT $${params.length + 1}`,
     [...params, limit]
@@ -231,14 +258,17 @@ export async function getPurchaseHistoryTopSuppliers(startDate?: number, endDate
   const params: number[] = [];
 
   if (startDate && endDate) {
-    where = "WHERE dibuat_pada >= $1 AND dibuat_pada <= $2";
+    where = "WHERE p.dibuat_pada >= $1 AND p.dibuat_pada <= $2";
     params.push(startDate, endDate);
   }
 
   return await db.select(
-    `SELECT supplier, COUNT(*) as count, COALESCE(SUM(total), 0) as total
-     FROM pembelian ${where}
-     GROUP BY supplier
+    `SELECT p.supplier, COUNT(*) as count, COALESCE(SUM(p.total - COALESCE(ret.total_retur, 0)), 0) as total
+     FROM pembelian p
+     LEFT JOIN (SELECT pembelian_id, SUM(total) as total_retur FROM retur_pembelian GROUP BY pembelian_id) ret
+       ON ret.pembelian_id = p.id
+     ${where}
+     GROUP BY p.supplier
      ORDER BY total DESC
      LIMIT $${params.length + 1}`,
     [...params, limit]

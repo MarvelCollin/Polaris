@@ -345,6 +345,7 @@ describe("debt (sisa utang) calculations", () => {
     const selectCall = mockDb.select.mock.calls[1][0] as string;
     expect(selectCall).toContain("LEFT JOIN");
     expect(selectCall).toContain("pembayaran_penjualan");
+    expect(selectCall).toContain("retur_penjualan");
     expect(selectCall).toContain("total_pembayaran");
     expect(selectCall).toContain("sisa");
   });
@@ -364,6 +365,7 @@ describe("debt (sisa utang) calculations", () => {
     const selectCall = mockDb.select.mock.calls[1][0] as string;
     expect(selectCall).toContain("LEFT JOIN");
     expect(selectCall).toContain("pembayaran_pembelian");
+    expect(selectCall).toContain("retur_pembelian");
     expect(selectCall).toContain("total_pembayaran");
     expect(selectCall).toContain("sisa");
   });

@@ -26,16 +26,16 @@ export async function getDashboardStats() {
   }[] = await db.select(
     `SELECT
        (SELECT COUNT(*) FROM produk) as totalProducts,
-       (SELECT COALESCE(SUM(total), 0) FROM penjualan WHERE dibuat_pada >= $1 AND dibuat_pada < $2) as todaySales,
-       (SELECT COALESCE(SUM(total), 0) FROM pembelian WHERE dibuat_pada >= $1 AND dibuat_pada < $2) as todayPurchases,
+       (SELECT COALESCE(SUM(p.total - COALESCE(ret.total_retur, 0)), 0) FROM penjualan p LEFT JOIN (SELECT penjualan_id, SUM(total) as total_retur FROM retur_penjualan GROUP BY penjualan_id) ret ON ret.penjualan_id = p.id WHERE p.dibuat_pada >= $1 AND p.dibuat_pada < $2) as todaySales,
+       (SELECT COALESCE(SUM(p.total - COALESCE(ret.total_retur, 0)), 0) FROM pembelian p LEFT JOIN (SELECT pembelian_id, SUM(total) as total_retur FROM retur_pembelian GROUP BY pembelian_id) ret ON ret.pembelian_id = p.id WHERE p.dibuat_pada >= $1 AND p.dibuat_pada < $2) as todayPurchases,
        (SELECT COUNT(*) FROM produk WHERE stok <= stok_minimum) as lowStockCount,
-       (SELECT COALESCE(SUM(total), 0) FROM penjualan WHERE dibuat_pada >= $3 AND dibuat_pada < $4) as monthlySales,
-       (SELECT COALESCE(SUM(total), 0) FROM pembelian WHERE dibuat_pada >= $3 AND dibuat_pada < $4) as monthlyPurchases,
+       (SELECT COALESCE(SUM(p.total - COALESCE(ret.total_retur, 0)), 0) FROM penjualan p LEFT JOIN (SELECT penjualan_id, SUM(total) as total_retur FROM retur_penjualan GROUP BY penjualan_id) ret ON ret.penjualan_id = p.id WHERE p.dibuat_pada >= $3 AND p.dibuat_pada < $4) as monthlySales,
+       (SELECT COALESCE(SUM(p.total - COALESCE(ret.total_retur, 0)), 0) FROM pembelian p LEFT JOIN (SELECT pembelian_id, SUM(total) as total_retur FROM retur_pembelian GROUP BY pembelian_id) ret ON ret.pembelian_id = p.id WHERE p.dibuat_pada >= $3 AND p.dibuat_pada < $4) as monthlyPurchases,
        (SELECT COUNT(*) FROM pelanggan) as totalCustomers,
-       (SELECT COALESCE(SUM(total), 0) FROM penjualan) as allTimeSales,
-       (SELECT COALESCE(SUM(total), 0) FROM pembelian) as allTimePurchases,
-       (SELECT COALESCE(SUM(ip.subtotal - ip.jumlah * ip.hpp), 0) FROM item_penjualan ip WHERE ip.hpp > 0) as allTimeGrossProfit,
-       (SELECT COALESCE(SUM(ip.subtotal - ip.jumlah * ip.hpp), 0) FROM item_penjualan ip JOIN penjualan p ON ip.penjualan_id = p.id WHERE ip.hpp > 0 AND p.dibuat_pada >= $3 AND p.dibuat_pada < $4) as monthlyGrossProfit`,
+       (SELECT COALESCE(SUM(p.total - COALESCE(ret.total_retur, 0)), 0) FROM penjualan p LEFT JOIN (SELECT penjualan_id, SUM(total) as total_retur FROM retur_penjualan GROUP BY penjualan_id) ret ON ret.penjualan_id = p.id) as allTimeSales,
+       (SELECT COALESCE(SUM(p.total - COALESCE(ret.total_retur, 0)), 0) FROM pembelian p LEFT JOIN (SELECT pembelian_id, SUM(total) as total_retur FROM retur_pembelian GROUP BY pembelian_id) ret ON ret.pembelian_id = p.id) as allTimePurchases,
+       (SELECT COALESCE(SUM((ip.subtotal - COALESCE(ret.total_retur, 0)) - ((ip.jumlah - COALESCE(ret.jumlah_retur, 0)) * ip.hpp)), 0) FROM item_penjualan ip LEFT JOIN (SELECT r.penjualan_id, ir.produk_id, SUM(ir.jumlah) as jumlah_retur, SUM(ir.subtotal) as total_retur FROM item_retur_penjualan ir JOIN retur_penjualan r ON ir.retur_id = r.id GROUP BY r.penjualan_id, ir.produk_id) ret ON ret.penjualan_id = ip.penjualan_id AND ret.produk_id = ip.produk_id WHERE ip.hpp > 0) as allTimeGrossProfit,
+       (SELECT COALESCE(SUM((ip.subtotal - COALESCE(ret.total_retur, 0)) - ((ip.jumlah - COALESCE(ret.jumlah_retur, 0)) * ip.hpp)), 0) FROM item_penjualan ip JOIN penjualan p ON ip.penjualan_id = p.id LEFT JOIN (SELECT r.penjualan_id, ir.produk_id, SUM(ir.jumlah) as jumlah_retur, SUM(ir.subtotal) as total_retur FROM item_retur_penjualan ir JOIN retur_penjualan r ON ir.retur_id = r.id GROUP BY r.penjualan_id, ir.produk_id) ret ON ret.penjualan_id = ip.penjualan_id AND ret.produk_id = ip.produk_id WHERE ip.hpp > 0 AND p.dibuat_pada >= $3 AND p.dibuat_pada < $4) as monthlyGrossProfit`,
     [startOfDay, endOfDay, startOfMonth, endOfMonth]
   );
 
@@ -62,8 +62,10 @@ export async function getDailySales(days: number = 30, groupBy: ChartGroupBy = "
 
   if (groupBy === "all") {
     const rows: { grp: string; total: number }[] = await db.select(
-      `SELECT ${groupExpr} as grp, COALESCE(SUM(total), 0) as total
-       FROM penjualan
+      `SELECT ${groupExpr} as grp, COALESCE(SUM(p.total - COALESCE(ret.total_retur, 0)), 0) as total
+       FROM penjualan p
+       LEFT JOIN (SELECT penjualan_id, SUM(total) as total_retur FROM retur_penjualan GROUP BY penjualan_id) ret
+         ON ret.penjualan_id = p.id
        GROUP BY grp
        ORDER BY grp`
     );
@@ -74,9 +76,11 @@ export async function getDailySales(days: number = 30, groupBy: ChartGroupBy = "
   const startDate = toUnixTimestamp(new Date(now.getFullYear(), now.getMonth(), now.getDate() - days + 1));
 
   const rows: { grp: string; total: number }[] = await db.select(
-    `SELECT ${groupExpr} as grp, COALESCE(SUM(total), 0) as total
-     FROM penjualan
-     WHERE dibuat_pada >= $1
+    `SELECT ${groupExpr} as grp, COALESCE(SUM(p.total - COALESCE(ret.total_retur, 0)), 0) as total
+     FROM penjualan p
+     LEFT JOIN (SELECT penjualan_id, SUM(total) as total_retur FROM retur_penjualan GROUP BY penjualan_id) ret
+       ON ret.penjualan_id = p.id
+     WHERE p.dibuat_pada >= $1
      GROUP BY grp
      ORDER BY grp`,
     [startDate]
@@ -103,13 +107,19 @@ export async function getMonthlySalesVsPurchases(months: number = 6): Promise<{ 
   const startTs = toUnixTimestamp(new Date(now.getFullYear(), now.getMonth() - months + 1, 1));
 
   const salesRows: { grp: string; total: number }[] = await db.select(
-    `SELECT strftime('%Y-%m', dibuat_pada, 'unixepoch', 'localtime') as grp, COALESCE(SUM(total), 0) as total
-     FROM penjualan WHERE dibuat_pada >= $1 GROUP BY grp ORDER BY grp`,
+    `SELECT strftime('%Y-%m', dibuat_pada, 'unixepoch', 'localtime') as grp, COALESCE(SUM(p.total - COALESCE(ret.total_retur, 0)), 0) as total
+     FROM penjualan p
+     LEFT JOIN (SELECT penjualan_id, SUM(total) as total_retur FROM retur_penjualan GROUP BY penjualan_id) ret
+       ON ret.penjualan_id = p.id
+     WHERE p.dibuat_pada >= $1 GROUP BY grp ORDER BY grp`,
     [startTs]
   );
   const purchaseRows: { grp: string; total: number }[] = await db.select(
-    `SELECT strftime('%Y-%m', dibuat_pada, 'unixepoch', 'localtime') as grp, COALESCE(SUM(total), 0) as total
-     FROM pembelian WHERE dibuat_pada >= $1 GROUP BY grp ORDER BY grp`,
+    `SELECT strftime('%Y-%m', dibuat_pada, 'unixepoch', 'localtime') as grp, COALESCE(SUM(p.total - COALESCE(ret.total_retur, 0)), 0) as total
+     FROM pembelian p
+     LEFT JOIN (SELECT pembelian_id, SUM(total) as total_retur FROM retur_pembelian GROUP BY pembelian_id) ret
+       ON ret.pembelian_id = p.id
+     WHERE p.dibuat_pada >= $1 GROUP BY grp ORDER BY grp`,
     [startTs]
   );
 
@@ -133,10 +143,16 @@ export async function getMonthlySalesVsPurchases(months: number = 6): Promise<{ 
 export async function getSalesByCategory(): Promise<{ kategori: string; total: number }[]> {
   const db = await getDb();
   return await db.select(
-    `SELECT k.nama as kategori, COALESCE(SUM(ip.subtotal), 0) as total
+    `SELECT k.nama as kategori, COALESCE(SUM(ip.subtotal - COALESCE(ret.total_retur, 0)), 0) as total
      FROM item_penjualan ip
      JOIN produk p ON ip.produk_id = p.id
      JOIN kategori k ON p.kategori_id = k.id
+     LEFT JOIN (
+       SELECT r.penjualan_id, ir.produk_id, SUM(ir.subtotal) as total_retur
+       FROM item_retur_penjualan ir
+       JOIN retur_penjualan r ON ir.retur_id = r.id
+       GROUP BY r.penjualan_id, ir.produk_id
+     ) ret ON ret.penjualan_id = ip.penjualan_id AND ret.produk_id = ip.produk_id
      GROUP BY k.id
      ORDER BY total DESC`
   );
@@ -145,9 +161,18 @@ export async function getSalesByCategory(): Promise<{ kategori: string; total: n
 export async function getTopProducts(limit: number = 5): Promise<{ nama: string; jumlah: number; total: number }[]> {
   const db = await getDb();
   return await db.select(
-    `SELECT ip.nama_produk as nama, SUM(ip.jumlah) as jumlah, SUM(ip.subtotal) as total
+    `SELECT ip.nama_produk as nama,
+       SUM(ip.jumlah - COALESCE(ret.jumlah_retur, 0)) as jumlah,
+       SUM(ip.subtotal - COALESCE(ret.total_retur, 0)) as total
      FROM item_penjualan ip
+     LEFT JOIN (
+       SELECT r.penjualan_id, ir.produk_id, SUM(ir.jumlah) as jumlah_retur, SUM(ir.subtotal) as total_retur
+       FROM item_retur_penjualan ir
+       JOIN retur_penjualan r ON ir.retur_id = r.id
+       GROUP BY r.penjualan_id, ir.produk_id
+     ) ret ON ret.penjualan_id = ip.penjualan_id AND ret.produk_id = ip.produk_id
      GROUP BY ip.produk_id
+     HAVING jumlah > 0
      ORDER BY total DESC
      LIMIT $1`,
     [limit]
@@ -157,9 +182,13 @@ export async function getTopProducts(limit: number = 5): Promise<{ nama: string;
 export async function getTopCustomers(limit: number = 5): Promise<{ nama: string; total: number; transaksi: number }[]> {
   const db = await getDb();
   return await db.select(
-    `SELECT COALESCE(nama_pelanggan, 'Umum') as nama, SUM(total) as total, COUNT(*) as transaksi
-     FROM penjualan
-     WHERE nama_pelanggan IS NOT NULL
+    `SELECT COALESCE(p.nama_pelanggan, 'Umum') as nama,
+       SUM(p.total - COALESCE(ret.total_retur, 0)) as total,
+       COUNT(*) as transaksi
+     FROM penjualan p
+     LEFT JOIN (SELECT penjualan_id, SUM(total) as total_retur FROM retur_penjualan GROUP BY penjualan_id) ret
+       ON ret.penjualan_id = p.id
+     WHERE p.nama_pelanggan IS NOT NULL
      GROUP BY pelanggan_id
      ORDER BY total DESC
      LIMIT $1`,
@@ -182,11 +211,20 @@ export async function getSalesRecap(period: "day" | "week" | "month"): Promise<{
   }
 
   return await db.select(
-    `SELECT ip.nama_produk, SUM(ip.jumlah) as jumlah, SUM(ip.subtotal) as total
+    `SELECT ip.nama_produk,
+       SUM(ip.jumlah - COALESCE(ret.jumlah_retur, 0)) as jumlah,
+       SUM(ip.subtotal - COALESCE(ret.total_retur, 0)) as total
      FROM item_penjualan ip
      JOIN penjualan p ON ip.penjualan_id = p.id
+     LEFT JOIN (
+       SELECT r.penjualan_id, ir.produk_id, SUM(ir.jumlah) as jumlah_retur, SUM(ir.subtotal) as total_retur
+       FROM item_retur_penjualan ir
+       JOIN retur_penjualan r ON ir.retur_id = r.id
+       GROUP BY r.penjualan_id, ir.produk_id
+     ) ret ON ret.penjualan_id = p.id AND ret.produk_id = ip.produk_id
      WHERE p.dibuat_pada >= $1
      GROUP BY ip.produk_id
+     HAVING jumlah > 0
      ORDER BY total DESC`,
     [startTs]
   );
@@ -207,11 +245,20 @@ export async function getPurchasesRecap(period: "day" | "week" | "month"): Promi
   }
 
   return await db.select(
-    `SELECT ip.nama_produk, SUM(ip.jumlah) as jumlah, SUM(ip.subtotal) as total
+    `SELECT ip.nama_produk,
+       SUM(ip.jumlah - COALESCE(ret.jumlah_retur, 0)) as jumlah,
+       SUM(ip.subtotal - COALESCE(ret.total_retur, 0)) as total
      FROM item_pembelian ip
      JOIN pembelian p ON ip.pembelian_id = p.id
+     LEFT JOIN (
+       SELECT r.pembelian_id, ir.produk_id, SUM(ir.jumlah) as jumlah_retur, SUM(ir.subtotal) as total_retur
+       FROM item_retur_pembelian ir
+       JOIN retur_pembelian r ON ir.retur_id = r.id
+       GROUP BY r.pembelian_id, ir.produk_id
+     ) ret ON ret.pembelian_id = p.id AND ret.produk_id = ip.produk_id
      WHERE p.dibuat_pada >= $1
      GROUP BY ip.produk_id
+     HAVING jumlah > 0
      ORDER BY total DESC`,
     [startTs]
   );
@@ -232,7 +279,13 @@ export async function getLowStockProducts(): Promise<ProductWithCategory[]> {
 export async function getRecentSales(): Promise<Sale[]> {
   const db = await getDb();
   return await db.select(
-    "SELECT * FROM penjualan ORDER BY dibuat_pada DESC LIMIT 5"
+    `SELECT p.id, p.nomor_faktur,
+       (p.total - COALESCE(ret.total_retur, 0)) as total,
+       p.dibayar, p.kembalian, p.dibuat_pada, p.pelanggan_id, p.nama_pelanggan, p.diskon
+     FROM penjualan p
+     LEFT JOIN (SELECT penjualan_id, SUM(total) as total_retur FROM retur_penjualan GROUP BY penjualan_id) ret
+       ON ret.penjualan_id = p.id
+     ORDER BY dibuat_pada DESC LIMIT 5`
   );
 }
 
@@ -247,13 +300,20 @@ export async function getGrossProfitByProduct(limit: number = 10): Promise<{
   const db = await getDb();
   const rows: { nama: string; jumlah: number; pendapatan: number; modal: number }[] = await db.select(
     `SELECT ip.nama_produk as nama,
-       SUM(ip.jumlah) as jumlah,
-       SUM(ip.subtotal) as pendapatan,
-       SUM(ip.jumlah * ip.hpp) as modal
+       SUM(ip.jumlah - COALESCE(ret.jumlah_retur, 0)) as jumlah,
+       SUM(ip.subtotal - COALESCE(ret.total_retur, 0)) as pendapatan,
+       SUM((ip.jumlah - COALESCE(ret.jumlah_retur, 0)) * ip.hpp) as modal
      FROM item_penjualan ip
+     LEFT JOIN (
+       SELECT r.penjualan_id, ir.produk_id, SUM(ir.jumlah) as jumlah_retur, SUM(ir.subtotal) as total_retur
+       FROM item_retur_penjualan ir
+       JOIN retur_penjualan r ON ir.retur_id = r.id
+       GROUP BY r.penjualan_id, ir.produk_id
+     ) ret ON ret.penjualan_id = ip.penjualan_id AND ret.produk_id = ip.produk_id
      WHERE ip.hpp > 0
      GROUP BY ip.produk_id
-     ORDER BY (SUM(ip.subtotal) - SUM(ip.jumlah * ip.hpp)) DESC
+     HAVING jumlah > 0
+     ORDER BY (SUM(ip.subtotal - COALESCE(ret.total_retur, 0)) - SUM((ip.jumlah - COALESCE(ret.jumlah_retur, 0)) * ip.hpp)) DESC
      LIMIT $1`,
     [limit]
   );

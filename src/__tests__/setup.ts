@@ -31,7 +31,7 @@ async function defaultExecute(sql: string, _params?: unknown[]) {
   return { lastInsertId: 0, rowsAffected: 1 };
 }
 
-async function defaultSelect(sql: string, _params?: unknown[]) {
+async function defaultSelect(sql: string, _params?: unknown[]): Promise<Record<string, unknown>[]> {
   if (sql.match(/COUNT\(\*\)/i)) {
     return [{ count: 0 }];
   }
