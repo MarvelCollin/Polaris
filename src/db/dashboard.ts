@@ -1,7 +1,7 @@
 import { getDb } from "../database";
 import { ProductWithCategory, Sale } from "../types";
 import { type ChartGroupBy, GROUP_SQL, formatGroupLabel } from "./sales";
-import { toUnixTimestamp } from "../lib/utils";
+import { toLocalDateKey, toUnixTimestamp } from "../lib/utils";
 
 export async function getDashboardStats() {
   const db = await getDb();
@@ -94,7 +94,7 @@ export async function getDailySales(days: number = 30, groupBy: ChartGroupBy = "
   const result: { tanggal: string; total: number }[] = [];
   for (let i = 0; i < days; i++) {
     const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - days + 1 + i);
-    const key = d.toISOString().slice(0, 10);
+    const key = toLocalDateKey(d);
     const label = `${d.getDate()}/${d.getMonth() + 1}`;
     result.push({ tanggal: label, total: rowMap.get(key) ?? 0 });
   }

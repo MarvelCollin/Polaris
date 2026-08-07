@@ -1,11 +1,11 @@
 import { getDb } from "../database";
 import { Sale, SaleItem, CartEntry, SaleDebt, Payment, ReturPenjualan, ReturItem } from "../types";
-import { toUnixTimestamp } from "../lib/utils";
+import { toLocalDateKey, toUnixTimestamp } from "../lib/utils";
 
 async function generateInvoiceNumber(): Promise<string> {
   const db = await getDb();
   const now = new Date();
-  const dateStr = now.toISOString().slice(0, 10).replace(/-/g, "");
+  const dateStr = toLocalDateKey(now).replace(/-/g, "");
   const startOfDay = toUnixTimestamp(new Date(now.getFullYear(), now.getMonth(), now.getDate()));
   const endOfDay = startOfDay + 86400;
 

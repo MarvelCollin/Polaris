@@ -1,7 +1,7 @@
 import { getDb } from "../database";
 import { Purchase, PurchaseItem, PurchaseEntry, PurchaseDebt, Payment, ReturPembelian, ReturItem } from "../types";
 import { type ChartGroupBy, groupSqlFor, formatGroupLabel } from "./sales";
-import { toUnixTimestamp } from "../lib/utils";
+import { toLocalDateKey, toUnixTimestamp } from "../lib/utils";
 
 export async function getDistinctSuppliers(): Promise<string[]> {
   const db = await getDb();
@@ -14,7 +14,7 @@ export async function getDistinctSuppliers(): Promise<string[]> {
 async function generatePurchaseNumber(): Promise<string> {
   const db = await getDb();
   const now = new Date();
-  const dateStr = now.toISOString().slice(0, 10).replace(/-/g, "");
+  const dateStr = toLocalDateKey(now).replace(/-/g, "");
   const startOfDay = toUnixTimestamp(new Date(now.getFullYear(), now.getMonth(), now.getDate()));
   const endOfDay = startOfDay + 86400;
 
@@ -312,10 +312,11 @@ export async function createPurchaseReturn(
          VALUES ($1, $2, $3, $4, $5, $6)`,
         [returId, item.produk_id, item.nama_produk, item.jumlah, item.harga_satuan, item.jumlah * item.harga_satuan]
       );
-      await db.execute(
-        "UPDATE produk SET stok = stok - $1, diperbarui_pada = strftime('%s','now') WHERE id = $2",
+      const stockResult = await db.execute(
+        "UPDATE produk SET stok = stok - $1, diperbarui_pada = strftime('%s','now') WHERE id = $2 AND stok >= $1",
         [item.jumlah, item.produk_id]
       );
+      if (stockResult.rowsAffected !== 1) throw new Error(`Stok ${item.nama_produk} tidak mencukupi untuk retur`);
     }
 
     await db.execute("COMMIT");

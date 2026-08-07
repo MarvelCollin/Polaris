@@ -86,7 +86,7 @@ describe("dashboard", () => {
   it("should fetch daily sales for the last N days", async () => {
     const now = new Date();
     const todayMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    const todayKey = todayMidnight.toISOString().slice(0, 10);
+    const todayKey = `${todayMidnight.getFullYear()}-${String(todayMidnight.getMonth() + 1).padStart(2, "0")}-${String(todayMidnight.getDate()).padStart(2, "0")}`;
     mockDb.select.mockResolvedValueOnce([
       { grp: todayKey, total: 500000 },
     ]);

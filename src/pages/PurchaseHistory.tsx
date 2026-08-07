@@ -115,11 +115,16 @@ export default function PurchaseHistory() {
         jumlah: returQty[i.produk_id],
         harga_satuan: i.harga_satuan,
       }));
-    await createPurchaseReturn(returPurchase.id, items, returAlasan || undefined);
-    closeRetur();
-    setReturLoading(false);
-    refetch();
-    refetchStats();
+    try {
+      await createPurchaseReturn(returPurchase.id, items, returAlasan || undefined);
+      closeRetur();
+      refetch();
+      refetchStats();
+    } catch (e) {
+      alert(e instanceof Error ? e.message : String(e));
+    } finally {
+      setReturLoading(false);
+    }
   }
 
   const sh = (label: string, key: string) => (

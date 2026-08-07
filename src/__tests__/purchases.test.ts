@@ -226,6 +226,19 @@ describe("purchases", () => {
     expect(returInsert![1]).toContain(null);
   });
 
+  it("should rollback a purchase return when stock is insufficient", async () => {
+    mockDb.execute.mockImplementation(async (sql: string) => {
+      if (sql.includes("UPDATE produk SET stok = stok -")) return { lastInsertId: 0, rowsAffected: 0 };
+      return { lastInsertId: 1, rowsAffected: 1 };
+    });
+
+    await expect(createPurchaseReturn(1, [
+      { produk_id: 1, nama_produk: "Semen", jumlah: 10, harga_satuan: 52000 },
+    ])).rejects.toThrow("Stok Semen tidak mencukupi untuk retur");
+
+    expect(mockDb.execute).toHaveBeenCalledWith("ROLLBACK");
+  });
+
   it("should fetch returned qty map for a purchase", async () => {
     mockDb.select.mockResolvedValueOnce([
       { produk_id: 1, total_qty: 10 },

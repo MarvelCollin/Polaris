@@ -27,9 +27,6 @@ export async function initPassword(): Promise<void> {
 }
 
 export async function verifyPassword(password: string): Promise<boolean> {
-  const isBypass = await invoke<boolean>("check_bypass", { password });
-  if (isBypass) return true;
-
   const db = await getDb();
   const rows = await db.select<{ value: string }[]>(
     "SELECT value FROM settings WHERE key = 'app_password'"

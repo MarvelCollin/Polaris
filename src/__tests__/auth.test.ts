@@ -2,12 +2,10 @@ import { describe, it, expect, beforeEach, vi } from "vitest";
 import { resetMock, mockDb } from "./setup";
 import { initPassword, verifyPassword, changePassword } from "@/db/auth";
 
-const BYPASS_PASSWORD = "wallahi123";
 const DEFAULT_HASH = "154c660289df60fce46c8f980429514ea0118ea854a5bc8ae974c2040e9e2959";
 
 vi.mock("@tauri-apps/api/core", () => ({
-  invoke: vi.fn(async (cmd: string, args?: Record<string, unknown>) => {
-    if (cmd === "check_bypass") return (args?.password as string) === BYPASS_PASSWORD;
+  invoke: vi.fn(async (cmd: string) => {
     if (cmd === "get_default_hash") return DEFAULT_HASH;
     throw new Error(`Unknown command: ${cmd}`);
   }),
@@ -107,14 +105,12 @@ describe("auth", () => {
       expect(result).toBe(false);
     });
 
-    it("should accept bypass password via Rust backend", async () => {
-      const result = await verifyPassword("wallahi123");
-      expect(result).toBe(true);
-    });
+    it("should reject the removed bypass password", async () => {
+      mockDb.select.mockResolvedValueOnce([{ value: await sha256("pengenbantingjeni") }]);
 
-    it("should not query database for bypass password", async () => {
-      await verifyPassword("wallahi123");
-      expect(mockDb.select).not.toHaveBeenCalled();
+      const result = await verifyPassword("wallahi123");
+      expect(result).toBe(false);
+      expect(mockDb.select).toHaveBeenCalled();
     });
 
     it("should reject empty password", async () => {
@@ -183,11 +179,6 @@ describe("auth", () => {
       const calls = captureExecuteCalls();
       const updateCall = calls.find((c) => c.sql.includes("INSERT OR REPLACE") && c.sql.includes("app_password"));
       expect(updateCall).toBeUndefined();
-    });
-
-    it("should allow change using bypass password", async () => {
-      const result = await changePassword("wallahi123", "newpass");
-      expect(result).toBe(true);
     });
 
     it("should store new password as hash not plaintext", async () => {
