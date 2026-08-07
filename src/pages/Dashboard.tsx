@@ -17,9 +17,9 @@ import {
 } from "@/db/dashboard";
 import { type ChartGroupBy } from "@/db/sales";
 import { formatRupiah, formatTanggal } from "@/types/index";
-import StatsCard from "@/components/StatsCard";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { ArrowUpRight } from "lucide-react";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
@@ -57,79 +57,65 @@ export default function Dashboard() {
 
   return (
     <div className="animate-fade-in">
-      <h1 className="mb-6 text-2xl font-bold">Dashboard</h1>
-
-      <div className="mb-6 grid grid-cols-4 gap-4">
-        <div className="animate-fade-in-up">
-          <StatsCard title="Penjualan Bulan Ini" value={formatRupiah(stats?.monthlySales ?? 0)} variant="success" to="/riwayat-jual" />
+      <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-bold">Dashboard</h1>
+          <p className="mt-1 text-sm text-muted-foreground">Ringkasan operasional bulan ini</p>
         </div>
-        <div className="animate-fade-in-up" style={{ animationDelay: "50ms", animationFillMode: "backwards" }}>
-          <StatsCard title="Pembelian Bulan Ini" value={formatRupiah(stats?.monthlyPurchases ?? 0)} variant="warning" to="/riwayat-beli" />
-        </div>
-        <div className="animate-fade-in-up" style={{ animationDelay: "100ms", animationFillMode: "backwards" }}>
-          <StatsCard
-            title="Laba Kotor Bulan Ini"
-            value={formatRupiah(stats?.monthlyGrossProfit ?? 0)}
-            variant={(stats?.monthlyGrossProfit ?? 0) >= 0 ? "success" : "danger"}
-            to="/riwayat-jual"
-          />
-        </div>
-        <div className="animate-fade-in-up" style={{ animationDelay: "150ms", animationFillMode: "backwards" }}>
-          <StatsCard title="Total Pelanggan" value={String(stats?.totalCustomers ?? 0)} to="/pelanggan" />
+        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <button type="button" onClick={() => navigate("/produk")} className="hover:text-foreground">
+            {stats?.totalProducts ?? 0} produk
+          </button>
+          <span aria-hidden="true">·</span>
+          <button type="button" onClick={() => navigate("/pelanggan")} className="hover:text-foreground">
+            {stats?.totalCustomers ?? 0} pelanggan
+          </button>
         </div>
       </div>
 
-      <div className="mb-4 grid grid-cols-4 gap-4">
-        <div className="animate-fade-in-up" style={{ animationDelay: "100ms", animationFillMode: "backwards" }}>
-          <StatsCard title="Penjualan Hari Ini" value={formatRupiah(stats?.todaySales ?? 0)} variant="success" to="/kasir" />
-        </div>
-        <div className="animate-fade-in-up" style={{ animationDelay: "150ms", animationFillMode: "backwards" }}>
-          <StatsCard title="Pembelian Hari Ini" value={formatRupiah(stats?.todayPurchases ?? 0)} variant="warning" to="/pembelian" />
-        </div>
-        <div className="animate-fade-in-up" style={{ animationDelay: "200ms", animationFillMode: "backwards" }}>
-          <StatsCard title="Total Produk" value={String(stats?.totalProducts ?? 0)} to="/produk" />
-        </div>
-        <div className="animate-fade-in-up" style={{ animationDelay: "250ms", animationFillMode: "backwards" }}>
-          <StatsCard
-            title="Stok Rendah"
-            value={String(stats?.lowStockCount ?? 0)}
-            variant={stats?.lowStockCount ? "danger" : "default"}
-            to="/produk"
-          />
-        </div>
-      </div>
+      <section aria-label="Ringkasan operasional" className="mb-6 grid overflow-hidden border-y bg-card/40 sm:grid-cols-2 xl:grid-cols-4">
+        <button type="button" onClick={() => navigate("/riwayat-jual")} className="group min-w-0 border-b p-4 text-left transition-colors hover:bg-accent/50 sm:border-r xl:border-b-0">
+          <span className="flex items-center justify-between gap-2 text-xs font-medium uppercase text-muted-foreground">
+            Penjualan bulan ini
+            <ArrowUpRight className="size-3.5 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
+          </span>
+          <strong className="mt-2 block text-2xl leading-tight text-[#e07828] dark:text-[#e8a04c]">{formatRupiah(stats?.monthlySales ?? 0)}</strong>
+          <span className="mt-1 block text-xs text-muted-foreground">Hari ini {formatRupiah(stats?.todaySales ?? 0)}</span>
+        </button>
+        <button type="button" onClick={() => navigate("/riwayat-jual")} className="group min-w-0 border-b p-4 text-left transition-colors hover:bg-accent/50 xl:border-b-0 xl:border-r">
+          <span className="flex items-center justify-between gap-2 text-xs font-medium uppercase text-muted-foreground">
+            Laba kotor bulan ini
+            <ArrowUpRight className="size-3.5 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
+          </span>
+          <strong className={`mt-2 block text-2xl leading-tight ${(stats?.monthlyGrossProfit ?? 0) >= 0 ? "text-[#e07828] dark:text-[#e8a04c]" : "text-destructive"}`}>
+            {formatRupiah(stats?.monthlyGrossProfit ?? 0)}
+          </strong>
+          <span className="mt-1 block text-xs text-muted-foreground">Berdasarkan HPP produk</span>
+        </button>
+        <button type="button" onClick={() => navigate("/riwayat-beli")} className="group min-w-0 border-b p-4 text-left transition-colors hover:bg-accent/50 sm:border-b-0 sm:border-r">
+          <span className="flex items-center justify-between gap-2 text-xs font-medium uppercase text-muted-foreground">
+            Pembelian bulan ini
+            <ArrowUpRight className="size-3.5 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
+          </span>
+          <strong className="mt-2 block text-2xl leading-tight text-[#1b508a] dark:text-[#5ba0d0]">{formatRupiah(stats?.monthlyPurchases ?? 0)}</strong>
+          <span className="mt-1 block text-xs text-muted-foreground">Hari ini {formatRupiah(stats?.todayPurchases ?? 0)}</span>
+        </button>
+        <button type="button" onClick={() => navigate("/produk")} className="group min-w-0 p-4 text-left transition-colors hover:bg-accent/50">
+          <span className="flex items-center justify-between gap-2 text-xs font-medium uppercase text-muted-foreground">
+            Stok perlu perhatian
+            <ArrowUpRight className="size-3.5 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
+          </span>
+          <strong className={`mt-2 block text-2xl ${stats?.lowStockCount ? "text-destructive" : "text-foreground"}`}>{stats?.lowStockCount ?? 0} produk</strong>
+          <span className="mt-1 block text-xs text-muted-foreground">{stats?.lowStockCount ? "Perlu segera diperiksa" : "Semua stok aman"}</span>
+        </button>
+      </section>
 
-      <div className="mb-6 grid grid-cols-4 gap-4">
-        <div className="animate-fade-in-up" style={{ animationDelay: "200ms", animationFillMode: "backwards" }}>
-          <StatsCard title="Total Penjualan" value={formatRupiah(stats?.allTimeSales ?? 0)} variant="success" to="/riwayat-jual" />
-        </div>
-        <div className="animate-fade-in-up" style={{ animationDelay: "250ms", animationFillMode: "backwards" }}>
-          <StatsCard title="Total Pembelian" value={formatRupiah(stats?.allTimePurchases ?? 0)} variant="warning" to="/riwayat-beli" />
-        </div>
-        <div className="animate-fade-in-up" style={{ animationDelay: "300ms", animationFillMode: "backwards" }}>
-          <StatsCard
-            title="Selisih Jual - Beli"
-            value={formatRupiah(stats?.allTimeProfit ?? 0)}
-            variant={(stats?.allTimeProfit ?? 0) >= 0 ? "success" : "danger"}
-            to="/riwayat-jual"
-          />
-        </div>
-        <div className="animate-fade-in-up" style={{ animationDelay: "350ms", animationFillMode: "backwards" }}>
-          <StatsCard
-            title="Laba Kotor Total (HPP)"
-            value={formatRupiah(stats?.allTimeGrossProfit ?? 0)}
-            variant={(stats?.allTimeGrossProfit ?? 0) >= 0 ? "success" : "danger"}
-            to="/riwayat-jual"
-          />
-        </div>
-      </div>
-
-      <div className="mb-6 grid grid-cols-3 gap-6">
-        <Card className="col-span-2 animate-fade-in-up" style={{ animationDelay: "200ms", animationFillMode: "backwards" }}>
+      <div className="mb-6 grid grid-cols-1 gap-6 xl:grid-cols-3">
+        <Card className="animate-fade-in-up xl:col-span-2" style={{ animationDelay: "200ms", animationFillMode: "backwards" }}>
           <CardHeader className="pb-2">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-wrap items-center justify-between gap-3">
               <CardTitle className="cursor-pointer text-sm font-semibold hover:text-primary" onClick={() => navigate("/riwayat-jual")}>Tren Penjualan →</CardTitle>
-              <div className="flex gap-1">
+              <div className="flex flex-wrap gap-1">
                 {(["day", "week", "month", "year", "all"] as ChartGroupBy[]).map((g) => (
                   <button
                     key={g}
@@ -210,8 +196,8 @@ export default function Dashboard() {
         </Card>
       </div>
 
-      <LazySection height={350} className="mb-6 grid grid-cols-3 gap-6">
-        <Card className="col-span-2 animate-fade-in-up" style={{ animationDelay: "300ms", animationFillMode: "backwards" }}>
+      <LazySection height={350} className="mb-6 grid grid-cols-1 gap-6 xl:grid-cols-3">
+        <Card className="animate-fade-in-up xl:col-span-2" style={{ animationDelay: "300ms", animationFillMode: "backwards" }}>
           <CardHeader className="pb-2">
             <CardTitle className="cursor-pointer text-sm font-semibold hover:text-primary" onClick={() => navigate("/riwayat-jual")}>Penjualan vs Pembelian (6 Bulan) →</CardTitle>
           </CardHeader>
@@ -263,7 +249,7 @@ export default function Dashboard() {
         </Card>
       </LazySection>
 
-      <LazySection height={300} className="mb-6 grid grid-cols-3 gap-6">
+      <LazySection height={300} className="mb-6 grid grid-cols-1 gap-6 xl:grid-cols-3">
         <Card className="animate-fade-in-up" style={{ animationDelay: "350ms", animationFillMode: "backwards" }}>
           <CardHeader className="pb-2">
             <CardTitle className="cursor-pointer text-sm font-semibold hover:text-primary" onClick={() => navigate("/produk")}>Stok Rendah →</CardTitle>
@@ -424,7 +410,7 @@ export default function Dashboard() {
             ))}
           </div>
         </div>
-        <div className="grid grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
           <Card className="animate-fade-in-up">
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-semibold">Penjualan - {recapLabels[recapPeriod]}</CardTitle>
