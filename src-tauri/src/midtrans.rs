@@ -18,6 +18,17 @@ fn auth_header() -> String {
     format!("Basic {}", encoded)
 }
 
+fn check_midtrans_error(text: &str) -> Result<(), String> {
+    if let Ok(v) = serde_json::from_str::<serde_json::Value>(text) {
+        let code = v["status_code"].as_str().unwrap_or("200");
+        if code != "200" && code != "201" {
+            let msg = v["status_message"].as_str().unwrap_or("Unknown error");
+            return Err(format!("{}", msg));
+        }
+    }
+    Ok(())
+}
+
 #[derive(Serialize, Deserialize, Clone)]
 pub struct QrisAction {
     pub name: String,
@@ -81,6 +92,8 @@ pub async fn midtrans_create_qris(order_id: String, amount: i64) -> Result<QrisR
         return Err(format!("Midtrans error ({}): {}", status, text));
     }
 
+    check_midtrans_error(&text)?;
+
     serde_json::from_str(&text)
         .map_err(|e| format!("{} — response: {}", e, &text[..text.len().min(500)]))
 }
@@ -103,6 +116,8 @@ pub async fn midtrans_check_status(order_id: String) -> Result<TransactionStatus
         return Err(format!("Midtrans error ({}): {}", status, text));
     }
 
+    check_midtrans_error(&text)?;
+
     serde_json::from_str(&text)
         .map_err(|e| format!("{} — response: {}", e, &text[..text.len().min(500)]))
 }
@@ -124,6 +139,8 @@ pub async fn midtrans_cancel(order_id: String) -> Result<TransactionStatus, Stri
     if !status.is_success() {
         return Err(format!("Midtrans error ({}): {}", status, text));
     }
+
+    check_midtrans_error(&text)?;
 
     serde_json::from_str(&text)
         .map_err(|e| format!("{} — response: {}", e, &text[..text.len().min(500)]))
