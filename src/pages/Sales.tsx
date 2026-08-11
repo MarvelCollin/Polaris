@@ -13,9 +13,11 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 import SearchInput from "@/components/SearchInput";
-import { Plus, Minus, Trash2, CheckCircle, UserCircle, Star, Percent } from "lucide-react";
+import { Plus, Minus, Trash2, CheckCircle, UserCircle, Star, Percent, QrCode, Loader2, X } from "lucide-react";
 import ProductThumb from "@/components/ProductThumb";
 import SearchableSelect from "@/components/SearchableSelect";
+import Modal from "@/components/Modal";
+import { createQrisCharge, checkTransactionStatus, cancelTransaction, getQrisImageUrl, isSettled, isPending, QrisResponse } from "@/lib/midtrans";
 
 const SaleProductTile = memo(function SaleProductTile({
   p, price, hasCustom, qty, onAdd,
@@ -86,6 +88,13 @@ export default function Sales() {
   const [success, setSuccess] = useState<string | null>(null);
   const [discountType, setDiscountType] = useState<"percent" | "rupiah">("percent");
   const [discountValue, setDiscountValue] = useState<number>(0);
+
+  const [qrisOpen, setQrisOpen] = useState(false);
+  const [qrisLoading, setQrisLoading] = useState(false);
+  const [qrisResponse, setQrisResponse] = useState<QrisResponse | null>(null);
+  const [qrisStatus, setQrisStatus] = useState<"idle" | "pending" | "settled" | "error">("idle");
+  const [qrisError, setQrisError] = useState<string | null>(null);
+  const [qrisPolling, setQrisPolling] = useState<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
     if (selectedCustomer) {
@@ -176,6 +185,83 @@ export default function Sales() {
       setSelectedCustomer(cust);
     }
   }
+
+  function stopQrisPolling() {
+    if (qrisPolling) {
+      clearInterval(qrisPolling);
+      setQrisPolling(null);
+    }
+  }
+
+  async function handleQrisPayment() {
+    if (cart.length === 0 || total <= 0) return;
+    setQrisLoading(true);
+    setQrisError(null);
+    setQrisStatus("idle");
+    try {
+      const orderId = `POS-${Date.now()}`;
+      const response = await createQrisCharge(orderId, total);
+      setQrisResponse(response);
+      setQrisStatus("pending");
+      setQrisOpen(true);
+
+      const interval = setInterval(async () => {
+        try {
+          const status = await checkTransactionStatus(response.order_id);
+          if (isSettled(status)) {
+            clearInterval(interval);
+            setQrisPolling(null);
+            setQrisStatus("settled");
+            await createSale(cart, total, selectedCustomer?.id, selectedCustomer?.nama, discountAmount);
+            setQrisOpen(false);
+            setSuccess("Pembayaran QRIS berhasil!");
+            setCart([]);
+            setPaid(0);
+            setIsUtang(false);
+            setDiscountValue(0);
+            setQrisResponse(null);
+            setQrisStatus("idle");
+            refetchProducts();
+            setTimeout(() => setSuccess(null), 3000);
+          } else if (!isPending(status)) {
+            clearInterval(interval);
+            setQrisPolling(null);
+            setQrisStatus("error");
+            setQrisError(`Transaksi ${status.transaction_status}`);
+          }
+        } catch {
+          // keep polling
+        }
+      }, 3000);
+      setQrisPolling(interval);
+    } catch (e) {
+      setQrisError(e instanceof Error ? e.message : String(e));
+      setQrisStatus("error");
+    } finally {
+      setQrisLoading(false);
+    }
+  }
+
+  async function handleCancelQris() {
+    stopQrisPolling();
+    if (qrisResponse) {
+      try {
+        await cancelTransaction(qrisResponse.order_id);
+      } catch {
+        // ignore cancel errors
+      }
+    }
+    setQrisOpen(false);
+    setQrisResponse(null);
+    setQrisStatus("idle");
+    setQrisError(null);
+  }
+
+  useEffect(() => {
+    return () => {
+      if (qrisPolling) clearInterval(qrisPolling);
+    };
+  }, [qrisPolling]);
 
   const canCheckout = cart.length > 0 && (isUtang ? selectedCustomer !== null : paid >= total);
   const sisaUtang = isUtang ? total - paid : 0;
@@ -446,18 +532,63 @@ export default function Sales() {
                   </div>
                 )}
 
-                <Button
-                  className="mt-2 w-full"
-                  disabled={!canCheckout}
-                  onClick={handleCheckout}
-                >
-                  {isUtang ? "Simpan (Utang)" : "Selesai"}
-                </Button>
+                <div className="mt-2 flex gap-2">
+                  <Button
+                    className="flex-1"
+                    disabled={!canCheckout}
+                    onClick={handleCheckout}
+                  >
+                    {isUtang ? "Simpan (Utang)" : "Selesai"}
+                  </Button>
+                  {!isUtang && (
+                    <Button
+                      variant="outline"
+                      className="gap-1.5"
+                      disabled={cart.length === 0 || total <= 0 || qrisLoading}
+                      onClick={handleQrisPayment}
+                    >
+                      {qrisLoading ? <Loader2 className="size-4 animate-spin" /> : <QrCode className="size-4" />}
+                      QRIS
+                    </Button>
+                  )}
+                </div>
               </div>
             </CardContent>
           </Card>
         </div>
       </div>
+
+      <Modal open={qrisOpen} onClose={handleCancelQris} title="Pembayaran QRIS">
+        <div className="flex flex-col items-center gap-4 py-4">
+          {qrisResponse && getQrisImageUrl(qrisResponse) && (
+            <img
+              src={getQrisImageUrl(qrisResponse)!}
+              alt="QRIS"
+              className="h-64 w-64 rounded-lg border"
+            />
+          )}
+          <p className="text-lg font-bold">{formatRupiah(total)}</p>
+          {qrisStatus === "pending" && (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Loader2 className="size-4 animate-spin" />
+              Menunggu pembayaran...
+            </div>
+          )}
+          {qrisStatus === "settled" && (
+            <div className="flex items-center gap-2 text-sm text-green-600">
+              <CheckCircle className="size-4" />
+              Pembayaran berhasil!
+            </div>
+          )}
+          {qrisStatus === "error" && (
+            <p className="text-sm text-destructive">{qrisError}</p>
+          )}
+          <Button variant="outline" onClick={handleCancelQris} className="gap-1.5">
+            <X className="size-4" />
+            Batalkan
+          </Button>
+        </div>
+      </Modal>
     </div>
   );
 }
