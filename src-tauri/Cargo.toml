@@ -27,6 +27,7 @@ chrono = { version = "0.4", default-features = false, features = ["clock"] }
 base64 = "0.22"
 
 [features]
+default = ["midtrans-production"]
 midtrans-production = []
 
 [profile.dev]
