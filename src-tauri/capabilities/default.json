@@ -24,6 +24,8 @@
         { "path": "$APPDATA/images/**" },
         { "path": "$APPDATA/images" }
       ]
-    }
+    },
+    "updater:default",
+    "process:allow-restart"
   ]
 }
