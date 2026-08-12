@@ -32,6 +32,15 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
+      - name: Write secrets
+        shell: bash
+        run: |
+          cat > src-tauri/gdrive_secrets.toml << 'TOML'
+          service_account_email = "${{ secrets.GDRIVE_SA_EMAIL }}"
+          service_account_private_key = "${{ secrets.GDRIVE_SA_KEY }}"
+          midtrans_server_key = "${{ secrets.MIDTRANS_SERVER_KEY }}"
+          TOML
+
       - uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
