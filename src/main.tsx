@@ -20,6 +20,7 @@ const PurchaseHistory = lazy(() => import("./pages/PurchaseHistory"));
 const Customers = lazy(() => import("./pages/Customers"));
 const UtangPiutang = lazy(() => import("./pages/UtangPiutang"));
 const Backup = lazy(() => import("./pages/Backup"));
+const Settings = lazy(() => import("./pages/Settings"));
 
 initDb().then(() => seedDatabase()).then(() => initPassword()).then(() => {
   ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
@@ -41,6 +42,7 @@ initDb().then(() => seedDatabase()).then(() => initPassword()).then(() => {
               <Route path="riwayat-beli" element={<PurchaseHistory />} />
               <Route path="utang-piutang" element={<UtangPiutang />} />
               <Route path="backup" element={<Backup />} />
+              <Route path="pengaturan" element={<Settings />} />
             </Route>
           </Routes>
         </Suspense>

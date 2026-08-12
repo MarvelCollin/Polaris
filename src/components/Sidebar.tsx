@@ -1,11 +1,7 @@
-import { useState } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
 import { Separator } from "@/components/ui/separator";
-import { useTheme } from "@/hooks/useTheme";
-import { useFontSize, FONT_SIZE_LABELS, type FontSize } from "@/hooks/useFontSize";
-import ChangePassword from "./ChangePassword";
-import Logo from "@/assets/Logo.png";
 import { useUpdate } from "@/hooks/useUpdate";
+import Logo from "@/assets/Logo.png";
 import {
   LayoutDashboard,
   ShoppingCart,
@@ -14,14 +10,11 @@ import {
   FolderOpen,
   FileText,
   Users,
-  Moon,
-  Sun,
   Wallet,
   HardDrive,
-  KeyRound,
   LogOut,
+  Settings,
   ArrowDownToLine,
-  AArrowUp,
 } from "lucide-react";
 
 const links = [
@@ -37,12 +30,16 @@ const links = [
   { to: "/backup", label: "Backup", icon: HardDrive },
 ];
 
+const linkClass = (isActive: boolean) =>
+  `animate-slide-in-left flex items-center gap-2.5 rounded-md px-3 py-2 text-sm font-medium transition-colors ${
+    isActive
+      ? "bg-sidebar-accent text-sidebar-accent-foreground font-semibold"
+      : "text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+  }`;
+
 export default function Sidebar() {
-  const { theme, toggle } = useTheme();
-  const { fontSize, setFontSize } = useFontSize();
   const { status, version, reopen } = useUpdate();
   const navigate = useNavigate();
-  const [showChangePw, setShowChangePw] = useState(false);
 
   function handleLogout() {
     sessionStorage.removeItem("polaris_auth");
@@ -66,13 +63,7 @@ export default function Sidebar() {
             to={link.to}
             end={link.to === "/"}
             style={{ animationDelay: `${i * 30}ms`, animationFillMode: "backwards" }}
-            className={({ isActive }) =>
-              `animate-slide-in-left flex items-center gap-2.5 rounded-md px-3 py-2 text-sm font-medium transition-colors ${
-                isActive
-                  ? "bg-sidebar-accent text-sidebar-accent-foreground font-semibold"
-                  : "text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
-              }`
-            }
+            className={({ isActive }) => linkClass(isActive)}
           >
             <link.icon className="size-4" />
             {link.label}
@@ -90,31 +81,13 @@ export default function Sidebar() {
             Update v{version}
           </button>
         )}
-        <button
-          onClick={toggle}
-          className="flex w-full items-center gap-2.5 rounded-md px-3 py-2 text-sm font-medium text-sidebar-foreground/60 transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+        <NavLink
+          to="/pengaturan"
+          className={({ isActive }) => linkClass(isActive)}
         >
-          {theme === "light" ? <Moon className="size-4" /> : <Sun className="size-4" />}
-          {theme === "light" ? "Mode Gelap" : "Mode Terang"}
-        </button>
-        <button
-          onClick={() => {
-            const sizes: FontSize[] = ["small", "medium", "large"];
-            const next = sizes[(sizes.indexOf(fontSize) + 1) % sizes.length];
-            setFontSize(next);
-          }}
-          className="flex w-full items-center gap-2.5 rounded-md px-3 py-2 text-sm font-medium text-sidebar-foreground/60 transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
-        >
-          <AArrowUp className="size-4" />
-          Font: {FONT_SIZE_LABELS[fontSize]}
-        </button>
-        <button
-          onClick={() => setShowChangePw(true)}
-          className="flex w-full items-center gap-2.5 rounded-md px-3 py-2 text-sm font-medium text-sidebar-foreground/60 transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
-        >
-          <KeyRound className="size-4" />
-          Ubah Password
-        </button>
+          <Settings className="size-4" />
+          Pengaturan
+        </NavLink>
         <button
           onClick={handleLogout}
           className="flex w-full items-center gap-2.5 rounded-md px-3 py-2 text-sm font-medium text-sidebar-foreground/60 transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
@@ -123,7 +96,6 @@ export default function Sidebar() {
           Keluar
         </button>
       </div>
-      <ChangePassword open={showChangePw} onClose={() => setShowChangePw(false)} />
     </aside>
   );
 }
