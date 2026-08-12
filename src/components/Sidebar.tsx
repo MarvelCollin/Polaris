@@ -2,6 +2,7 @@ import { useState } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
 import { Separator } from "@/components/ui/separator";
 import { useTheme } from "@/hooks/useTheme";
+import { useFontSize, FONT_SIZE_LABELS, type FontSize } from "@/hooks/useFontSize";
 import ChangePassword from "./ChangePassword";
 import Logo from "@/assets/Logo.png";
 import { useUpdate } from "@/hooks/useUpdate";
@@ -20,6 +21,7 @@ import {
   KeyRound,
   LogOut,
   ArrowDownToLine,
+  AArrowUp,
 } from "lucide-react";
 
 const links = [
@@ -37,6 +39,7 @@ const links = [
 
 export default function Sidebar() {
   const { theme, toggle } = useTheme();
+  const { fontSize, setFontSize } = useFontSize();
   const { status, version, reopen } = useUpdate();
   const navigate = useNavigate();
   const [showChangePw, setShowChangePw] = useState(false);
@@ -93,6 +96,17 @@ export default function Sidebar() {
         >
           {theme === "light" ? <Moon className="size-4" /> : <Sun className="size-4" />}
           {theme === "light" ? "Mode Gelap" : "Mode Terang"}
+        </button>
+        <button
+          onClick={() => {
+            const sizes: FontSize[] = ["small", "medium", "large"];
+            const next = sizes[(sizes.indexOf(fontSize) + 1) % sizes.length];
+            setFontSize(next);
+          }}
+          className="flex w-full items-center gap-2.5 rounded-md px-3 py-2 text-sm font-medium text-sidebar-foreground/60 transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+        >
+          <AArrowUp className="size-4" />
+          Font: {FONT_SIZE_LABELS[fontSize]}
         </button>
         <button
           onClick={() => setShowChangePw(true)}
