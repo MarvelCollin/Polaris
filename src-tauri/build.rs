@@ -6,18 +6,18 @@ fn main() {
                 let key = key.trim();
                 let value = value.trim().trim_matches('"');
                 match key {
-                    "client_id" => println!("cargo:rustc-env=GDRIVE_CLIENT_ID={}", value),
-                    "client_secret" => println!("cargo:rustc-env=GDRIVE_CLIENT_SECRET={}", value),
                     "midtrans_server_key" => println!("cargo:rustc-env=MIDTRANS_SERVER_KEY={}", value),
+                    "service_account_email" => println!("cargo:rustc-env=GDRIVE_SA_EMAIL={}", value),
+                    "service_account_private_key" => println!("cargo:rustc-env=GDRIVE_SA_KEY={}", value),
                     _ => {}
                 }
             }
         }
         println!("cargo:rerun-if-changed=gdrive_secrets.toml");
     } else {
-        println!("cargo:rustc-env=GDRIVE_CLIENT_ID=");
-        println!("cargo:rustc-env=GDRIVE_CLIENT_SECRET=");
         println!("cargo:rustc-env=MIDTRANS_SERVER_KEY=");
+        println!("cargo:rustc-env=GDRIVE_SA_EMAIL=");
+        println!("cargo:rustc-env=GDRIVE_SA_KEY=");
         println!("cargo:warning=gdrive_secrets.toml not found, secrets disabled");
     }
 

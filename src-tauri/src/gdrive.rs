@@ -1,24 +1,29 @@
 use chrono::Local;
+use jsonwebtoken::{encode, Algorithm, EncodingKey, Header};
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
+use std::sync::Mutex;
 use std::time::Duration;
 use tauri::Manager;
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
-use tokio::net::TcpListener;
 
-const CLIENT_ID: &str = env!("GDRIVE_CLIENT_ID");
-const CLIENT_SECRET: &str = env!("GDRIVE_CLIENT_SECRET");
-const REDIRECT_PORT: u16 = 17249;
+const SA_EMAIL: &str = env!("GDRIVE_SA_EMAIL");
+const SA_KEY: &str = env!("GDRIVE_SA_KEY");
+const SCOPE: &str = "https://www.googleapis.com/auth/drive.file";
 
-#[derive(Serialize, Deserialize, Clone)]
-pub struct TokenResponse {
-    pub access_token: String,
-    #[serde(default)]
-    pub refresh_token: Option<String>,
-    #[serde(default)]
-    pub expires_in: Option<u64>,
-    #[serde(default)]
-    pub token_type: Option<String>,
+static CACHED_TOKEN: Mutex<Option<(String, u64)>> = Mutex::new(None);
+
+#[derive(Serialize)]
+struct Claims {
+    iss: String,
+    scope: String,
+    aud: String,
+    iat: u64,
+    exp: u64,
+}
+
+#[derive(Deserialize)]
+struct TokenResponse {
+    access_token: String,
 }
 
 #[derive(Serialize, Deserialize, Clone)]
@@ -54,8 +59,6 @@ struct DriveFileIdList {
 pub struct AutoBackupConfig {
     pub enabled: bool,
     #[serde(default)]
-    pub refresh_token: Option<String>,
-    #[serde(default)]
     pub last_backup_date: Option<String>,
 }
 
@@ -85,41 +88,142 @@ fn save_auto_config(app_dir: &PathBuf, config: &AutoBackupConfig) -> Result<(), 
     std::fs::write(auto_backup_config_path(app_dir), json).map_err(|e| e.to_string())
 }
 
-// ── Core functions (shared by commands and auto-backup) ──
+fn device_name() -> String {
+    hostname::get()
+        .map(|h| h.to_string_lossy().to_string())
+        .unwrap_or_else(|_| "unknown".to_string())
+}
 
-async fn refresh_internal(refresh_token: &str) -> Result<TokenResponse, String> {
+async fn get_access_token() -> Result<String, String> {
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_secs();
+
+    if let Ok(guard) = CACHED_TOKEN.lock() {
+        if let Some((ref token, exp)) = *guard {
+            if now < exp - 60 {
+                return Ok(token.clone());
+            }
+        }
+    }
+
+    let pem = SA_KEY.replace("\\n", "\n");
+    let key = EncodingKey::from_rsa_pem(pem.as_bytes())
+        .map_err(|e| format!("Invalid service account key: {}", e))?;
+
+    let claims = Claims {
+        iss: SA_EMAIL.to_string(),
+        scope: SCOPE.to_string(),
+        aud: "https://oauth2.googleapis.com/token".to_string(),
+        iat: now,
+        exp: now + 3600,
+    };
+
+    let jwt = encode(&Header::new(Algorithm::RS256), &claims, &key)
+        .map_err(|e| format!("JWT encode error: {}", e))?;
+
     let client = reqwest::Client::new();
     let resp = client
         .post("https://oauth2.googleapis.com/token")
         .form(&[
-            ("refresh_token", refresh_token),
-            ("client_id", CLIENT_ID),
-            ("client_secret", CLIENT_SECRET),
-            ("grant_type", "refresh_token"),
+            ("grant_type", "urn:ietf:params:oauth:grant-type:jwt-bearer"),
+            ("assertion", &jwt),
         ])
         .send()
         .await
-        .map_err(|e| format!("Gagal refresh token: {}", e))?;
+        .map_err(|e| format!("Token request failed: {}", e))?;
 
     let status = resp.status();
     let body = resp.text().await.unwrap_or_default();
     if !status.is_success() {
-        return Err(format!("Token refresh gagal: {}", body));
+        return Err(format!("Token error: {}", body));
     }
 
-    parse_json::<TokenResponse>(&body)
+    let token_resp: TokenResponse = parse_json(&body)?;
+
+    if let Ok(mut guard) = CACHED_TOKEN.lock() {
+        *guard = Some((token_resp.access_token.clone(), now + 3600));
+    }
+
+    Ok(token_resp.access_token)
 }
 
-async fn backup_internal(db_path: &PathBuf, access_token: &str) -> Result<DriveFile, String> {
+async fn get_or_create_folder(
+    client: &reqwest::Client,
+    access_token: &str,
+    name: &str,
+    parent: Option<&str>,
+) -> Result<String, String> {
+    let q = if let Some(pid) = parent {
+        format!(
+            "name='{}' and mimeType='application/vnd.google-apps.folder' and '{}' in parents and trashed=false",
+            name, pid
+        )
+    } else {
+        format!(
+            "name='{}' and mimeType='application/vnd.google-apps.folder' and trashed=false",
+            name
+        )
+    };
+
+    let resp = client
+        .get("https://www.googleapis.com/drive/v3/files")
+        .bearer_auth(access_token)
+        .query(&[("q", q.as_str()), ("fields", "files(id)"), ("spaces", "drive")])
+        .send()
+        .await
+        .map_err(|e| e.to_string())?;
+
+    if resp.status().is_success() {
+        let body = resp.text().await.map_err(|e| e.to_string())?;
+        let list: DriveFileIdList = parse_json(&body)?;
+        if let Some(folder) = list.files.first() {
+            return Ok(folder.id.clone());
+        }
+    }
+
+    let mut meta = serde_json::json!({
+        "name": name,
+        "mimeType": "application/vnd.google-apps.folder"
+    });
+    if let Some(pid) = parent {
+        meta["parents"] = serde_json::json!([pid]);
+    }
+
+    let resp = client
+        .post("https://www.googleapis.com/drive/v3/files")
+        .bearer_auth(access_token)
+        .json(&meta)
+        .send()
+        .await
+        .map_err(|e| e.to_string())?;
+
+    let status = resp.status();
+    let body = resp.text().await.unwrap_or_default();
+    if !status.is_success() {
+        return Err(format!("Gagal membuat folder: {}", body));
+    }
+
+    let folder: DriveFileId = parse_json(&body)?;
+    Ok(folder.id)
+}
+
+async fn get_device_folder(client: &reqwest::Client, access_token: &str) -> Result<String, String> {
+    let root = get_or_create_folder(client, access_token, "Sahabat Sentarum Backup", None).await?;
+    get_or_create_folder(client, access_token, &device_name(), Some(&root)).await
+}
+
+async fn backup_internal(db_path: &PathBuf) -> Result<DriveFile, String> {
     if !db_path.exists() {
         return Err("Database tidak ditemukan".to_string());
     }
 
-    let file_bytes =
-        std::fs::read(db_path).map_err(|e| format!("Gagal membaca database: {}", e))?;
+    let access_token = get_access_token().await?;
+    let file_bytes = std::fs::read(db_path).map_err(|e| format!("Gagal membaca database: {}", e))?;
 
     let client = reqwest::Client::new();
-    let folder_id = get_or_create_folder(&client, access_token).await?;
+    let folder_id = get_device_folder(&client, &access_token).await?;
 
     let ts = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
@@ -146,11 +250,8 @@ async fn backup_internal(db_path: &PathBuf, access_token: &str) -> Result<DriveF
 
     let resp = client
         .post("https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,name,createdTime,modifiedTime,size")
-        .bearer_auth(access_token)
-        .header(
-            "Content-Type",
-            format!("multipart/related; boundary={}", boundary),
-        )
+        .bearer_auth(&access_token)
+        .header("Content-Type", format!("multipart/related; boundary={}", boundary))
         .body(body)
         .send()
         .await
@@ -165,134 +266,12 @@ async fn backup_internal(db_path: &PathBuf, access_token: &str) -> Result<DriveF
     parse_json::<DriveFile>(&body)
 }
 
-async fn get_or_create_folder(
-    client: &reqwest::Client,
-    access_token: &str,
-) -> Result<String, String> {
-    let resp = client
-        .get("https://www.googleapis.com/drive/v3/files")
-        .bearer_auth(access_token)
-        .query(&[
-            ("q", "name='Sahabat Sentarum Backup' and mimeType='application/vnd.google-apps.folder' and trashed=false"),
-            ("fields", "files(id)"),
-            ("spaces", "drive"),
-        ])
-        .send()
-        .await
-        .map_err(|e| e.to_string())?;
-
-    if resp.status().is_success() {
-        let body = resp.text().await.map_err(|e| e.to_string())?;
-        let list: DriveFileIdList = parse_json(&body)?;
-        if let Some(folder) = list.files.first() {
-            return Ok(folder.id.clone());
-        }
-    }
-
-    let resp = client
-        .post("https://www.googleapis.com/drive/v3/files")
-        .bearer_auth(access_token)
-        .json(&serde_json::json!({
-            "name": "Sahabat Sentarum Backup",
-            "mimeType": "application/vnd.google-apps.folder"
-        }))
-        .send()
-        .await
-        .map_err(|e| e.to_string())?;
-
-    let status = resp.status();
-    let body = resp.text().await.unwrap_or_default();
-    if !status.is_success() {
-        return Err(format!("Gagal membuat folder: {}", body));
-    }
-
-    let folder: DriveFileId = parse_json(&body)?;
-    Ok(folder.id)
-}
-
 // ── Tauri commands ──
 
 #[tauri::command]
-pub async fn gdrive_authenticate() -> Result<TokenResponse, String> {
-    let listener = TcpListener::bind(format!("127.0.0.1:{}", REDIRECT_PORT))
-        .await
-        .map_err(|e| format!("Gagal membuka port {}: {}", REDIRECT_PORT, e))?;
-
-    let auth_url = format!(
-        "https://accounts.google.com/o/oauth2/v2/auth?client_id={}&redirect_uri=http://localhost:{}&response_type=code&scope=https://www.googleapis.com/auth/drive.file&access_type=offline&prompt=consent",
-        CLIENT_ID, REDIRECT_PORT
-    );
-
-    open::that(&auth_url).map_err(|e| format!("Gagal membuka browser: {}", e))?;
-
-    let (mut stream, _) = tokio::time::timeout(Duration::from_secs(300), listener.accept())
-        .await
-        .map_err(|_| "Login timeout (5 menit). Coba lagi.".to_string())?
-        .map_err(|e| e.to_string())?;
-
-    let mut buf = vec![0u8; 8192];
-    let n = stream.read(&mut buf).await.map_err(|e| e.to_string())?;
-    let request = String::from_utf8_lossy(&buf[..n]);
-
-    if request.contains("error=") {
-        let error = request
-            .split("error=")
-            .nth(1)
-            .and_then(|s| s.split(&['&', ' '][..]).next())
-            .unwrap_or("unknown");
-        let resp = format!(
-            "HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=utf-8\r\n\r\n<html><body style='font-family:sans-serif;text-align:center;padding:50px'><h2 style='color:red'>Login gagal</h2><p>{}</p></body></html>",
-            error
-        );
-        stream.write_all(resp.as_bytes()).await.ok();
-        return Err(format!("OAuth error: {}", error));
-    }
-
-    let code = request
-        .split("code=")
-        .nth(1)
-        .and_then(|s| s.split(&['&', ' '][..]).next())
-        .ok_or("Kode otorisasi tidak ditemukan")?
-        .to_string();
-
-    let resp = "HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=utf-8\r\n\r\n<html><body style='font-family:sans-serif;text-align:center;padding:50px'><h2 style='color:#1b508a'>Berhasil terhubung!</h2><p>Kembali ke aplikasi Sahabat Sentarum.</p><script>setTimeout(()=>window.close(),3000)</script></body></html>";
-    stream.write_all(resp.as_bytes()).await.ok();
-
-    let client = reqwest::Client::new();
-    let token_resp = client
-        .post("https://oauth2.googleapis.com/token")
-        .form(&[
-            ("code", code.as_str()),
-            ("client_id", CLIENT_ID),
-            ("client_secret", CLIENT_SECRET),
-            ("redirect_uri", &format!("http://localhost:{}", REDIRECT_PORT)),
-            ("grant_type", "authorization_code"),
-        ])
-        .send()
-        .await
-        .map_err(|e| format!("Gagal menukar kode: {}", e))?;
-
-    let status = token_resp.status();
-    let body = token_resp.text().await.unwrap_or_default();
-    if !status.is_success() {
-        return Err(format!("Token exchange gagal: {}", body));
-    }
-
-    parse_json::<TokenResponse>(&body)
-}
-
-#[tauri::command]
-pub async fn gdrive_refresh(refresh_token: String) -> Result<TokenResponse, String> {
-    refresh_internal(&refresh_token).await
-}
-
-#[tauri::command]
-pub async fn gdrive_backup(
-    app: tauri::AppHandle,
-    access_token: String,
-) -> Result<DriveFile, String> {
+pub async fn gdrive_backup(app: tauri::AppHandle) -> Result<DriveFile, String> {
     let db_path = get_db_path(&app)?;
-    let result = backup_internal(&db_path, &access_token).await?;
+    let result = backup_internal(&db_path).await?;
 
     let app_dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
     let mut config = load_auto_config(&app_dir);
@@ -303,18 +282,16 @@ pub async fn gdrive_backup(
 }
 
 #[tauri::command]
-pub async fn gdrive_list_backups(access_token: String) -> Result<Vec<DriveFile>, String> {
+pub async fn gdrive_list_backups() -> Result<Vec<DriveFile>, String> {
+    let access_token = get_access_token().await?;
     let client = reqwest::Client::new();
-    let folder_id = get_or_create_folder(&client, &access_token).await?;
+    let folder_id = get_device_folder(&client, &access_token).await?;
 
     let resp = client
         .get("https://www.googleapis.com/drive/v3/files")
         .bearer_auth(&access_token)
         .query(&[
-            (
-                "q",
-                &format!("'{}' in parents and trashed=false", folder_id) as &str,
-            ),
+            ("q", &format!("'{}' in parents and trashed=false", folder_id) as &str),
             ("fields", "files(id,name,createdTime,modifiedTime,size)"),
             ("orderBy", "createdTime desc"),
             ("pageSize", "20"),
@@ -334,17 +311,11 @@ pub async fn gdrive_list_backups(access_token: String) -> Result<Vec<DriveFile>,
 }
 
 #[tauri::command]
-pub async fn gdrive_restore(
-    app: tauri::AppHandle,
-    access_token: String,
-    file_id: String,
-) -> Result<(), String> {
+pub async fn gdrive_restore(app: tauri::AppHandle, file_id: String) -> Result<(), String> {
+    let access_token = get_access_token().await?;
     let client = reqwest::Client::new();
     let resp = client
-        .get(format!(
-            "https://www.googleapis.com/drive/v3/files/{}?alt=media",
-            file_id
-        ))
+        .get(format!("https://www.googleapis.com/drive/v3/files/{}?alt=media", file_id))
         .bearer_auth(&access_token)
         .send()
         .await
@@ -369,13 +340,11 @@ pub async fn gdrive_restore(
 }
 
 #[tauri::command]
-pub async fn gdrive_delete_backup(access_token: String, file_id: String) -> Result<(), String> {
+pub async fn gdrive_delete_backup(file_id: String) -> Result<(), String> {
+    let access_token = get_access_token().await?;
     let client = reqwest::Client::new();
     let resp = client
-        .delete(format!(
-            "https://www.googleapis.com/drive/v3/files/{}",
-            file_id
-        ))
+        .delete(format!("https://www.googleapis.com/drive/v3/files/{}", file_id))
         .bearer_auth(&access_token)
         .send()
         .await
@@ -395,14 +364,10 @@ pub async fn gdrive_delete_backup(access_token: String, file_id: String) -> Resu
 pub async fn gdrive_set_auto_backup(
     app: tauri::AppHandle,
     enabled: bool,
-    refresh_token: Option<String>,
 ) -> Result<(), String> {
     let app_dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
     let mut config = load_auto_config(&app_dir);
     config.enabled = enabled;
-    if let Some(rt) = refresh_token {
-        config.refresh_token = Some(rt);
-    }
     save_auto_config(&app_dir, &config)?;
 
     if enabled {
@@ -465,7 +430,6 @@ fn unregister_wake_task() -> Result<(), String> {
     Ok(())
 }
 
-// Background loop — runs every 60s, backs up if enabled and none done today
 pub async fn auto_backup_loop(app: tauri::AppHandle) {
     tokio::time::sleep(Duration::from_secs(5)).await;
 
@@ -494,14 +458,8 @@ async fn try_auto_backup(app: &tauri::AppHandle) -> Result<(), String> {
         return Ok(());
     }
 
-    let refresh_token = config
-        .refresh_token
-        .as_deref()
-        .ok_or("Auto backup: refresh token tidak ada")?;
-
-    let token_resp = refresh_internal(refresh_token).await?;
     let db_path = get_db_path(app)?;
-    backup_internal(&db_path, &token_resp.access_token).await?;
+    backup_internal(&db_path).await?;
 
     let mut updated = config;
     updated.last_backup_date = Some(today);

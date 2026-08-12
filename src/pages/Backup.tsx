@@ -1,6 +1,5 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import {
   Table,
   TableBody,
@@ -11,10 +10,6 @@ import {
 } from "@/components/ui/table";
 import ConfirmDialog from "@/components/ConfirmDialog";
 import {
-  authenticate,
-  getStoredRefreshToken,
-  clearTokens,
-  getValidAccessToken,
   createBackup,
   listBackups,
   restoreBackup,
@@ -24,19 +19,9 @@ import {
   DriveFile,
 } from "@/db/backup";
 import Spinner from "@/components/Spinner";
-import {
-  Cloud,
-  CloudOff,
-  Upload,
-  Download,
-  Trash2,
-  LogOut,
-  RefreshCw,
-  Clock,
-} from "lucide-react";
+import { Upload, Download, Trash2, RefreshCw, Clock } from "lucide-react";
 
 export default function Backup() {
-  const [connected, setConnected] = useState(false);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [backups, setBackups] = useState<DriveFile[]>([]);
@@ -44,63 +29,32 @@ export default function Backup() {
   const [success, setSuccess] = useState("");
   const [confirmRestore, setConfirmRestore] = useState<DriveFile | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<DriveFile | null>(null);
-
   const [autoEnabled, setAutoEnabled] = useState(false);
   const [lastAutoDate, setLastAutoDate] = useState<string | null>(null);
 
   useEffect(() => {
-    checkConnection();
+    init();
   }, []);
 
-  async function checkConnection() {
+  async function init() {
     setLoading(true);
     try {
-      const [refresh, status] = await Promise.all([
-        getStoredRefreshToken(),
+      const [status, files] = await Promise.all([
         getAutoBackupStatus(),
+        listBackups(),
       ]);
       setAutoEnabled(status.enabled);
       setLastAutoDate(status.last_backup_date ?? null);
-      if (refresh) {
-        setConnected(true);
-        setLoading(false);
-        loadBackups();
-        return;
-      }
-    } catch {
+      setBackups(files);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
     }
     setLoading(false);
   }
 
-  async function handleConnect() {
-    setActionLoading("connect");
-    setError("");
-    try {
-      await authenticate();
-      setConnected(true);
-      setSuccess("Berhasil terhubung ke Google Drive!");
-      await loadBackups();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-    }
-    setActionLoading(null);
-  }
-
-  async function handleDisconnect() {
-    await clearTokens();
-    if (autoEnabled) {
-      await setAutoBackup(false);
-      setAutoEnabled(false);
-    }
-    setConnected(false);
-    setBackups([]);
-    setSuccess("");
-  }
-
   async function loadBackups() {
     try {
-      const token = await getValidAccessToken();
-      const files = await listBackups(token);
+      const files = await listBackups();
       setBackups(files);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -112,8 +66,7 @@ export default function Backup() {
     setError("");
     setSuccess("");
     try {
-      const token = await getValidAccessToken();
-      const file = await createBackup(token);
+      const file = await createBackup();
       setSuccess(`Backup berhasil: ${file.name}`);
       await loadBackups();
     } catch (e) {
@@ -129,11 +82,8 @@ export default function Backup() {
     setError("");
     setSuccess("");
     try {
-      const token = await getValidAccessToken();
-      await restoreBackup(token, confirmRestore.id);
-      setSuccess(
-        "Backup berhasil didownload. Restart aplikasi untuk menerapkan restore."
-      );
+      await restoreBackup(confirmRestore.id);
+      setSuccess("Backup berhasil didownload. Restart aplikasi untuk menerapkan restore.");
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     }
@@ -147,8 +97,7 @@ export default function Backup() {
     setActionLoading("delete");
     setError("");
     try {
-      const token = await getValidAccessToken();
-      await deleteBackup(token, file.id);
+      await deleteBackup(file.id);
       setSuccess("Backup berhasil dihapus");
       await loadBackups();
     } catch (e) {
@@ -161,12 +110,11 @@ export default function Backup() {
     const newVal = !autoEnabled;
     setError("");
     try {
-      const refresh = await getStoredRefreshToken();
-      await setAutoBackup(newVal, refresh ?? undefined);
+      await setAutoBackup(newVal);
       setAutoEnabled(newVal);
       setSuccess(
         newVal
-          ? "Auto backup aktif. Backup otomatis setiap hari jam 00:00. PC akan dibangunkan dari sleep."
+          ? "Auto backup aktif. Backup otomatis setiap hari jam 00:00."
           : "Auto backup dinonaktifkan."
       );
     } catch (e) {
@@ -197,19 +145,7 @@ export default function Backup() {
 
   return (
     <div className="animate-fade-in">
-      <div className="mb-4 flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Backup & Restore</h1>
-        {connected && (
-          <div className="flex items-center gap-2">
-            <Badge variant="default" className="gap-1">
-              <Cloud className="size-3" /> Terhubung
-            </Badge>
-            <Button variant="ghost" size="sm" onClick={handleDisconnect}>
-              <LogOut className="mr-1 size-3.5" /> Disconnect
-            </Button>
-          </div>
-        )}
-      </div>
+      <h1 className="mb-4 text-2xl font-bold">Backup & Restore</h1>
 
       {error && (
         <div className="mb-4 rounded-md border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
@@ -222,113 +158,80 @@ export default function Backup() {
         </div>
       )}
 
-      {!connected ? (
-        <div className="flex flex-col items-center gap-4 py-16">
-          <CloudOff className="size-16 text-muted-foreground/30" />
-          <p className="text-muted-foreground">
-            Hubungkan ke Google Drive untuk backup data
-          </p>
-          <Button
-            onClick={handleConnect}
-            disabled={actionLoading === "connect"}
-            size="lg"
-          >
-            <Cloud className="mr-2 size-4" />
-            {actionLoading === "connect"
-              ? "Menghubungkan..."
-              : "Hubungkan Google Drive"}
-          </Button>
-          <p className="max-w-md text-center text-xs text-muted-foreground">
-            Data backup disimpan di folder &quot;Sahabat Sentarum Backup&quot; di
-            Google Drive Anda. Kredensial OAuth diproses secara aman melalui
-            backend aplikasi.
-          </p>
-        </div>
-      ) : (
-        <>
-          <div className="mb-4 flex items-center gap-3">
-            <Button onClick={handleBackup} disabled={!!actionLoading}>
-              <Upload className="mr-1 size-4" />
-              {actionLoading === "backup" ? "Membackup..." : "Backup Sekarang"}
-            </Button>
-            <Button
-              variant="outline"
-              onClick={loadBackups}
-              disabled={!!actionLoading}
-            >
-              <RefreshCw className="mr-1 size-4" /> Refresh
-            </Button>
+      <div className="mb-4 flex items-center gap-3">
+        <Button onClick={handleBackup} disabled={!!actionLoading}>
+          <Upload className="mr-1 size-4" />
+          {actionLoading === "backup" ? "Membackup..." : "Backup Sekarang"}
+        </Button>
+        <Button variant="outline" onClick={loadBackups} disabled={!!actionLoading}>
+          <RefreshCw className="mr-1 size-4" /> Refresh
+        </Button>
 
-            <div className="ml-auto flex items-center gap-3">
-              {lastAutoDate && (
-                <span className="text-xs text-muted-foreground">
-                  Auto backup terakhir: {lastAutoDate}
-                </span>
-              )}
-              <button
-                type="button"
-                onClick={handleToggleAuto}
-                className={`flex items-center gap-2 rounded-full px-4 py-1.5 text-sm font-medium transition-colors ${
-                  autoEnabled
-                    ? "bg-primary text-primary-foreground"
-                    : "bg-secondary text-secondary-foreground hover:bg-accent"
-                }`}
-              >
-                <Clock className="size-3.5" />
-                {autoEnabled ? "Auto Backup Aktif" : "Auto Backup Mati"}
-              </button>
-            </div>
-          </div>
-
-          {backups.length > 0 ? (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Nama File</TableHead>
-                  <TableHead>Tanggal</TableHead>
-                  <TableHead>Ukuran</TableHead>
-                  <TableHead className="w-32">Aksi</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {backups.map((file) => (
-                  <TableRow key={file.id}>
-                    <TableCell className="font-mono text-xs">
-                      {file.name}
-                    </TableCell>
-                    <TableCell>{formatDate(file.createdTime)}</TableCell>
-                    <TableCell>{formatSize(file.size)}</TableCell>
-                    <TableCell>
-                      <div className="flex gap-1">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => setConfirmRestore(file)}
-                          disabled={!!actionLoading}
-                        >
-                          <Download className="mr-1 size-3" /> Restore
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon-xs"
-                          onClick={() => setConfirmDelete(file)}
-                          disabled={!!actionLoading}
-                        >
-                          <Trash2 className="size-3.5 text-destructive" />
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          ) : (
-            <p className="py-12 text-center text-sm text-muted-foreground">
-              Belum ada backup. Klik &quot;Backup Sekarang&quot; untuk membuat
-              backup pertama.
-            </p>
+        <div className="ml-auto flex items-center gap-3">
+          {lastAutoDate && (
+            <span className="text-xs text-muted-foreground">
+              Auto backup terakhir: {lastAutoDate}
+            </span>
           )}
-        </>
+          <button
+            type="button"
+            onClick={handleToggleAuto}
+            className={`flex items-center gap-2 rounded-full px-4 py-1.5 text-sm font-medium transition-colors ${
+              autoEnabled
+                ? "bg-primary text-primary-foreground"
+                : "bg-secondary text-secondary-foreground hover:bg-accent"
+            }`}
+          >
+            <Clock className="size-3.5" />
+            {autoEnabled ? "Auto Backup Aktif" : "Auto Backup Mati"}
+          </button>
+        </div>
+      </div>
+
+      {backups.length > 0 ? (
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Nama File</TableHead>
+              <TableHead>Tanggal</TableHead>
+              <TableHead>Ukuran</TableHead>
+              <TableHead className="w-32">Aksi</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {backups.map((file) => (
+              <TableRow key={file.id}>
+                <TableCell className="font-mono text-xs">{file.name}</TableCell>
+                <TableCell>{formatDate(file.createdTime)}</TableCell>
+                <TableCell>{formatSize(file.size)}</TableCell>
+                <TableCell>
+                  <div className="flex gap-1">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setConfirmRestore(file)}
+                      disabled={!!actionLoading}
+                    >
+                      <Download className="mr-1 size-3" /> Restore
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon-xs"
+                      onClick={() => setConfirmDelete(file)}
+                      disabled={!!actionLoading}
+                    >
+                      <Trash2 className="size-3.5 text-destructive" />
+                    </Button>
+                  </div>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      ) : (
+        <p className="py-12 text-center text-sm text-muted-foreground">
+          Belum ada backup. Klik &quot;Backup Sekarang&quot; untuk membuat backup pertama.
+        </p>
       )}
 
       <ConfirmDialog

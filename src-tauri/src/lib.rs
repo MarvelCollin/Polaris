@@ -32,8 +32,6 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             auth::get_default_hash,
-            gdrive::gdrive_authenticate,
-            gdrive::gdrive_refresh,
             gdrive::gdrive_backup,
             gdrive::gdrive_list_backups,
             gdrive::gdrive_restore,
