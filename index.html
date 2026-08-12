@@ -9,6 +9,17 @@
 
   <body>
     <div id="root"></div>
+    <script>
+      (function() {
+        var theme = localStorage.getItem("polaris-theme");
+        if (theme === "dark" || (!theme && window.matchMedia("(prefers-color-scheme: dark)").matches)) {
+          document.documentElement.classList.add("dark");
+        }
+        var sizes = { small: "14px", medium: "16px", large: "18px" };
+        var fs = localStorage.getItem("polaris-font-size");
+        if (fs && sizes[fs]) document.documentElement.style.fontSize = sizes[fs];
+      })();
+    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
