@@ -9,16 +9,17 @@ jobs:
   release:
     permissions:
       contents: write
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - platform: windows-latest
-            args: ""
-    runs-on: ${{ matrix.platform }}
+    runs-on: windows-latest
 
     steps:
       - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+          cache-on-failure: true
 
       - uses: pnpm/action-setup@v4
         with:
@@ -29,13 +30,7 @@ jobs:
           node-version: lts/*
           cache: pnpm
 
-      - run: pnpm install
-
-      - uses: dtolnay/rust-toolchain@stable
-
-      - uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: src-tauri
+      - run: pnpm install --frozen-lockfile
 
       - uses: tauri-apps/tauri-action@v0
         env:
