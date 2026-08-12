@@ -1,6 +1,4 @@
-import { useEffect, useState } from "react";
-import { check, type Update } from "@tauri-apps/plugin-updater";
-import { relaunch } from "@tauri-apps/plugin-process";
+import { useUpdate } from "@/hooks/useUpdate";
 import {
   Dialog,
   DialogContent,
@@ -12,53 +10,28 @@ import {
 import { Button } from "@/components/ui/button";
 
 export default function UpdateChecker() {
-  const [update, setUpdate] = useState<Update | null>(null);
-  const [installing, setInstalling] = useState(false);
-  const [progress, setProgress] = useState("");
-  const [dismissed, setDismissed] = useState(false);
+  const { status, version, progress, dismissed, dismiss, install } = useUpdate();
 
-  useEffect(() => {
-    check().then((u) => {
-      if (u?.available) setUpdate(u);
-    }).catch(() => {});
-  }, []);
+  if (status !== "available" && status !== "downloading" && status !== "installing") return null;
+  if (dismissed && status === "available") return null;
 
-  if (!update || dismissed) return null;
-
-  const handleInstall = async () => {
-    setInstalling(true);
-    setProgress("Downloading...");
-    await update.downloadAndInstall((e) => {
-      if (e.event === "Started" && e.data.contentLength) {
-        setProgress(`Downloading... 0/${Math.round(e.data.contentLength / 1024)}KB`);
-      } else if (e.event === "Progress") {
-        setProgress(`Downloading...`);
-      } else if (e.event === "Finished") {
-        setProgress("Installing...");
-      }
-    });
-    await relaunch();
-  };
+  const busy = status === "downloading" || status === "installing";
 
   return (
-    <Dialog open onOpenChange={(v) => !v && setDismissed(true)}>
+    <Dialog open onOpenChange={(v) => !v && !busy && dismiss()}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Update Available</DialogTitle>
+          <DialogTitle>Update Tersedia</DialogTitle>
           <DialogDescription>
-            Version {update.version} is ready to install.
+            Versi {version} siap dipasang.
           </DialogDescription>
         </DialogHeader>
-        {installing && (
-          <p className="text-sm text-muted-foreground">{progress}</p>
-        )}
+        {busy && <p className="text-sm text-muted-foreground">{progress}</p>}
         <DialogFooter>
-          {!installing && (
+          {!busy && (
             <>
-              <Button variant="outline" onClick={() => setDismissed(true)}>
-                Later
-              </Button>
-              <Button onClick={handleInstall}>Update Now</Button>
+              <Button variant="outline" onClick={dismiss}>Nanti</Button>
+              <Button onClick={install}>Update Sekarang</Button>
             </>
           )}
         </DialogFooter>

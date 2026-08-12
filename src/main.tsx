@@ -6,6 +6,7 @@ import { initDb } from "./database";
 import { seedDatabase } from "./db/seed";
 import { initPassword } from "./db/auth";
 import Spinner from "./components/Spinner";
+import { UpdateProvider } from "./hooks/useUpdate";
 import UpdateChecker from "./components/UpdateChecker";
 
 const Login = lazy(() => import("./pages/Login"));
@@ -23,6 +24,7 @@ const Backup = lazy(() => import("./pages/Backup"));
 initDb().then(() => seedDatabase()).then(() => initPassword()).then(() => {
   ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
     <React.StrictMode>
+      <UpdateProvider>
       <BrowserRouter>
         <UpdateChecker />
         <Suspense fallback={<div className="flex h-screen items-center justify-center"><Spinner className="size-10" /></div>}>
@@ -43,6 +45,7 @@ initDb().then(() => seedDatabase()).then(() => initPassword()).then(() => {
           </Routes>
         </Suspense>
       </BrowserRouter>
+      </UpdateProvider>
     </React.StrictMode>
   );
 });

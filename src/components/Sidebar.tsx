@@ -4,6 +4,7 @@ import { Separator } from "@/components/ui/separator";
 import { useTheme } from "@/hooks/useTheme";
 import ChangePassword from "./ChangePassword";
 import Logo from "@/assets/Logo.png";
+import { useUpdate } from "@/hooks/useUpdate";
 import {
   LayoutDashboard,
   ShoppingCart,
@@ -18,6 +19,7 @@ import {
   HardDrive,
   KeyRound,
   LogOut,
+  ArrowDownToLine,
 } from "lucide-react";
 
 const links = [
@@ -35,6 +37,7 @@ const links = [
 
 export default function Sidebar() {
   const { theme, toggle } = useTheme();
+  const { status, version, reopen } = useUpdate();
   const navigate = useNavigate();
   const [showChangePw, setShowChangePw] = useState(false);
 
@@ -75,6 +78,15 @@ export default function Sidebar() {
       </nav>
       <Separator className="bg-sidebar-border" />
       <div className="flex flex-col gap-0.5 p-2">
+        {status === "available" && (
+          <button
+            onClick={reopen}
+            className="flex w-full items-center gap-2.5 rounded-md px-3 py-2 text-sm font-semibold text-amber-600 transition-colors hover:bg-sidebar-accent dark:text-amber-400"
+          >
+            <ArrowDownToLine className="size-4" />
+            Update v{version}
+          </button>
+        )}
         <button
           onClick={toggle}
           className="flex w-full items-center gap-2.5 rounded-md px-3 py-2 text-sm font-medium text-sidebar-foreground/60 transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
