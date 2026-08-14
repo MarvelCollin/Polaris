@@ -44,7 +44,7 @@ export default function Customers() {
   const [saving, setSaving] = useState(false);
   const [savingAddr, setSavingAddr] = useState(false);
   const [modalAddresses, setModalAddresses] = useState<CustomerAddress[]>([]);
-  const [inlineAddrForm, setInlineAddrForm] = useState({ label: "", alamat: "" });
+  const [inlineAddrForm, setInlineAddrForm] = useState("");
 
   const [priceModalOpen, setPriceModalOpen] = useState(false);
   const [priceCustomer, setPriceCustomer] = useState<Customer | null>(null);
@@ -63,7 +63,7 @@ export default function Customers() {
     setForm(emptyForm);
     setError("");
     setModalAddresses([]);
-    setInlineAddrForm({ label: "", alamat: "" });
+    setInlineAddrForm("");
     setModalOpen(true);
   }
 
@@ -73,7 +73,7 @@ export default function Customers() {
     setError("");
     const addrs = await getCustomerAddresses(c.id);
     setModalAddresses(addrs);
-    setInlineAddrForm({ label: "", alamat: "" });
+    setInlineAddrForm("");
     setModalOpen(true);
   }
 
@@ -179,20 +179,21 @@ export default function Customers() {
   }
 
   async function handleAddInlineAddr() {
-    if (!inlineAddrForm.label.trim() || !inlineAddrForm.alamat.trim()) return;
+    if (!inlineAddrForm.trim()) return;
+    const label = `Alamat ${modalAddresses.length + 2}`;
     if (editing) {
-      await addCustomerAddress(editing.id, inlineAddrForm.label.trim(), inlineAddrForm.alamat.trim());
+      await addCustomerAddress(editing.id, label, inlineAddrForm.trim());
       const addrs = await getCustomerAddresses(editing.id);
       setModalAddresses(addrs);
     } else {
       setModalAddresses(prev => [...prev, {
         id: -(Date.now()),
         pelanggan_id: 0,
-        label: inlineAddrForm.label.trim(),
-        alamat: inlineAddrForm.alamat.trim(),
+        label,
+        alamat: inlineAddrForm.trim(),
       }]);
     }
-    setInlineAddrForm({ label: "", alamat: "" });
+    setInlineAddrForm("");
   }
 
   async function handleRemoveInlineAddr(addr: CustomerAddress) {
@@ -275,15 +276,12 @@ export default function Customers() {
             <Input value={form.alamat} onChange={(e) => set("alamat", e.target.value)} placeholder="Alamat utama (opsional)" />
           </div>
           <div>
-            <Label>Alamat Pengiriman</Label>
+            <Label>Alamat Lainnya</Label>
             {modalAddresses.length > 0 && (
               <div className="mt-1 space-y-1.5">
                 {modalAddresses.map((a) => (
                   <div key={a.id} className="flex items-start gap-2 rounded-md border p-2">
-                    <div className="min-w-0 flex-1">
-                      <p className="text-sm font-medium">{a.label}</p>
-                      <p className="truncate text-xs text-muted-foreground">{a.alamat}</p>
-                    </div>
+                    <p className="min-w-0 flex-1 text-sm">{a.alamat}</p>
                     <Button variant="ghost" size="icon-xs" onClick={() => handleRemoveInlineAddr(a)}>
                       <Trash2 className="size-3.5 text-destructive" />
                     </Button>
@@ -293,14 +291,8 @@ export default function Customers() {
             )}
             <div className="mt-2 flex gap-2">
               <Input
-                value={inlineAddrForm.label}
-                onChange={(e) => setInlineAddrForm(f => ({ ...f, label: e.target.value }))}
-                placeholder="Label"
-                className="w-1/3"
-              />
-              <Input
-                value={inlineAddrForm.alamat}
-                onChange={(e) => setInlineAddrForm(f => ({ ...f, alamat: e.target.value }))}
+                value={inlineAddrForm}
+                onChange={(e) => setInlineAddrForm(e.target.value)}
                 placeholder="Alamat lengkap"
                 className="flex-1"
               />
@@ -309,7 +301,7 @@ export default function Customers() {
                 variant="outline"
                 size="icon"
                 onClick={handleAddInlineAddr}
-                disabled={!inlineAddrForm.label.trim() || !inlineAddrForm.alamat.trim()}
+                disabled={!inlineAddrForm.trim()}
               >
                 <Plus className="size-4" />
               </Button>
@@ -396,7 +388,7 @@ export default function Customers() {
         </div>
       </Modal>
 
-      <Modal open={addrModalOpen} onClose={() => setAddrModalOpen(false)} title={`Alamat Pengiriman - ${addrCustomer?.nama ?? ""}`}>
+      <Modal open={addrModalOpen} onClose={() => setAddrModalOpen(false)} title={`Alamat Lainnya - ${addrCustomer?.nama ?? ""}`}>
         <div className="space-y-3">
           {addresses.length > 0 ? (
             <div className="space-y-2">
