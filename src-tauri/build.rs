@@ -9,6 +9,7 @@ fn main() {
                     "midtrans_server_key" => println!("cargo:rustc-env=MIDTRANS_SERVER_KEY={}", value),
                     "service_account_email" => println!("cargo:rustc-env=GDRIVE_SA_EMAIL={}", value),
                     "service_account_private_key" => println!("cargo:rustc-env=GDRIVE_SA_KEY={}", value),
+                    "target_email" => println!("cargo:rustc-env=GDRIVE_TARGET_EMAIL={}", value),
                     _ => {}
                 }
             }
@@ -18,6 +19,7 @@ fn main() {
         println!("cargo:rustc-env=MIDTRANS_SERVER_KEY=");
         println!("cargo:rustc-env=GDRIVE_SA_EMAIL=");
         println!("cargo:rustc-env=GDRIVE_SA_KEY=");
+        println!("cargo:rustc-env=GDRIVE_TARGET_EMAIL=");
         println!("cargo:warning=gdrive_secrets.toml not found, secrets disabled");
     }
 

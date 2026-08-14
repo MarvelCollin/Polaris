@@ -8,13 +8,16 @@ use tauri::Manager;
 
 const SA_EMAIL: &str = env!("GDRIVE_SA_EMAIL");
 const SA_KEY: &str = env!("GDRIVE_SA_KEY");
-const SCOPE: &str = "https://www.googleapis.com/auth/drive.file";
+const TARGET_EMAIL: &str = env!("GDRIVE_TARGET_EMAIL");
+const SCOPE: &str = "https://www.googleapis.com/auth/drive";
 
 static CACHED_TOKEN: Mutex<Option<(String, u64)>> = Mutex::new(None);
 
 #[derive(Serialize)]
 struct Claims {
     iss: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    sub: Option<String>,
     scope: String,
     aud: String,
     iat: u64,
@@ -105,8 +108,15 @@ async fn get_access_token() -> Result<String, String> {
     let key = EncodingKey::from_rsa_pem(pem.as_bytes())
         .map_err(|e| format!("Invalid service account key: {}", e))?;
 
+    let sub = if TARGET_EMAIL.is_empty() {
+        None
+    } else {
+        Some(TARGET_EMAIL.to_string())
+    };
+
     let claims = Claims {
         iss: SA_EMAIL.to_string(),
+        sub,
         scope: SCOPE.to_string(),
         aud: "https://oauth2.googleapis.com/token".to_string(),
         iat: now,
