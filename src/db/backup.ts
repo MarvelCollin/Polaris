@@ -8,6 +8,18 @@ export interface DriveFile {
   size?: string;
 }
 
+export async function gdriveAuth(): Promise<void> {
+  return invoke<void>("gdrive_auth");
+}
+
+export async function gdriveIsConnected(): Promise<boolean> {
+  return invoke<boolean>("gdrive_is_connected");
+}
+
+export async function gdriveDisconnect(): Promise<void> {
+  return invoke<void>("gdrive_disconnect");
+}
+
 export async function createBackup(): Promise<DriveFile> {
   return invoke<DriveFile>("gdrive_backup");
 }

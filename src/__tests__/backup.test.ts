@@ -6,6 +6,9 @@ vi.mock("@tauri-apps/api/core", () => ({
 }));
 
 import {
+  gdriveAuth,
+  gdriveIsConnected,
+  gdriveDisconnect,
   createBackup,
   listBackups,
   restoreBackup,
@@ -69,6 +72,33 @@ describe("backup", () => {
 
       expect(mockInvoke).toHaveBeenCalledWith("gdrive_get_auto_backup_status");
       expect(result.last_backup_ts).toBe(1722787200);
+    });
+  });
+
+  describe("gdrive connection", () => {
+    it("should invoke gdrive_auth", async () => {
+      mockInvoke.mockResolvedValueOnce(undefined);
+
+      await gdriveAuth();
+
+      expect(mockInvoke).toHaveBeenCalledWith("gdrive_auth");
+    });
+
+    it("should invoke gdrive_is_connected", async () => {
+      mockInvoke.mockResolvedValueOnce(true);
+
+      const result = await gdriveIsConnected();
+
+      expect(mockInvoke).toHaveBeenCalledWith("gdrive_is_connected");
+      expect(result).toBe(true);
+    });
+
+    it("should invoke gdrive_disconnect", async () => {
+      mockInvoke.mockResolvedValueOnce(undefined);
+
+      await gdriveDisconnect();
+
+      expect(mockInvoke).toHaveBeenCalledWith("gdrive_disconnect");
     });
   });
 });
