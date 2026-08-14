@@ -1,8 +1,11 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, vi } from "vitest";
 import { resetMock, mockDb } from "./setup";
 import { getDashboardStats, getDailySales, getMonthlySalesVsPurchases } from "@/db/dashboard";
-import { createSale } from "@/db/sales";
-import { createPurchase } from "@/db/purchases";
+import { createSale, createSaleReturn, addSalePayment } from "@/db/sales";
+import { createPurchase, createPurchaseReturn, addPurchasePayment } from "@/db/purchases";
+import { createProduct, updateProduct, deleteProduct } from "@/db/products";
+import { createCategory, updateCategory, deleteCategory } from "@/db/categories";
+import { createCustomer, addCustomerAddress, setCustomerPrice } from "@/db/customers";
 
 describe("stress: query count optimization", () => {
   beforeEach(() => {
@@ -387,5 +390,298 @@ describe("stress: cart operations at scale", () => {
 
     expect(list.length).toBeGreaterThan(0);
     expect(elapsed).toBeLessThan(20);
+  });
+});
+
+describe("stress: syncDb fires after every write", () => {
+  beforeEach(() => {
+    resetMock();
+    mockDb.sync.mockClear();
+  });
+
+  it("createSale triggers sync after commit", async () => {
+    mockDb.select.mockResolvedValueOnce([{ count: 0 }]);
+    mockDb.select.mockResolvedValueOnce([{ id: 1, harga_beli: 8000 }]);
+
+    await createSale(
+      [{ produk_id: 1, nama: "X", satuan: "pcs", jumlah: 1, harga: 10000, stok: 10 }],
+      10000
+    );
+
+    expect(mockDb.sync).toHaveBeenCalled();
+  });
+
+  it("createPurchase triggers sync after commit", async () => {
+    mockDb.select.mockResolvedValueOnce([{ count: 0 }]);
+    mockDb.select.mockResolvedValueOnce([{ id: 1, stok: 50, harga_beli: 4000 }]);
+
+    await createPurchase("Supplier", [{ produk_id: 1, nama: "X", satuan: "pcs", jumlah: 5, harga: 5000 }]);
+
+    expect(mockDb.sync).toHaveBeenCalled();
+  });
+
+  it("addSalePayment triggers sync", async () => {
+    await addSalePayment(1, 50000, "cicilan");
+    expect(mockDb.sync).toHaveBeenCalled();
+  });
+
+  it("addPurchasePayment triggers sync", async () => {
+    await addPurchasePayment(1, 50000, "cicilan");
+    expect(mockDb.sync).toHaveBeenCalled();
+  });
+
+  it("createProduct triggers sync", async () => {
+    mockDb.select.mockResolvedValueOnce([{ max_id: 5 }]);
+    await createProduct({
+      kode: "", nama: "Test", kategori_id: 1, satuan: "pcs",
+      harga_beli: 5000, harga_jual: 8000, stok: 10, stok_minimum: 2,
+    });
+    expect(mockDb.sync).toHaveBeenCalled();
+  });
+
+  it("updateProduct triggers sync", async () => {
+    await updateProduct(1, {
+      kode: "T-001", nama: "Test", kategori_id: 1, satuan: "pcs",
+      harga_beli: 5000, harga_jual: 8000, stok: 10, stok_minimum: 2,
+    });
+    expect(mockDb.sync).toHaveBeenCalled();
+  });
+
+  it("deleteProduct triggers sync", async () => {
+    mockDb.select.mockResolvedValueOnce([{ count: 0 }]);
+    await deleteProduct(1);
+    expect(mockDb.sync).toHaveBeenCalled();
+  });
+
+  it("createCategory triggers sync", async () => {
+    await createCategory("Baru");
+    expect(mockDb.sync).toHaveBeenCalled();
+  });
+
+  it("updateCategory triggers sync", async () => {
+    await updateCategory(1, "Updated");
+    expect(mockDb.sync).toHaveBeenCalled();
+  });
+
+  it("deleteCategory triggers sync", async () => {
+    mockDb.select.mockResolvedValueOnce([{ count: 0 }]);
+    await deleteCategory(1);
+    expect(mockDb.sync).toHaveBeenCalled();
+  });
+
+  it("createCustomer triggers sync", async () => {
+    await createCustomer({ nama: "Test", telepon: null, alamat: null });
+    expect(mockDb.sync).toHaveBeenCalled();
+  });
+
+  it("addCustomerAddress triggers sync", async () => {
+    await addCustomerAddress(1, "Kantor", "Jl. Test");
+    expect(mockDb.sync).toHaveBeenCalled();
+  });
+
+  it("setCustomerPrice triggers sync", async () => {
+    await setCustomerPrice(1, 1, 50000);
+    expect(mockDb.sync).toHaveBeenCalled();
+  });
+
+  it("createSaleReturn triggers sync after commit", async () => {
+    await createSaleReturn(1, [
+      { produk_id: 1, nama_produk: "X", jumlah: 1, harga_satuan: 10000 },
+    ], "rusak");
+    expect(mockDb.sync).toHaveBeenCalled();
+  });
+
+  it("createPurchaseReturn triggers sync after commit", async () => {
+    mockDb.execute.mockImplementation(async (sql: string) => {
+      return { lastInsertId: 1, rowsAffected: 1 };
+    });
+    await createPurchaseReturn(1, [
+      { produk_id: 1, nama_produk: "X", jumlah: 1, harga_satuan: 5000 },
+    ], "salah kirim");
+    expect(mockDb.sync).toHaveBeenCalled();
+  });
+
+  it("failed transaction does NOT trigger sync", async () => {
+    mockDb.select.mockResolvedValueOnce([{ count: 0 }]);
+    mockDb.select.mockResolvedValueOnce([{ id: 1, harga_beli: 8000 }]);
+    mockDb.execute.mockImplementation(async (sql: string) => {
+      if ((sql as string).includes("INSERT INTO item_penjualan")) throw new Error("fail");
+      return { lastInsertId: 1, rowsAffected: 1 };
+    });
+
+    await expect(
+      createSale([{ produk_id: 1, nama: "X", satuan: "pcs", jumlah: 1, harga: 10000, stok: 10 }], 10000)
+    ).rejects.toThrow("fail");
+
+    expect(mockDb.sync).not.toHaveBeenCalled();
+  });
+});
+
+describe("stress: batch operations", () => {
+  beforeEach(() => {
+    resetMock();
+  });
+
+  it("initDb uses batch for index creation", async () => {
+    const { initDb } = await import("@/database");
+    await initDb();
+    expect(mockDb.batch).toHaveBeenCalled();
+    const allBatchArgs = mockDb.batch.mock.calls.flatMap((c: unknown[]) => c[0] as string[]);
+    expect(allBatchArgs.length).toBeGreaterThan(10);
+    expect(allBatchArgs.every((s: string) => s.includes("CREATE INDEX"))).toBe(true);
+  });
+
+  it("resetTransactionData uses batch for bulk deletes", async () => {
+    const { resetTransactionData } = await import("@/database");
+    await resetTransactionData();
+    const batchCalls = mockDb.batch.mock.calls;
+    const deleteBatch = batchCalls.find((c: unknown[]) =>
+      (c[0] as string[]).some((s: string) => s.includes("DELETE FROM"))
+    );
+    expect(deleteBatch).toBeDefined();
+    const stmts = deleteBatch![0] as string[];
+    expect(stmts.length).toBe(10);
+    expect(stmts.every((s: string) => s.startsWith("DELETE FROM"))).toBe(true);
+  });
+
+  it("resetTransactionData triggers sync", async () => {
+    mockDb.sync.mockClear();
+    const { resetTransactionData } = await import("@/database");
+    await resetTransactionData();
+    expect(mockDb.sync).toHaveBeenCalled();
+  });
+});
+
+describe("stress: concurrent write simulation", () => {
+  beforeEach(() => {
+    resetMock();
+  });
+
+  it("10 concurrent sales complete without interleaving", async () => {
+    const sales = Array.from({ length: 10 }, (_, i) => {
+      mockDb.select.mockResolvedValueOnce([{ count: i }]);
+      mockDb.select.mockResolvedValueOnce([{ id: i + 1, harga_beli: 8000 }]);
+      return createSale(
+        [{ produk_id: i + 1, nama: `P${i}`, satuan: "pcs", jumlah: 1, harga: 10000, stok: 100 }],
+        10000
+      );
+    });
+
+    const results = await Promise.all(sales);
+    expect(results).toHaveLength(10);
+    results.forEach((id) => expect(id).toBeGreaterThan(0));
+  });
+
+  it("mixed sales and purchases resolve independently", async () => {
+    mockDb.select.mockResolvedValueOnce([{ count: 0 }]);
+    mockDb.select.mockResolvedValueOnce([{ id: 1, harga_beli: 8000 }]);
+    mockDb.select.mockResolvedValueOnce([{ count: 0 }]);
+    mockDb.select.mockResolvedValueOnce([{ id: 1, stok: 50, harga_beli: 4000 }]);
+
+    const [saleId, purchaseId] = await Promise.all([
+      createSale([{ produk_id: 1, nama: "X", satuan: "pcs", jumlah: 1, harga: 10000, stok: 10 }], 10000),
+      createPurchase("Sup", [{ produk_id: 1, nama: "X", satuan: "pcs", jumlah: 5, harga: 5000 }]),
+    ]);
+
+    expect(saleId).toBeGreaterThan(0);
+    expect(purchaseId).toBeGreaterThan(0);
+  });
+
+  it("100 customer price upserts complete under 50ms", async () => {
+    const start = performance.now();
+    const ops = Array.from({ length: 100 }, (_, i) =>
+      setCustomerPrice(1, i + 1, 50000 + i * 100)
+    );
+    await Promise.all(ops);
+    const elapsed = performance.now() - start;
+
+    expect(elapsed).toBeLessThan(50);
+    expect(mockDb.execute).toHaveBeenCalledTimes(100);
+  });
+});
+
+describe("stress: return operations", () => {
+  beforeEach(() => {
+    resetMock();
+  });
+
+  it("createSaleReturn with 20 items stays under 50ms", async () => {
+    const items = Array.from({ length: 20 }, (_, i) => ({
+      produk_id: i + 1,
+      nama_produk: `Product ${i}`,
+      jumlah: 1,
+      harga_satuan: 10000 + i * 500,
+    }));
+
+    const start = performance.now();
+    await createSaleReturn(1, items, "rusak");
+    const elapsed = performance.now() - start;
+
+    expect(elapsed).toBeLessThan(50);
+    const executeCalls = mockDb.execute.mock.calls;
+    expect(executeCalls.some((c) => (c[0] as string).includes("BEGIN"))).toBe(true);
+    expect(executeCalls.some((c) => (c[0] as string).includes("COMMIT"))).toBe(true);
+  });
+
+  it("createSaleReturn restores stock for each item", async () => {
+    await createSaleReturn(1, [
+      { produk_id: 5, nama_produk: "Semen", jumlah: 3, harga_satuan: 58000 },
+      { produk_id: 8, nama_produk: "Cat", jumlah: 2, harga_satuan: 45000 },
+    ]);
+
+    const stockUpdates = mockDb.execute.mock.calls.filter(
+      (c) => (c[0] as string).includes("stok = stok +")
+    );
+    expect(stockUpdates).toHaveLength(2);
+    expect(stockUpdates[0][1]).toEqual([3, 5]);
+    expect(stockUpdates[1][1]).toEqual([2, 8]);
+  });
+
+  it("createPurchaseReturn decrements stock and validates sufficiency", async () => {
+    mockDb.execute.mockImplementation(async (sql: string) => {
+      if ((sql as string).includes("stok = stok -")) return { lastInsertId: 0, rowsAffected: 1 };
+      return { lastInsertId: 1, rowsAffected: 1 };
+    });
+
+    await createPurchaseReturn(1, [
+      { produk_id: 1, nama_produk: "X", jumlah: 2, harga_satuan: 5000 },
+    ]);
+
+    const stockUpdates = mockDb.execute.mock.calls.filter(
+      (c) => (c[0] as string).includes("stok = stok -")
+    );
+    expect(stockUpdates).toHaveLength(1);
+  });
+
+  it("createPurchaseReturn rolls back on insufficient stock", async () => {
+    mockDb.execute.mockImplementation(async (sql: string) => {
+      if ((sql as string).includes("stok = stok -")) return { lastInsertId: 0, rowsAffected: 0 };
+      return { lastInsertId: 1, rowsAffected: 1 };
+    });
+
+    await expect(
+      createPurchaseReturn(1, [
+        { produk_id: 1, nama_produk: "X", jumlah: 999, harga_satuan: 5000 },
+      ])
+    ).rejects.toThrow("tidak mencukupi");
+
+    const rollback = mockDb.execute.mock.calls.find(
+      (c) => (c[0] as string).includes("ROLLBACK")
+    );
+    expect(rollback).toBeDefined();
+  });
+});
+
+describe("stress: address unlimited", () => {
+  beforeEach(() => {
+    resetMock();
+  });
+
+  it("can add 10 addresses to same customer", async () => {
+    const ops = Array.from({ length: 10 }, (_, i) =>
+      addCustomerAddress(1, `Alamat ${i + 1}`, `Jl. Test No. ${i + 1}`)
+    );
+    await Promise.all(ops);
+    expect(mockDb.execute).toHaveBeenCalledTimes(10);
   });
 });
