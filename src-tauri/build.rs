@@ -10,6 +10,8 @@ fn main() {
                     "client_id" => println!("cargo:rustc-env=GDRIVE_CLIENT_ID={}", value),
                     "client_secret" => println!("cargo:rustc-env=GDRIVE_CLIENT_SECRET={}", value),
                     "refresh_token" => println!("cargo:rustc-env=GDRIVE_REFRESH_TOKEN={}", value),
+                    "turso_url" => println!("cargo:rustc-env=TURSO_URL={}", value),
+                    "turso_auth_token" => println!("cargo:rustc-env=TURSO_AUTH_TOKEN={}", value),
                     _ => {}
                 }
             }
@@ -20,6 +22,8 @@ fn main() {
         println!("cargo:rustc-env=GDRIVE_CLIENT_ID=");
         println!("cargo:rustc-env=GDRIVE_CLIENT_SECRET=");
         println!("cargo:rustc-env=GDRIVE_REFRESH_TOKEN=");
+        println!("cargo:rustc-env=TURSO_URL=");
+        println!("cargo:rustc-env=TURSO_AUTH_TOKEN=");
         println!("cargo:warning=gdrive_secrets.toml not found, secrets disabled");
     }
 

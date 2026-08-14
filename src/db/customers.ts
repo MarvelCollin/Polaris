@@ -1,4 +1,4 @@
-import { getDb } from "../database";
+import { getDb, syncDb } from "../database";
 import { Customer, CustomerAddress, CustomerPrice } from "../types";
 
 export async function getCustomers(search?: string): Promise<Customer[]> {
@@ -18,6 +18,7 @@ export async function createCustomer(data: { nama: string; telepon: string | nul
     "INSERT INTO pelanggan (nama, telepon, alamat) VALUES ($1, $2, $3)",
     [data.nama, data.telepon, data.alamat]
   );
+  syncDb();
   return result.lastInsertId ?? 0;
 }
 
@@ -27,6 +28,7 @@ export async function updateCustomer(id: number, data: { nama: string; telepon: 
     "UPDATE pelanggan SET nama=$1, telepon=$2, alamat=$3 WHERE id=$4",
     [data.nama, data.telepon, data.alamat, id]
   );
+  syncDb();
 }
 
 export async function deleteCustomer(id: number): Promise<void> {
@@ -39,6 +41,7 @@ export async function deleteCustomer(id: number): Promise<void> {
     throw new Error("Pelanggan tidak dapat dihapus karena sudah memiliki transaksi");
   }
   await db.execute("DELETE FROM pelanggan WHERE id = $1", [id]);
+  syncDb();
 }
 
 export async function getCustomerAddresses(pelangganId: number): Promise<CustomerAddress[]> {
@@ -51,15 +54,11 @@ export async function getCustomerAddresses(pelangganId: number): Promise<Custome
 
 export async function addCustomerAddress(pelangganId: number, label: string, alamat: string): Promise<void> {
   const db = await getDb();
-  const rows: { count: number }[] = await db.select(
-    "SELECT COUNT(*) as count FROM alamat_pelanggan WHERE pelanggan_id = $1",
-    [pelangganId]
-  );
-  if (rows[0].count >= 3) throw new Error("Maksimal 3 alamat per pelanggan");
   await db.execute(
     "INSERT INTO alamat_pelanggan (pelanggan_id, label, alamat) VALUES ($1, $2, $3)",
     [pelangganId, label, alamat]
   );
+  syncDb();
 }
 
 export async function updateCustomerAddress(id: number, label: string, alamat: string): Promise<void> {
@@ -68,11 +67,13 @@ export async function updateCustomerAddress(id: number, label: string, alamat: s
     "UPDATE alamat_pelanggan SET label = $1, alamat = $2 WHERE id = $3",
     [label, alamat, id]
   );
+  syncDb();
 }
 
 export async function deleteCustomerAddress(id: number): Promise<void> {
   const db = await getDb();
   await db.execute("DELETE FROM alamat_pelanggan WHERE id = $1", [id]);
+  syncDb();
 }
 
 export async function getCustomerPrices(pelangganId: number): Promise<CustomerPrice[]> {
@@ -94,6 +95,7 @@ export async function setCustomerPrice(pelangganId: number, produkId: number, ha
      ON CONFLICT(pelanggan_id, produk_id) DO UPDATE SET harga = $3`,
     [pelangganId, produkId, harga]
   );
+  syncDb();
 }
 
 export async function removeCustomerPrice(pelangganId: number, produkId: number): Promise<void> {
@@ -102,6 +104,7 @@ export async function removeCustomerPrice(pelangganId: number, produkId: number)
     "DELETE FROM harga_pelanggan WHERE pelanggan_id = $1 AND produk_id = $2",
     [pelangganId, produkId]
   );
+  syncDb();
 }
 
 export async function getCustomerPriceMap(pelangganId: number): Promise<Record<number, number>> {

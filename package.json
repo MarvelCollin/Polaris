@@ -17,7 +17,6 @@
     "@tauri-apps/plugin-fs": "^2.5.1",
     "@tauri-apps/plugin-opener": "^2",
     "@tauri-apps/plugin-process": "^2.3.1",
-    "@tauri-apps/plugin-sql": "^2.4.0",
     "@tauri-apps/plugin-updater": "^2.10.1",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
@@ -27,7 +26,8 @@
     "react-dom": "^19.1.0",
     "react-router-dom": "^7.18.2",
     "recharts": "^3.10.1",
-    "tailwind-merge": "^3.6.0"
+    "tailwind-merge": "^3.6.0",
+    "tauri-plugin-libsql-api": "^0.1.1"
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.3.3",

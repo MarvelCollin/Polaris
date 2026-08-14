@@ -1,20 +1,42 @@
-import Database from "@tauri-apps/plugin-sql";
+import { Database } from "tauri-plugin-libsql-api";
+import { invoke } from "@tauri-apps/api/core";
 
 let db: Database | null = null;
 
+interface TursoConfig {
+  url: string;
+  token: string;
+}
+
 export async function getDb(): Promise<Database> {
   if (!db) {
-    db = await Database.load("sqlite:polaris.db");
-    await db.execute(`
-      PRAGMA journal_mode = WAL;
-      PRAGMA synchronous = NORMAL;
-      PRAGMA cache_size = -8000;
-      PRAGMA temp_store = MEMORY;
-      PRAGMA mmap_size = 268435456;
-      PRAGMA foreign_keys = ON
-    `);
+    const config: TursoConfig | null = await invoke("get_turso_config");
+
+    if (config) {
+      db = await Database.load({
+        path: "sqlite:polaris.db",
+        syncUrl: config.url,
+        authToken: config.token,
+      });
+    } else {
+      db = await Database.load("sqlite:polaris.db");
+    }
+
+    await db.execute("PRAGMA journal_mode = WAL");
+    await db.execute("PRAGMA synchronous = NORMAL");
+    await db.execute("PRAGMA cache_size = -8000");
+    await db.execute("PRAGMA temp_store = MEMORY");
+    await db.execute("PRAGMA foreign_keys = ON");
   }
   return db;
+}
+
+export async function syncDb() {
+  if (db) {
+    try {
+      await db.sync();
+    } catch (_) {}
+  }
 }
 
 export async function initDb() {
@@ -163,23 +185,23 @@ export async function initDb() {
     )
   `);
 
-  await database.execute(`
-    CREATE INDEX IF NOT EXISTS idx_pembayaran_pembelian ON pembayaran_pembelian(pembelian_id);
-    CREATE INDEX IF NOT EXISTS idx_pembayaran_penjualan ON pembayaran_penjualan(penjualan_id);
-    CREATE INDEX IF NOT EXISTS idx_produk_kategori ON produk(kategori_id);
-    CREATE INDEX IF NOT EXISTS idx_produk_kode ON produk(kode);
-    CREATE INDEX IF NOT EXISTS idx_produk_nama ON produk(nama);
-    CREATE INDEX IF NOT EXISTS idx_item_penjualan_penjualan ON item_penjualan(penjualan_id);
-    CREATE INDEX IF NOT EXISTS idx_item_penjualan_produk ON item_penjualan(produk_id);
-    CREATE INDEX IF NOT EXISTS idx_item_pembelian_pembelian ON item_pembelian(pembelian_id);
-    CREATE INDEX IF NOT EXISTS idx_item_pembelian_produk ON item_pembelian(produk_id);
-    CREATE INDEX IF NOT EXISTS idx_penjualan_dibuat ON penjualan(dibuat_pada);
-    CREATE INDEX IF NOT EXISTS idx_penjualan_faktur ON penjualan(nomor_faktur);
-    CREATE INDEX IF NOT EXISTS idx_pembelian_dibuat ON pembelian(dibuat_pada);
-    CREATE INDEX IF NOT EXISTS idx_harga_pelanggan_pelanggan ON harga_pelanggan(pelanggan_id);
-    CREATE INDEX IF NOT EXISTS idx_harga_pelanggan_produk ON harga_pelanggan(produk_id);
-    CREATE INDEX IF NOT EXISTS idx_penjualan_pelanggan ON penjualan(pelanggan_id)
-  `);
+  await database.batch([
+    "CREATE INDEX IF NOT EXISTS idx_pembayaran_pembelian ON pembayaran_pembelian(pembelian_id)",
+    "CREATE INDEX IF NOT EXISTS idx_pembayaran_penjualan ON pembayaran_penjualan(penjualan_id)",
+    "CREATE INDEX IF NOT EXISTS idx_produk_kategori ON produk(kategori_id)",
+    "CREATE INDEX IF NOT EXISTS idx_produk_kode ON produk(kode)",
+    "CREATE INDEX IF NOT EXISTS idx_produk_nama ON produk(nama)",
+    "CREATE INDEX IF NOT EXISTS idx_item_penjualan_penjualan ON item_penjualan(penjualan_id)",
+    "CREATE INDEX IF NOT EXISTS idx_item_penjualan_produk ON item_penjualan(produk_id)",
+    "CREATE INDEX IF NOT EXISTS idx_item_pembelian_pembelian ON item_pembelian(pembelian_id)",
+    "CREATE INDEX IF NOT EXISTS idx_item_pembelian_produk ON item_pembelian(produk_id)",
+    "CREATE INDEX IF NOT EXISTS idx_penjualan_dibuat ON penjualan(dibuat_pada)",
+    "CREATE INDEX IF NOT EXISTS idx_penjualan_faktur ON penjualan(nomor_faktur)",
+    "CREATE INDEX IF NOT EXISTS idx_pembelian_dibuat ON pembelian(dibuat_pada)",
+    "CREATE INDEX IF NOT EXISTS idx_harga_pelanggan_pelanggan ON harga_pelanggan(pelanggan_id)",
+    "CREATE INDEX IF NOT EXISTS idx_harga_pelanggan_produk ON harga_pelanggan(produk_id)",
+    "CREATE INDEX IF NOT EXISTS idx_penjualan_pelanggan ON penjualan(pelanggan_id)",
+  ]);
 
   await database.execute(`
     CREATE TABLE IF NOT EXISTS retur_penjualan (
@@ -231,16 +253,16 @@ export async function initDb() {
     )
   `);
 
-  await database.execute(`
-    CREATE INDEX IF NOT EXISTS idx_retur_penjualan ON retur_penjualan(penjualan_id);
-    CREATE INDEX IF NOT EXISTS idx_retur_pembelian ON retur_pembelian(pembelian_id);
-    CREATE INDEX IF NOT EXISTS idx_item_retur_penjualan_retur ON item_retur_penjualan(retur_id);
-    CREATE INDEX IF NOT EXISTS idx_item_retur_pembelian_retur ON item_retur_pembelian(retur_id);
-    CREATE INDEX IF NOT EXISTS idx_item_retur_penjualan_produk ON item_retur_penjualan(produk_id);
-    CREATE INDEX IF NOT EXISTS idx_item_retur_pembelian_produk ON item_retur_pembelian(produk_id);
-    CREATE INDEX IF NOT EXISTS idx_pembelian_supplier ON pembelian(supplier);
-    CREATE INDEX IF NOT EXISTS idx_produk_stok ON produk(stok, stok_minimum)
-  `);
+  await database.batch([
+    "CREATE INDEX IF NOT EXISTS idx_retur_penjualan ON retur_penjualan(penjualan_id)",
+    "CREATE INDEX IF NOT EXISTS idx_retur_pembelian ON retur_pembelian(pembelian_id)",
+    "CREATE INDEX IF NOT EXISTS idx_item_retur_penjualan_retur ON item_retur_penjualan(retur_id)",
+    "CREATE INDEX IF NOT EXISTS idx_item_retur_pembelian_retur ON item_retur_pembelian(retur_id)",
+    "CREATE INDEX IF NOT EXISTS idx_item_retur_penjualan_produk ON item_retur_penjualan(produk_id)",
+    "CREATE INDEX IF NOT EXISTS idx_item_retur_pembelian_produk ON item_retur_pembelian(produk_id)",
+    "CREATE INDEX IF NOT EXISTS idx_pembelian_supplier ON pembelian(supplier)",
+    "CREATE INDEX IF NOT EXISTS idx_produk_stok ON produk(stok, stok_minimum)",
+  ]);
 
   await database.execute(`
     CREATE TABLE IF NOT EXISTS alamat_pelanggan (
@@ -252,25 +274,26 @@ export async function initDb() {
     )
   `);
 
-  await database.execute(`
-    CREATE INDEX IF NOT EXISTS idx_alamat_pelanggan ON alamat_pelanggan(pelanggan_id)
-  `);
+  await database.execute("CREATE INDEX IF NOT EXISTS idx_alamat_pelanggan ON alamat_pelanggan(pelanggan_id)");
 
   try { await database.execute("ALTER TABLE penjualan ADD COLUMN alamat_pengiriman TEXT"); } catch (_) {}
+
+  await syncDb();
 }
 
 export async function resetTransactionData() {
   const database = await getDb();
-  await database.execute(`
-    DELETE FROM item_retur_penjualan;
-    DELETE FROM item_retur_pembelian;
-    DELETE FROM retur_penjualan;
-    DELETE FROM retur_pembelian;
-    DELETE FROM pembayaran_penjualan;
-    DELETE FROM pembayaran_pembelian;
-    DELETE FROM item_penjualan;
-    DELETE FROM item_pembelian;
-    DELETE FROM penjualan;
-    DELETE FROM pembelian
-  `);
+  await database.batch([
+    "DELETE FROM item_retur_penjualan",
+    "DELETE FROM item_retur_pembelian",
+    "DELETE FROM retur_penjualan",
+    "DELETE FROM retur_pembelian",
+    "DELETE FROM pembayaran_penjualan",
+    "DELETE FROM pembayaran_pembelian",
+    "DELETE FROM item_penjualan",
+    "DELETE FROM item_pembelian",
+    "DELETE FROM penjualan",
+    "DELETE FROM pembelian",
+  ]);
+  await syncDb();
 }

@@ -44,12 +44,18 @@ async function defaultSelect(sql: string, _params?: unknown[]): Promise<Record<s
 const mockDb = {
   execute: vi.fn(defaultExecute),
   select: vi.fn(defaultSelect),
+  batch: vi.fn(async () => []),
+  sync: vi.fn(async () => {}),
 };
 
-vi.mock("@tauri-apps/plugin-sql", () => ({
-  default: {
+vi.mock("tauri-plugin-libsql-api", () => ({
+  Database: {
     load: vi.fn(async () => mockDb),
   },
+}));
+
+vi.mock("@tauri-apps/api/core", () => ({
+  invoke: vi.fn(async () => null),
 }));
 
 export { mockDb, rows, autoId };

@@ -1,4 +1,4 @@
-import { getDb } from "../database";
+import { getDb, syncDb } from "../database";
 import { Purchase, PurchaseItem, PurchaseEntry, PurchaseDebt, Payment, ReturPembelian, ReturItem } from "../types";
 import { type ChartGroupBy, groupSqlFor, formatGroupLabel } from "./sales";
 import { toLocalDateKey, toUnixTimestamp } from "../lib/utils";
@@ -77,6 +77,7 @@ export async function createPurchase(
     }
 
     await db.execute("COMMIT");
+    syncDb();
     return purchaseId;
   } catch (e) {
     await db.execute("ROLLBACK");
@@ -171,6 +172,7 @@ export async function addPurchasePayment(purchaseId: number, jumlah: number, cat
     "INSERT INTO pembayaran_pembelian (pembelian_id, jumlah, catatan) VALUES ($1, $2, $3)",
     [purchaseId, jumlah, catatan || null]
   );
+  syncDb();
 }
 
 export async function getPurchaseHistoryStats(startDate?: number, endDate?: number) {
@@ -320,6 +322,7 @@ export async function createPurchaseReturn(
     }
 
     await db.execute("COMMIT");
+    syncDb();
     return returId;
   } catch (e) {
     await db.execute("ROLLBACK");

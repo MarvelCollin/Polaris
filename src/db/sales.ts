@@ -1,4 +1,4 @@
-import { getDb } from "../database";
+import { getDb, syncDb } from "../database";
 import { Sale, SaleItem, CartEntry, SaleDebt, Payment, ReturPenjualan, ReturItem } from "../types";
 import { toLocalDateKey, toUnixTimestamp } from "../lib/utils";
 
@@ -61,6 +61,7 @@ export async function createSale(
     }
 
     await db.execute("COMMIT");
+    syncDb();
     return saleId;
   } catch (e) {
     await db.execute("ROLLBACK");
@@ -155,6 +156,7 @@ export async function addSalePayment(saleId: number, jumlah: number, catatan?: s
     "INSERT INTO pembayaran_penjualan (penjualan_id, jumlah, catatan) VALUES ($1, $2, $3)",
     [saleId, jumlah, catatan || null]
   );
+  syncDb();
 }
 
 export async function getSaleHistoryStats(startDate?: number, endDate?: number) {
@@ -311,6 +313,7 @@ export async function createSaleReturn(
     }
 
     await db.execute("COMMIT");
+    syncDb();
     return returId;
   } catch (e) {
     await db.execute("ROLLBACK");

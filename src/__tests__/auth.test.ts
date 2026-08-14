@@ -7,6 +7,7 @@ const DEFAULT_HASH = "154c660289df60fce46c8f980429514ea0118ea854a5bc8ae974c2040e
 vi.mock("@tauri-apps/api/core", () => ({
   invoke: vi.fn(async (cmd: string) => {
     if (cmd === "get_default_hash") return DEFAULT_HASH;
+    if (cmd === "get_turso_config") return null;
     throw new Error(`Unknown command: ${cmd}`);
   }),
 }));

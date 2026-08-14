@@ -1,6 +1,7 @@
 mod auth;
 mod gdrive;
 mod midtrans;
+mod turso;
 
 use tauri::Manager;
 
@@ -8,7 +9,7 @@ use tauri::Manager;
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
-        .plugin(tauri_plugin_sql::Builder::default().build())
+        .plugin(tauri_plugin_libsql::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
@@ -40,6 +41,7 @@ pub fn run() {
             midtrans::midtrans_create_qris,
             midtrans::midtrans_check_status,
             midtrans::midtrans_cancel,
+            turso::get_turso_config,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

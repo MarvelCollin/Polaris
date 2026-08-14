@@ -1,4 +1,4 @@
-import { getDb } from "../database";
+import { getDb, syncDb } from "../database";
 import { Category } from "../types";
 
 export async function getCategories(): Promise<Category[]> {
@@ -9,12 +9,14 @@ export async function getCategories(): Promise<Category[]> {
 export async function createCategory(nama: string): Promise<number> {
   const db = await getDb();
   const result = await db.execute("INSERT INTO kategori (nama) VALUES ($1)", [nama]);
+  syncDb();
   return result.lastInsertId ?? 0;
 }
 
 export async function updateCategory(id: number, nama: string): Promise<void> {
   const db = await getDb();
   await db.execute("UPDATE kategori SET nama = $1 WHERE id = $2", [nama, id]);
+  syncDb();
 }
 
 export async function deleteCategory(id: number): Promise<void> {
@@ -27,4 +29,5 @@ export async function deleteCategory(id: number): Promise<void> {
     throw new Error("Kategori tidak dapat dihapus karena masih memiliki produk");
   }
   await db.execute("DELETE FROM kategori WHERE id = $1", [id]);
+  syncDb();
 }

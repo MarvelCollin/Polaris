@@ -42,13 +42,13 @@ describe("database", () => {
   it("should create indexes on initDb", async () => {
     const { initDb } = await import("@/database");
     await initDb();
-    const calls = mockDb.execute.mock.calls.map((c: unknown[]) => c[0] as string);
-    expect(calls.some((c: string) => c.includes("idx_produk_kategori"))).toBe(true);
-    expect(calls.some((c: string) => c.includes("idx_produk_kode"))).toBe(true);
-    expect(calls.some((c: string) => c.includes("idx_penjualan_faktur"))).toBe(true);
-    expect(calls.some((c: string) => c.includes("idx_harga_pelanggan_pelanggan"))).toBe(true);
-    expect(calls.some((c: string) => c.includes("idx_harga_pelanggan_produk"))).toBe(true);
-    expect(calls.some((c: string) => c.includes("idx_penjualan_pelanggan"))).toBe(true);
+    const batchCalls = mockDb.batch.mock.calls.flatMap((c: unknown[]) => c[0] as string[]);
+    expect(batchCalls.some((c: string) => c.includes("idx_produk_kategori"))).toBe(true);
+    expect(batchCalls.some((c: string) => c.includes("idx_produk_kode"))).toBe(true);
+    expect(batchCalls.some((c: string) => c.includes("idx_penjualan_faktur"))).toBe(true);
+    expect(batchCalls.some((c: string) => c.includes("idx_harga_pelanggan_pelanggan"))).toBe(true);
+    expect(batchCalls.some((c: string) => c.includes("idx_harga_pelanggan_produk"))).toBe(true);
+    expect(batchCalls.some((c: string) => c.includes("idx_penjualan_pelanggan"))).toBe(true);
   });
 
   it("should run migration alters on initDb", async () => {

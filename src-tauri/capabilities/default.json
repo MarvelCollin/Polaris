@@ -6,9 +6,7 @@
   "permissions": [
     "core:default",
     "opener:default",
-    "sql:default",
-    "sql:allow-execute",
-    "sql:allow-select",
+    "libsql:default",
     "dialog:default",
     "dialog:allow-open",
     "fs:default",
