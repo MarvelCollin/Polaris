@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { resetMock, mockDb } from "./setup";
 import { getDashboardStats, getDailySales, getMonthlySalesVsPurchases } from "@/db/dashboard";
 import { createSale, createSaleReturn, addSalePayment } from "@/db/sales";
@@ -395,8 +395,13 @@ describe("stress: cart operations at scale", () => {
 
 describe("stress: syncDb fires after every write", () => {
   beforeEach(() => {
+    vi.useFakeTimers();
     resetMock();
     mockDb.sync.mockClear();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   it("createSale triggers sync after commit", async () => {
@@ -408,6 +413,7 @@ describe("stress: syncDb fires after every write", () => {
       10000
     );
 
+    vi.advanceTimersByTime(2000);
     expect(mockDb.sync).toHaveBeenCalled();
   });
 
@@ -417,16 +423,19 @@ describe("stress: syncDb fires after every write", () => {
 
     await createPurchase("Supplier", [{ produk_id: 1, nama: "X", satuan: "pcs", jumlah: 5, harga: 5000 }]);
 
+    vi.advanceTimersByTime(2000);
     expect(mockDb.sync).toHaveBeenCalled();
   });
 
   it("addSalePayment triggers sync", async () => {
     await addSalePayment(1, 50000, "cicilan");
+    vi.advanceTimersByTime(2000);
     expect(mockDb.sync).toHaveBeenCalled();
   });
 
   it("addPurchasePayment triggers sync", async () => {
     await addPurchasePayment(1, 50000, "cicilan");
+    vi.advanceTimersByTime(2000);
     expect(mockDb.sync).toHaveBeenCalled();
   });
 
@@ -436,6 +445,7 @@ describe("stress: syncDb fires after every write", () => {
       kode: "", nama: "Test", kategori_id: 1, satuan: "pcs",
       harga_beli: 5000, harga_jual: 8000, stok: 10, stok_minimum: 2,
     });
+    vi.advanceTimersByTime(2000);
     expect(mockDb.sync).toHaveBeenCalled();
   });
 
@@ -444,43 +454,51 @@ describe("stress: syncDb fires after every write", () => {
       kode: "T-001", nama: "Test", kategori_id: 1, satuan: "pcs",
       harga_beli: 5000, harga_jual: 8000, stok: 10, stok_minimum: 2,
     });
+    vi.advanceTimersByTime(2000);
     expect(mockDb.sync).toHaveBeenCalled();
   });
 
   it("deleteProduct triggers sync", async () => {
     mockDb.select.mockResolvedValueOnce([{ count: 0 }]);
     await deleteProduct(1);
+    vi.advanceTimersByTime(2000);
     expect(mockDb.sync).toHaveBeenCalled();
   });
 
   it("createCategory triggers sync", async () => {
     await createCategory("Baru");
+    vi.advanceTimersByTime(2000);
     expect(mockDb.sync).toHaveBeenCalled();
   });
 
   it("updateCategory triggers sync", async () => {
     await updateCategory(1, "Updated");
+    vi.advanceTimersByTime(2000);
     expect(mockDb.sync).toHaveBeenCalled();
   });
 
   it("deleteCategory triggers sync", async () => {
     mockDb.select.mockResolvedValueOnce([{ count: 0 }]);
     await deleteCategory(1);
+    vi.advanceTimersByTime(2000);
     expect(mockDb.sync).toHaveBeenCalled();
   });
 
   it("createCustomer triggers sync", async () => {
     await createCustomer({ nama: "Test", telepon: null, alamat: null });
+    vi.advanceTimersByTime(2000);
     expect(mockDb.sync).toHaveBeenCalled();
   });
 
   it("addCustomerAddress triggers sync", async () => {
     await addCustomerAddress(1, "Kantor", "Jl. Test");
+    vi.advanceTimersByTime(2000);
     expect(mockDb.sync).toHaveBeenCalled();
   });
 
   it("setCustomerPrice triggers sync", async () => {
     await setCustomerPrice(1, 1, 50000);
+    vi.advanceTimersByTime(2000);
     expect(mockDb.sync).toHaveBeenCalled();
   });
 
@@ -488,6 +506,7 @@ describe("stress: syncDb fires after every write", () => {
     await createSaleReturn(1, [
       { produk_id: 1, nama_produk: "X", jumlah: 1, harga_satuan: 10000 },
     ], "rusak");
+    vi.advanceTimersByTime(2000);
     expect(mockDb.sync).toHaveBeenCalled();
   });
 
@@ -498,6 +517,7 @@ describe("stress: syncDb fires after every write", () => {
     await createPurchaseReturn(1, [
       { produk_id: 1, nama_produk: "X", jumlah: 1, harga_satuan: 5000 },
     ], "salah kirim");
+    vi.advanceTimersByTime(2000);
     expect(mockDb.sync).toHaveBeenCalled();
   });
 
@@ -513,6 +533,7 @@ describe("stress: syncDb fires after every write", () => {
       createSale([{ produk_id: 1, nama: "X", satuan: "pcs", jumlah: 1, harga: 10000, stok: 10 }], 10000)
     ).rejects.toThrow("fail");
 
+    vi.advanceTimersByTime(2000);
     expect(mockDb.sync).not.toHaveBeenCalled();
   });
 });
@@ -522,13 +543,14 @@ describe("stress: batch operations", () => {
     resetMock();
   });
 
-  it("initDb uses batch for index creation", async () => {
+  it("initDb uses batch for DDL and index creation", async () => {
     const { initDb } = await import("@/database");
     await initDb();
     expect(mockDb.batch).toHaveBeenCalled();
     const allBatchArgs = mockDb.batch.mock.calls.flatMap((c: unknown[]) => c[0] as string[]);
-    expect(allBatchArgs.length).toBeGreaterThan(10);
-    expect(allBatchArgs.every((s: string) => s.includes("CREATE INDEX"))).toBe(true);
+    expect(allBatchArgs.length).toBeGreaterThan(30);
+    expect(allBatchArgs.some((s: string) => s.includes("CREATE TABLE"))).toBe(true);
+    expect(allBatchArgs.some((s: string) => s.includes("CREATE INDEX"))).toBe(true);
   });
 
   it("resetTransactionData uses batch for bulk deletes", async () => {

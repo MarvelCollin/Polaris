@@ -18,25 +18,26 @@ describe("database", () => {
   it("should set WAL pragma on init", async () => {
     const { getDb } = await import("@/database");
     await getDb();
-    const calls = mockDb.execute.mock.calls.map((c: unknown[]) => c[0] as string);
-    expect(calls.some((c: string) => c.includes("PRAGMA journal_mode = WAL"))).toBe(true);
-    expect(calls.some((c: string) => c.includes("PRAGMA synchronous = NORMAL"))).toBe(true);
-    expect(calls.some((c: string) => c.includes("PRAGMA cache_size"))).toBe(true);
+    const execCalls = mockDb.execute.mock.calls.map((c: unknown[]) => c[0] as string);
+    const batchCalls = mockDb.batch.mock.calls.flatMap((c: unknown[]) => c[0] as string[]);
+    expect(execCalls.some((c: string) => c.includes("PRAGMA journal_mode = WAL"))).toBe(true);
+    expect(batchCalls.some((c: string) => c.includes("PRAGMA synchronous = NORMAL"))).toBe(true);
+    expect(batchCalls.some((c: string) => c.includes("PRAGMA cache_size"))).toBe(true);
   });
 
   it("should create all tables on initDb", async () => {
     const { initDb } = await import("@/database");
     await initDb();
-    const calls = mockDb.execute.mock.calls.map((c: unknown[]) => c[0] as string);
-    expect(calls.some((c: string) => c.includes("CREATE TABLE IF NOT EXISTS kategori"))).toBe(true);
-    expect(calls.some((c: string) => c.includes("CREATE TABLE IF NOT EXISTS produk"))).toBe(true);
-    expect(calls.some((c: string) => c.includes("CREATE TABLE IF NOT EXISTS penjualan"))).toBe(true);
-    expect(calls.some((c: string) => c.includes("CREATE TABLE IF NOT EXISTS item_penjualan"))).toBe(true);
-    expect(calls.some((c: string) => c.includes("CREATE TABLE IF NOT EXISTS pembelian"))).toBe(true);
-    expect(calls.some((c: string) => c.includes("CREATE TABLE IF NOT EXISTS item_pembelian"))).toBe(true);
-    expect(calls.some((c: string) => c.includes("CREATE TABLE IF NOT EXISTS pelanggan"))).toBe(true);
-    expect(calls.some((c: string) => c.includes("CREATE TABLE IF NOT EXISTS harga_pelanggan"))).toBe(true);
-    expect(calls.some((c: string) => c.includes("CREATE TABLE IF NOT EXISTS settings"))).toBe(true);
+    const batchCalls = mockDb.batch.mock.calls.flatMap((c: unknown[]) => c[0] as string[]);
+    expect(batchCalls.some((c: string) => c.includes("CREATE TABLE IF NOT EXISTS kategori"))).toBe(true);
+    expect(batchCalls.some((c: string) => c.includes("CREATE TABLE IF NOT EXISTS produk"))).toBe(true);
+    expect(batchCalls.some((c: string) => c.includes("CREATE TABLE IF NOT EXISTS penjualan"))).toBe(true);
+    expect(batchCalls.some((c: string) => c.includes("CREATE TABLE IF NOT EXISTS item_penjualan"))).toBe(true);
+    expect(batchCalls.some((c: string) => c.includes("CREATE TABLE IF NOT EXISTS pembelian"))).toBe(true);
+    expect(batchCalls.some((c: string) => c.includes("CREATE TABLE IF NOT EXISTS item_pembelian"))).toBe(true);
+    expect(batchCalls.some((c: string) => c.includes("CREATE TABLE IF NOT EXISTS pelanggan"))).toBe(true);
+    expect(batchCalls.some((c: string) => c.includes("CREATE TABLE IF NOT EXISTS harga_pelanggan"))).toBe(true);
+    expect(batchCalls.some((c: string) => c.includes("CREATE TABLE IF NOT EXISTS settings"))).toBe(true);
   });
 
   it("should create indexes on initDb", async () => {
@@ -61,7 +62,12 @@ describe("database", () => {
   });
 
   it("should only backfill purchase payments for old schemas", async () => {
-    mockDb.select.mockResolvedValueOnce([{ name: "dibayar" }]);
+    mockDb.select.mockImplementation(async (sql: string) => {
+      if (sql.includes("table_info(pembelian)")) return [{ name: "id" }, { name: "supplier" }, { name: "total" }, { name: "dibayar" }, { name: "dibuat_pada" }];
+      if (sql.includes("table_info")) return [];
+      if (sql.match(/COUNT\(\*\)/i)) return [{ count: 0 }];
+      return [];
+    });
 
     const { initDb } = await import("@/database");
     await initDb();
