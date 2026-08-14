@@ -13,7 +13,6 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import Modal from "@/components/Modal";
-import StatsCard from "@/components/StatsCard";
 import { CreditCard, History } from "lucide-react";
 import {
   BarChart, Bar, PieChart, Pie, Cell,
@@ -132,12 +131,32 @@ export default function UtangPiutang() {
     <div className="animate-fade-in">
       <h1 className="mb-4 text-2xl font-bold">Utang & Piutang</h1>
 
-      <div className="mb-4 grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <StatsCard title="Total Piutang" value={formatRupiah(totalPiutang)} variant="success" />
-        <StatsCard title="Total Utang" value={formatRupiah(totalUtang)} variant="danger" />
-        <StatsCard title="Jumlah Piutang" value={`${saleDebts?.length ?? 0} faktur`} variant="warning" />
-        <StatsCard title="Jumlah Utang" value={`${purchaseDebts?.length ?? 0} faktur`} variant="warning" />
-      </div>
+      <section className="mb-4 grid overflow-hidden rounded-lg border bg-card/40 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="min-w-0 border-b p-4 sm:border-r xl:border-b-0">
+          <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Total Piutang</span>
+          <strong className="mt-2 block text-2xl leading-tight text-[#e07828] dark:text-[#e8a04c]">{formatRupiah(totalPiutang)}</strong>
+          <span className="mt-1 block text-xs text-muted-foreground">{saleDebts?.length ?? 0} faktur</span>
+        </div>
+        <div className="min-w-0 border-b p-4 xl:border-b-0 xl:border-r">
+          <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Total Utang</span>
+          <strong className="mt-2 block text-2xl leading-tight text-[#1b508a] dark:text-[#5ba0d0]">{formatRupiah(totalUtang)}</strong>
+          <span className="mt-1 block text-xs text-muted-foreground">{purchaseDebts?.length ?? 0} faktur</span>
+        </div>
+        <div className="min-w-0 border-b p-4 sm:border-b-0 sm:border-r">
+          <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Selisih</span>
+          <strong className={`mt-2 block text-2xl leading-tight ${totalPiutang - totalUtang >= 0 ? "text-[#e07828] dark:text-[#e8a04c]" : "text-destructive"}`}>
+            {formatRupiah(Math.abs(totalPiutang - totalUtang))}
+          </strong>
+          <span className="mt-1 block text-xs text-muted-foreground">
+            {totalPiutang >= totalUtang ? "Lebih banyak piutang" : "Lebih banyak utang"}
+          </span>
+        </div>
+        <div className="min-w-0 p-4">
+          <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Total Faktur</span>
+          <strong className="mt-2 block text-2xl leading-tight">{(saleDebts?.length ?? 0) + (purchaseDebts?.length ?? 0)}</strong>
+          <span className="mt-1 block text-xs text-muted-foreground">Piutang + Utang</span>
+        </div>
+      </section>
 
       {(overviewData.length > 0 || topCustomers.length > 0 || topSuppliers.length > 0) && (
         <div className="mb-4 grid grid-cols-1 gap-4 lg:grid-cols-6">
