@@ -15,11 +15,10 @@ import {
   restoreBackup,
   deleteBackup,
   getAutoBackupStatus,
-  setAutoBackup,
   DriveFile,
 } from "@/db/backup";
 import Spinner from "@/components/Spinner";
-import { Upload, Download, Trash2, RefreshCw, Clock } from "lucide-react";
+import { Upload, Download, Trash2, RefreshCw } from "lucide-react";
 
 export default function Backup() {
   const [loading, setLoading] = useState(true);
@@ -29,8 +28,7 @@ export default function Backup() {
   const [success, setSuccess] = useState("");
   const [confirmRestore, setConfirmRestore] = useState<DriveFile | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<DriveFile | null>(null);
-  const [autoEnabled, setAutoEnabled] = useState(false);
-  const [lastAutoDate, setLastAutoDate] = useState<string | null>(null);
+  const [lastAutoBackup, setLastAutoBackup] = useState<number | null>(null);
 
   useEffect(() => {
     init();
@@ -43,8 +41,7 @@ export default function Backup() {
         getAutoBackupStatus(),
         listBackups(),
       ]);
-      setAutoEnabled(status.enabled);
-      setLastAutoDate(status.last_backup_date ?? null);
+      setLastAutoBackup(status.last_backup_ts ?? null);
       setBackups(files);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -106,22 +103,6 @@ export default function Backup() {
     setActionLoading(null);
   }
 
-  async function handleToggleAuto() {
-    const newVal = !autoEnabled;
-    setError("");
-    try {
-      await setAutoBackup(newVal);
-      setAutoEnabled(newVal);
-      setSuccess(
-        newVal
-          ? "Auto backup aktif. Backup otomatis setiap hari jam 00:00."
-          : "Auto backup dinonaktifkan."
-      );
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-    }
-  }
-
   function formatSize(bytes?: string) {
     if (!bytes) return "-";
     const b = parseInt(bytes);
@@ -167,25 +148,11 @@ export default function Backup() {
           <RefreshCw className="mr-1 size-4" /> Refresh
         </Button>
 
-        <div className="ml-auto flex items-center gap-3">
-          {lastAutoDate && (
-            <span className="text-xs text-muted-foreground">
-              Auto backup terakhir: {lastAutoDate}
-            </span>
-          )}
-          <button
-            type="button"
-            onClick={handleToggleAuto}
-            className={`flex items-center gap-2 rounded-full px-4 py-1.5 text-sm font-medium transition-colors ${
-              autoEnabled
-                ? "bg-primary text-primary-foreground"
-                : "bg-secondary text-secondary-foreground hover:bg-accent"
-            }`}
-          >
-            <Clock className="size-3.5" />
-            {autoEnabled ? "Auto Backup Aktif" : "Auto Backup Mati"}
-          </button>
-        </div>
+        {lastAutoBackup && (
+          <span className="ml-auto text-xs text-muted-foreground">
+            Auto backup terakhir: {new Date(lastAutoBackup * 1000).toLocaleString("id-ID")}
+          </span>
+        )}
       </div>
 
       {backups.length > 0 ? (

@@ -57,9 +57,8 @@ struct DriveFileIdList {
 
 #[derive(Serialize, Deserialize, Clone, Default)]
 pub struct AutoBackupConfig {
-    pub enabled: bool,
     #[serde(default)]
-    pub last_backup_date: Option<String>,
+    pub last_backup_ts: Option<i64>,
 }
 
 fn get_db_path(app: &tauri::AppHandle) -> Result<PathBuf, String> {
@@ -203,8 +202,15 @@ async fn get_or_create_folder(
     Ok(folder.id)
 }
 
+fn device_name() -> String {
+    hostname::get()
+        .map(|h| h.to_string_lossy().to_string())
+        .unwrap_or_else(|_| "unknown".to_string())
+}
+
 async fn get_backup_folder(client: &reqwest::Client, access_token: &str) -> Result<String, String> {
-    get_or_create_folder(client, access_token, "Sahabat Sentarum Backup", None).await
+    let root = get_or_create_folder(client, access_token, "Sahabat Sentarum Backup", None).await?;
+    get_or_create_folder(client, access_token, &device_name(), Some(&root)).await
 }
 
 async fn backup_internal(db_path: &PathBuf) -> Result<DriveFile, String> {
@@ -268,7 +274,7 @@ pub async fn gdrive_backup(app: tauri::AppHandle) -> Result<DriveFile, String> {
 
     let app_dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
     let mut config = load_auto_config(&app_dir);
-    config.last_backup_date = Some(Local::now().format("%Y-%m-%d").to_string());
+    config.last_backup_ts = Some(Local::now().timestamp());
     save_auto_config(&app_dir, &config).ok();
 
     Ok(result)
@@ -351,26 +357,9 @@ pub async fn gdrive_delete_backup(file_id: String) -> Result<(), String> {
     Ok(())
 }
 
-// ── Auto backup ──
+// ── Auto backup (always on, every 8 hours) ──
 
-#[tauri::command]
-pub async fn gdrive_set_auto_backup(
-    app: tauri::AppHandle,
-    enabled: bool,
-) -> Result<(), String> {
-    let app_dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
-    let mut config = load_auto_config(&app_dir);
-    config.enabled = enabled;
-    save_auto_config(&app_dir, &config)?;
-
-    if enabled {
-        register_wake_task().ok();
-    } else {
-        unregister_wake_task().ok();
-    }
-
-    Ok(())
-}
+const AUTO_BACKUP_INTERVAL_SECS: i64 = 8 * 60 * 60;
 
 #[tauri::command]
 pub async fn gdrive_get_auto_backup_status(
@@ -380,58 +369,15 @@ pub async fn gdrive_get_auto_backup_status(
     Ok(load_auto_config(&app_dir))
 }
 
-fn register_wake_task() -> Result<(), String> {
-    let exe = std::env::current_exe().map_err(|e| e.to_string())?;
-    let exe_path = exe.to_string_lossy().replace('\\', "\\\\");
-    let exe_name = exe
-        .file_name()
-        .map(|n| n.to_string_lossy().to_string())
-        .unwrap_or_default();
-
-    let script = format!(
-        "$action = New-ScheduledTaskAction -Execute 'powershell.exe' -Argument '-WindowStyle Hidden -Command \"if (-not (Get-Process -Name \\\"{}\\\" -ErrorAction SilentlyContinue)) {{ Start-Process \\\"{}\\\" }}\"'\n\
-         $trigger = New-ScheduledTaskTrigger -Daily -At '00:00'\n\
-         $settings = New-ScheduledTaskSettingsSet -WakeToRun -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable\n\
-         Register-ScheduledTask -TaskName 'SahabatSentarumAutoBackup' -Action $action -Trigger $trigger -Settings $settings -Force",
-        exe_name.trim_end_matches(".exe"),
-        exe_path
-    );
-
-    let output = std::process::Command::new("powershell")
-        .args(["-ExecutionPolicy", "Bypass", "-Command", &script])
-        .output()
-        .map_err(|e| format!("Gagal mendaftarkan scheduled task: {}", e))?;
-
-    if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        return Err(format!("Scheduled task error: {}", stderr));
-    }
-
-    Ok(())
-}
-
-fn unregister_wake_task() -> Result<(), String> {
-    std::process::Command::new("powershell")
-        .args([
-            "-ExecutionPolicy",
-            "Bypass",
-            "-Command",
-            "Unregister-ScheduledTask -TaskName 'SahabatSentarumAutoBackup' -Confirm:$false -ErrorAction SilentlyContinue",
-        ])
-        .output()
-        .map_err(|e| e.to_string())?;
-    Ok(())
-}
-
 pub async fn auto_backup_loop(app: tauri::AppHandle) {
-    tokio::time::sleep(Duration::from_secs(5)).await;
+    tokio::time::sleep(Duration::from_secs(10)).await;
 
     if let Err(e) = try_auto_backup(&app).await {
         eprintln!("Auto backup (startup): {}", e);
     }
 
     loop {
-        tokio::time::sleep(Duration::from_secs(60)).await;
+        tokio::time::sleep(Duration::from_secs(300)).await;
         if let Err(e) = try_auto_backup(&app).await {
             eprintln!("Auto backup: {}", e);
         }
@@ -441,21 +387,20 @@ pub async fn auto_backup_loop(app: tauri::AppHandle) {
 async fn try_auto_backup(app: &tauri::AppHandle) -> Result<(), String> {
     let app_dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
     let config = load_auto_config(&app_dir);
+    let now = Local::now().timestamp();
 
-    if !config.enabled {
-        return Ok(());
-    }
-
-    let today = Local::now().format("%Y-%m-%d").to_string();
-    if config.last_backup_date.as_deref() == Some(today.as_str()) {
-        return Ok(());
+    if let Some(last_ts) = config.last_backup_ts {
+        if now - last_ts < AUTO_BACKUP_INTERVAL_SECS {
+            return Ok(());
+        }
     }
 
     let db_path = get_db_path(app)?;
     backup_internal(&db_path).await?;
 
-    let mut updated = config;
-    updated.last_backup_date = Some(today);
+    let updated = AutoBackupConfig {
+        last_backup_ts: Some(now),
+    };
     save_auto_config(&app_dir, &updated)?;
 
     eprintln!("Auto backup selesai");

@@ -11,7 +11,6 @@ import {
   restoreBackup,
   deleteBackup,
   getAutoBackupStatus,
-  setAutoBackup,
 } from "@/db/backup";
 
 describe("backup", () => {
@@ -63,34 +62,13 @@ describe("backup", () => {
 
   describe("auto backup", () => {
     it("should get auto backup status", async () => {
-      const mockStatus = { enabled: true, last_backup_date: "2026-08-04" };
+      const mockStatus = { last_backup_ts: 1722787200 };
       mockInvoke.mockResolvedValueOnce(mockStatus);
 
       const result = await getAutoBackupStatus();
 
       expect(mockInvoke).toHaveBeenCalledWith("gdrive_get_auto_backup_status");
-      expect(result.enabled).toBe(true);
-      expect(result.last_backup_date).toBe("2026-08-04");
-    });
-
-    it("should enable auto backup without refresh token", async () => {
-      mockInvoke.mockResolvedValueOnce(undefined);
-
-      await setAutoBackup(true);
-
-      expect(mockInvoke).toHaveBeenCalledWith("gdrive_set_auto_backup", {
-        enabled: true,
-      });
-    });
-
-    it("should disable auto backup", async () => {
-      mockInvoke.mockResolvedValueOnce(undefined);
-
-      await setAutoBackup(false);
-
-      expect(mockInvoke).toHaveBeenCalledWith("gdrive_set_auto_backup", {
-        enabled: false,
-      });
+      expect(result.last_backup_ts).toBe(1722787200);
     });
   });
 });

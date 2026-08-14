@@ -25,14 +25,9 @@ export async function deleteBackup(fileId: string): Promise<void> {
 }
 
 export interface AutoBackupStatus {
-  enabled: boolean;
-  last_backup_date?: string;
+  last_backup_ts?: number;
 }
 
 export async function getAutoBackupStatus(): Promise<AutoBackupStatus> {
   return invoke<AutoBackupStatus>("gdrive_get_auto_backup_status");
-}
-
-export async function setAutoBackup(enabled: boolean): Promise<void> {
-  return invoke("gdrive_set_auto_backup", { enabled });
 }
