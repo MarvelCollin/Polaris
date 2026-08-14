@@ -174,8 +174,8 @@ export default function Purchases() {
         </div>
       )}
 
-      <div className="grid grid-cols-5 gap-4">
-        <div className="col-span-3 flex flex-col">
+      <div className="flex gap-4">
+        <div className="min-w-0 flex-[3] flex-col">
           <div className="mb-3">
             <SearchInput value={search} onChange={setSearch} placeholder="Cari produk..." />
           </div>
@@ -208,9 +208,9 @@ export default function Purchases() {
             ))}
           </div>
 
-          <div className="max-h-[calc(100vh-320px)] overflow-y-auto rounded-md p-1">
+          <div className="max-h-[calc(100vh-22rem)] overflow-y-auto rounded-md p-1">
             {visibleProducts.length > 0 ? (
-              <div className="grid grid-cols-3 gap-2">
+              <div className="grid grid-cols-[repeat(auto-fill,minmax(200px,1fr))] gap-2">
                 {visibleProducts.map((p) => (
                   <PurchaseProductTile
                     key={p.id}
@@ -227,7 +227,7 @@ export default function Purchases() {
           </div>
         </div>
 
-        <div className="col-span-2">
+        <div className="w-[380px] shrink-0">
           <Card>
             <CardHeader className="pb-3">
               <CardTitle className="text-base">Keranjang Pembelian</CardTitle>
@@ -264,7 +264,7 @@ export default function Purchases() {
               {items.length === 0 ? (
                 <p className="py-8 text-center text-sm text-muted-foreground">Keranjang kosong</p>
               ) : (
-                <div className="max-h-[calc(100vh-520px)] space-y-2 overflow-y-auto">
+                <div className="max-h-[calc(100vh-35rem)] space-y-2 overflow-y-auto">
                   {items.map((item) => (
                     <div key={item.produk_id} className="flex items-center gap-2 rounded-md border p-2 text-sm">
                       <div className="flex-1">

@@ -305,8 +305,8 @@ export default function Sales() {
         </div>
       )}
 
-      <div className="grid grid-cols-5 gap-4">
-        <div className="col-span-3 flex flex-col">
+      <div className="flex gap-4">
+        <div className="min-w-0 flex-[3] flex-col">
           <div className="mb-3">
             <SearchInput value={search} onChange={setSearch} placeholder="Cari produk..." />
           </div>
@@ -316,7 +316,7 @@ export default function Sales() {
               <div className="mb-2 flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
                 <Star className="size-3" /> Sering Dibeli
               </div>
-              <div className="grid grid-cols-4 gap-2 p-1">
+              <div className="grid grid-cols-[repeat(auto-fill,minmax(200px,1fr))] gap-2 p-1">
                 {frequentProducts.map((p) => (
                   <SaleProductTile
                     key={p.id}
@@ -359,9 +359,9 @@ export default function Sales() {
             ))}
           </div>
 
-          <div className="max-h-[calc(100vh-320px)] overflow-y-auto rounded-md p-1">
+          <div className="max-h-[calc(100vh-22rem)] overflow-y-auto rounded-md p-1">
             {visibleProducts.length > 0 ? (
-              <div className="grid grid-cols-3 gap-2">
+              <div className="grid grid-cols-[repeat(auto-fill,minmax(200px,1fr))] gap-2">
                 {visibleProducts.map((p) => (
                   <SaleProductTile
                     key={p.id}
@@ -380,7 +380,7 @@ export default function Sales() {
           </div>
         </div>
 
-        <div className="col-span-2">
+        <div className="w-[380px] shrink-0">
           <Card>
             <CardHeader className="pb-3">
               <CardTitle className="text-base">Keranjang</CardTitle>
@@ -409,7 +409,7 @@ export default function Sales() {
               {cart.length === 0 ? (
                 <p className="py-8 text-center text-sm text-muted-foreground">Keranjang kosong</p>
               ) : (
-                <div className="max-h-[calc(100vh-520px)] space-y-2 overflow-y-auto">
+                <div className="max-h-[calc(100vh-35rem)] space-y-2 overflow-y-auto">
                   {cart.map((item) => (
                     <div key={item.produk_id} className="flex items-center gap-2 rounded-md border p-2 text-sm">
                       <div className="flex-1">
@@ -425,7 +425,7 @@ export default function Sales() {
                           <Plus className="size-3" />
                         </Button>
                       </div>
-                      <span className="w-24 text-right text-sm font-medium">{formatRupiah(item.jumlah * item.harga)}</span>
+                      <span className="min-w-[6rem] text-right text-sm font-medium">{formatRupiah(item.jumlah * item.harga)}</span>
                       <Button variant="ghost" size="icon-xs" onClick={() => removeFromCart(item.produk_id)}>
                         <Trash2 className="size-3.5 text-destructive" />
                       </Button>

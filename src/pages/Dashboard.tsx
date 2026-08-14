@@ -230,7 +230,7 @@ export default function Dashboard() {
                 {topProducts.map((p, i) => (
                   <div key={i} className="space-y-1">
                     <div className="flex items-center justify-between text-xs">
-                      <span className="max-w-36 truncate font-medium">{p.nama}</span>
+                      <span className="min-w-0 truncate font-medium">{p.nama}</span>
                       <span className="text-muted-foreground">{formatRupiah(p.total)}</span>
                     </div>
                     <div className="h-2 overflow-hidden rounded-full bg-muted">
@@ -292,7 +292,7 @@ export default function Dashboard() {
                 {topCustomers.map((c, i) => (
                   <div key={i} className="space-y-1">
                     <div className="flex items-center justify-between text-xs">
-                      <span className="max-w-36 truncate font-medium">{c.nama}</span>
+                      <span className="min-w-0 truncate font-medium">{c.nama}</span>
                       <span className="text-muted-foreground">{c.transaksi}x - {formatRupiah(c.total)}</span>
                     </div>
                     <div className="h-2 overflow-hidden rounded-full bg-muted">

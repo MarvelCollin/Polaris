@@ -47,7 +47,7 @@ export default function Sidebar() {
   }
 
   return (
-    <aside className="flex h-screen w-56 flex-col border-r bg-sidebar text-sidebar-foreground">
+    <aside className="flex h-screen w-[224px] shrink-0 flex-col overflow-y-auto border-r bg-sidebar text-sidebar-foreground">
       <div className="flex items-center gap-2.5 p-4">
         <img src={Logo} alt="Sahabat Sentarum" className="size-10" />
         <div>
@@ -65,8 +65,8 @@ export default function Sidebar() {
             style={{ animationDelay: `${i * 30}ms`, animationFillMode: "backwards" }}
             className={({ isActive }) => linkClass(isActive)}
           >
-            <link.icon className="size-4" />
-            {link.label}
+            <link.icon className="size-4 shrink-0" />
+            <span className="truncate">{link.label}</span>
           </NavLink>
         ))}
       </nav>
@@ -77,23 +77,23 @@ export default function Sidebar() {
             onClick={reopen}
             className="flex w-full items-center gap-2.5 rounded-md px-3 py-2 text-sm font-semibold text-amber-600 transition-colors hover:bg-sidebar-accent dark:text-amber-400"
           >
-            <ArrowDownToLine className="size-4" />
-            Update v{version}
+            <ArrowDownToLine className="size-4 shrink-0" />
+            <span className="truncate">Update v{version}</span>
           </button>
         )}
         <NavLink
           to="/pengaturan"
           className={({ isActive }) => linkClass(isActive)}
         >
-          <Settings className="size-4" />
-          Pengaturan
+          <Settings className="size-4 shrink-0" />
+          <span className="truncate">Pengaturan</span>
         </NavLink>
         <button
           onClick={handleLogout}
           className="flex w-full items-center gap-2.5 rounded-md px-3 py-2 text-sm font-medium text-sidebar-foreground/60 transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
         >
-          <LogOut className="size-4" />
-          Keluar
+          <LogOut className="size-4 shrink-0" />
+          <span className="truncate">Keluar</span>
         </button>
       </div>
     </aside>
