@@ -25,7 +25,7 @@ const PurchaseProductTile = memo(function PurchaseProductTile({
     <button
       type="button"
       onClick={() => onAdd(p)}
-      className={`relative flex items-center gap-3 rounded-lg border p-3 text-left transition-[border-color,box-shadow,transform] duration-150 cursor-pointer hover:border-primary hover:shadow-sm active:scale-[0.98] ${
+      className={`relative flex h-[88px] items-center gap-3 rounded-lg border p-3 text-left transition-[border-color,box-shadow,transform] duration-150 cursor-pointer hover:border-primary hover:shadow-sm active:scale-[0.98] ${
         qty > 0 ? "border-primary bg-primary/5" : ""
       }`}
     >
@@ -36,7 +36,7 @@ const PurchaseProductTile = memo(function PurchaseProductTile({
       )}
       <ProductThumb path={p.gambar} size="h-16 w-16" />
       <div className="min-w-0 flex-1">
-        <span className="text-sm font-medium leading-tight">{p.nama}</span>
+        <span className="line-clamp-2 text-sm font-medium leading-tight">{p.nama}</span>
         <span className="mt-0.5 block font-mono text-[10px] text-muted-foreground">{p.kode}</span>
         <div className="mt-1">
           <span className="text-sm font-semibold text-primary">{formatRupiah(p.harga_beli)}</span>

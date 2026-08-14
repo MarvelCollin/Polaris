@@ -256,7 +256,7 @@ export default function Products() {
 
       <div className="max-h-[calc(100vh-18rem)] overflow-y-auto rounded-md p-1">
         {visibleProducts.length > 0 ? (
-          <div className="grid grid-cols-[repeat(auto-fill,minmax(220px,1fr))] gap-2">
+          <div className="grid grid-cols-[repeat(auto-fill,minmax(200px,1fr))] gap-2">
             {visibleProducts.map((p) => (
               <ProductTile
                 key={p.id}

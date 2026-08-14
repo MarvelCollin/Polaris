@@ -336,41 +336,37 @@ export default function Customers() {
             <p className="py-4 text-center text-sm text-muted-foreground">Belum ada alamat</p>
           )}
 
-          {addresses.length < 3 || editingAddr ? (
-            <div className="space-y-2 rounded-md border p-3">
-              <p className="text-sm font-medium">{editingAddr ? "Edit Alamat" : "Tambah Alamat"}</p>
-              <div>
-                <Label>Label</Label>
-                <Input
-                  value={addrForm.label}
-                  onChange={(e) => setAddrForm((f) => ({ ...f, label: e.target.value }))}
-                  placeholder="cth: Alamat Tetap, Pengantaran 1"
-                  autoFocus
-                />
-              </div>
-              <div>
-                <Label>Alamat</Label>
-                <Input
-                  value={addrForm.alamat}
-                  onChange={(e) => setAddrForm((f) => ({ ...f, alamat: e.target.value }))}
-                  placeholder="Alamat lengkap"
-                />
-              </div>
-              {addrError && <p className="text-sm text-destructive">{addrError}</p>}
-              <div className="flex justify-end gap-2">
-                {editingAddr && (
-                  <Button variant="outline" size="sm" onClick={() => {
-                    setEditingAddr(null);
-                    setAddrForm({ label: "", alamat: "" });
-                    setAddrError("");
-                  }}>Batal</Button>
-                )}
-                <Button size="sm" onClick={handleSaveAddr}>Simpan</Button>
-              </div>
+          <div className="space-y-2 rounded-md border p-3">
+            <p className="text-sm font-medium">{editingAddr ? "Edit Alamat" : "Tambah Alamat"}</p>
+            <div>
+              <Label>Label</Label>
+              <Input
+                value={addrForm.label}
+                onChange={(e) => setAddrForm((f) => ({ ...f, label: e.target.value }))}
+                placeholder="cth: Alamat Tetap, Pengantaran 1"
+                autoFocus
+              />
             </div>
-          ) : (
-            <p className="text-center text-xs text-muted-foreground">Maksimal 3 alamat</p>
-          )}
+            <div>
+              <Label>Alamat</Label>
+              <Input
+                value={addrForm.alamat}
+                onChange={(e) => setAddrForm((f) => ({ ...f, alamat: e.target.value }))}
+                placeholder="Alamat lengkap"
+              />
+            </div>
+            {addrError && <p className="text-sm text-destructive">{addrError}</p>}
+            <div className="flex justify-end gap-2">
+              {editingAddr && (
+                <Button variant="outline" size="sm" onClick={() => {
+                  setEditingAddr(null);
+                  setAddrForm({ label: "", alamat: "" });
+                  setAddrError("");
+                }}>Batal</Button>
+              )}
+              <Button size="sm" onClick={handleSaveAddr}>Simpan</Button>
+            </div>
+          </div>
         </div>
       </Modal>
 
