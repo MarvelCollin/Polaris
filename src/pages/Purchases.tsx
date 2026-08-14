@@ -174,8 +174,8 @@ export default function Purchases() {
         </div>
       )}
 
-      <div className="flex gap-4">
-        <div className="min-w-0 flex-[3] flex-col">
+      <div className="flex flex-col gap-4 lg:flex-row">
+        <div className="min-w-0 flex-1 flex-col">
           <div className="mb-3">
             <SearchInput value={search} onChange={setSearch} placeholder="Cari produk..." />
           </div>
@@ -227,7 +227,7 @@ export default function Purchases() {
           </div>
         </div>
 
-        <div className="w-[380px] shrink-0">
+        <div className="w-full shrink-0 lg:w-[380px]">
           <Card>
             <CardHeader className="pb-3">
               <CardTitle className="text-base">Keranjang Pembelian</CardTitle>

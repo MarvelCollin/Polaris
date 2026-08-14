@@ -142,8 +142,8 @@ export default function SaleHistory() {
       </div>
 
       {(dailyData && dailyData.length > 0) || (topProducts && topProducts.length > 0) ? (
-        <div className="mb-4 grid grid-cols-5 gap-4">
-          <Card className="col-span-3">
+        <div className="mb-4 grid grid-cols-1 gap-4 lg:grid-cols-5">
+          <Card className="lg:col-span-3">
             <CardHeader className="pb-2">
               <div className="flex items-center justify-between">
                 <CardTitle className="text-sm font-semibold">Tren Penjualan</CardTitle>
@@ -185,7 +185,7 @@ export default function SaleHistory() {
               )}
             </CardContent>
           </Card>
-          <Card className="col-span-2">
+          <Card className="lg:col-span-2">
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-semibold">Produk Terlaris</CardTitle>
             </CardHeader>
@@ -208,13 +208,15 @@ export default function SaleHistory() {
         </div>
       ) : null}
 
-      <div className="mb-4 flex items-center gap-3">
-        <div className="flex-1">
+      <div className="mb-4 flex flex-wrap items-center gap-3">
+        <div className="min-w-0 flex-1">
           <SearchInput value={search} onChange={(v) => { setSearch(v); setPage(1); }} placeholder="Cari faktur atau pelanggan..." />
         </div>
-        <input type="date" className="h-9 rounded-md border bg-background px-3 text-sm" value={startDate} onChange={(e) => { setStartDate(e.target.value); setPage(1); }} />
-        <span className="text-sm text-muted-foreground">s/d</span>
-        <input type="date" className="h-9 rounded-md border bg-background px-3 text-sm" value={endDate} onChange={(e) => { setEndDate(e.target.value); setPage(1); }} />
+        <div className="flex items-center gap-2">
+          <input type="date" className="h-9 rounded-md border bg-background px-3 text-sm" value={startDate} onChange={(e) => { setStartDate(e.target.value); setPage(1); }} />
+          <span className="text-sm text-muted-foreground">s/d</span>
+          <input type="date" className="h-9 rounded-md border bg-background px-3 text-sm" value={endDate} onChange={(e) => { setEndDate(e.target.value); setPage(1); }} />
+        </div>
       </div>
 
       {sorted && sorted.length > 0 ? (

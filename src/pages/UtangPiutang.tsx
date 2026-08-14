@@ -132,7 +132,7 @@ export default function UtangPiutang() {
     <div className="animate-fade-in">
       <h1 className="mb-4 text-2xl font-bold">Utang & Piutang</h1>
 
-      <div className="mb-4 grid grid-cols-4 gap-4">
+      <div className="mb-4 grid grid-cols-2 gap-4 lg:grid-cols-4">
         <StatsCard title="Total Piutang" value={formatRupiah(totalPiutang)} variant="success" />
         <StatsCard title="Total Utang" value={formatRupiah(totalUtang)} variant="danger" />
         <StatsCard title="Jumlah Piutang" value={`${saleDebts?.length ?? 0} faktur`} variant="warning" />
@@ -140,9 +140,9 @@ export default function UtangPiutang() {
       </div>
 
       {(overviewData.length > 0 || topCustomers.length > 0 || topSuppliers.length > 0) && (
-        <div className="mb-4 grid grid-cols-6 gap-4">
+        <div className="mb-4 grid grid-cols-1 gap-4 lg:grid-cols-6">
           {overviewData.length > 0 && (
-            <Card className="col-span-2">
+            <Card className="lg:col-span-2">
               <CardHeader className="pb-2">
                 <CardTitle className="text-sm font-semibold">Piutang vs Utang</CardTitle>
               </CardHeader>
@@ -175,7 +175,7 @@ export default function UtangPiutang() {
             </Card>
           )}
           {topCustomers.length > 0 && (
-            <Card className="col-span-2">
+            <Card className="lg:col-span-2">
               <CardHeader className="pb-2">
                 <CardTitle className="text-sm font-semibold">Top Piutang Pelanggan</CardTitle>
               </CardHeader>
@@ -193,7 +193,7 @@ export default function UtangPiutang() {
             </Card>
           )}
           {topSuppliers.length > 0 && (
-            <Card className="col-span-2">
+            <Card className="lg:col-span-2">
               <CardHeader className="pb-2">
                 <CardTitle className="text-sm font-semibold">Top Utang Supplier</CardTitle>
               </CardHeader>
