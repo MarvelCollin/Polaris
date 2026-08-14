@@ -126,12 +126,7 @@ describe("stress: transaction batching", () => {
     mockDb.select.mockResolvedValueOnce([{ count: 0 }]);
     mockDb.select.mockResolvedValueOnce([{ id: 1, harga_beli: 8000 }]);
 
-    mockDb.execute.mockImplementation(async (sql: string) => {
-      if ((sql as string).includes("INSERT INTO item_penjualan")) {
-        throw new Error("disk full");
-      }
-      return { lastInsertId: 1, rowsAffected: 1 };
-    });
+    mockDb.batch.mockRejectedValueOnce(new Error("disk full"));
 
     await expect(
       createSale([{ produk_id: 1, nama: "X", satuan: "pcs", jumlah: 1, harga: 10000, stok: 10 }], 10000)
@@ -524,10 +519,7 @@ describe("stress: syncDb fires after every write", () => {
   it("failed transaction does NOT trigger sync", async () => {
     mockDb.select.mockResolvedValueOnce([{ count: 0 }]);
     mockDb.select.mockResolvedValueOnce([{ id: 1, harga_beli: 8000 }]);
-    mockDb.execute.mockImplementation(async (sql: string) => {
-      if ((sql as string).includes("INSERT INTO item_penjualan")) throw new Error("fail");
-      return { lastInsertId: 1, rowsAffected: 1 };
-    });
+    mockDb.batch.mockRejectedValueOnce(new Error("fail"));
 
     await expect(
       createSale([{ produk_id: 1, nama: "X", satuan: "pcs", jumlah: 1, harga: 10000, stok: 10 }], 10000)
@@ -651,12 +643,17 @@ describe("stress: return operations", () => {
       { produk_id: 8, nama_produk: "Cat", jumlah: 2, harga_satuan: 45000 },
     ]);
 
-    const stockUpdates = mockDb.execute.mock.calls.filter(
-      (c) => (c[0] as string).includes("stok = stok +")
+    const batchCalls = mockDb.batch.mock.calls as unknown as unknown[][];
+    const returBatch = batchCalls.find((c: unknown[]) =>
+      (c[0] as string[]).some((s: string) => s.includes("stok = stok +"))
     );
+    expect(returBatch).toBeDefined();
+    const stockUpdates = (returBatch![0] as unknown as string[]).filter((s: string) => s.includes("stok = stok +"));
     expect(stockUpdates).toHaveLength(2);
-    expect(stockUpdates[0][1]).toEqual([3, 5]);
-    expect(stockUpdates[1][1]).toEqual([2, 8]);
+    expect(stockUpdates[0]).toContain("stok + 3");
+    expect(stockUpdates[0]).toContain("WHERE id = 5");
+    expect(stockUpdates[1]).toContain("stok + 2");
+    expect(stockUpdates[1]).toContain("WHERE id = 8");
   });
 
   it("createPurchaseReturn decrements stock and validates sufficiency", async () => {

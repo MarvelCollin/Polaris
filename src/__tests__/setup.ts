@@ -63,6 +63,7 @@ export { mockDb, rows, autoId };
 export function resetMock() {
   mockDb.execute.mockReset();
   mockDb.select.mockReset();
+  mockDb.batch.mockClear();
   mockDb.execute.mockImplementation(defaultExecute);
   mockDb.select.mockImplementation(defaultSelect);
   Object.keys(rows).forEach((k) => delete rows[k]);

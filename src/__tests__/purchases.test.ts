@@ -34,10 +34,15 @@ describe("purchases", () => {
     const total = 100 * 52000 + 50 * 45000;
     expect(purchaseInserts[0][1]).toContain(total);
 
-    const itemInserts = calls.filter((c: unknown[]) => (c[0] as string).includes("INSERT INTO item_pembelian"));
+    const batchCalls = mockDb.batch.mock.calls as unknown as unknown[][];
+    const itemBatch = batchCalls.find((c: unknown[]) =>
+      (c[0] as string[]).some((s: string) => s.includes("INSERT INTO item_pembelian"))
+    );
+    expect(itemBatch).toBeDefined();
+    const stmts = itemBatch![0] as unknown as string[];
+    const itemInserts = stmts.filter((s: string) => s.includes("INSERT INTO item_pembelian"));
     expect(itemInserts).toHaveLength(2);
-
-    const stockUpdates = calls.filter((c: unknown[]) => (c[0] as string).includes("UPDATE produk SET stok"));
+    const stockUpdates = stmts.filter((s: string) => s.includes("UPDATE produk SET stok"));
     expect(stockUpdates).toHaveLength(2);
   });
 
@@ -104,14 +109,16 @@ describe("purchases", () => {
 
     await createPurchase("Supplier A", items);
 
-    const updateCalls = mockDb.execute.mock.calls.filter(
-      (c: unknown[]) => (c[0] as string).includes("UPDATE produk SET stok")
+    const batchCalls = mockDb.batch.mock.calls as unknown as unknown[][];
+    const itemBatch = batchCalls.find((c: unknown[]) =>
+      (c[0] as string[]).some((s: string) => s.includes("UPDATE produk SET stok"))
     );
-    expect(updateCalls).toHaveLength(1);
-    const params = updateCalls[0][1] as number[];
+    expect(itemBatch).toBeDefined();
+    const updateStmts = (itemBatch![0] as unknown as string[]).filter((s: string) => s.includes("UPDATE produk SET stok"));
+    expect(updateStmts).toHaveLength(1);
     const expectedHpp = Math.round((100 * 50000 + 50 * 56000) / (100 + 50));
-    expect(params[0]).toBe(50);
-    expect(params[1]).toBe(expectedHpp);
+    expect(updateStmts[0]).toContain("stok + 50");
+    expect(updateStmts[0]).toContain(`harga_beli = ${expectedHpp}`);
   });
 
   it("should handle HPP when product has no prior stock data", async () => {
@@ -124,11 +131,14 @@ describe("purchases", () => {
 
     await createPurchase("Supplier X", items);
 
-    const updateCalls = mockDb.execute.mock.calls.filter(
-      (c: unknown[]) => (c[0] as string).includes("UPDATE produk SET stok")
+    const batchCalls = mockDb.batch.mock.calls as unknown as unknown[][];
+    const itemBatch = batchCalls.find((c: unknown[]) =>
+      (c[0] as string[]).some((s: string) => s.includes("UPDATE produk SET stok"))
     );
-    expect(updateCalls).toHaveLength(1);
-    expect((updateCalls[0][0] as string)).not.toContain("harga_beli");
+    expect(itemBatch).toBeDefined();
+    const updateStmts = (itemBatch![0] as unknown as string[]).filter((s: string) => s.includes("UPDATE produk SET stok"));
+    expect(updateStmts).toHaveLength(1);
+    expect(updateStmts[0]).not.toContain("harga_beli");
   });
 
   it("should save partial payment as utang", async () => {

@@ -89,12 +89,16 @@ export async function initDb() {
     "CREATE INDEX IF NOT EXISTS idx_pembelian_supplier ON pembelian(supplier)",
     "CREATE INDEX IF NOT EXISTS idx_produk_stok ON produk(stok, stok_minimum)",
     "CREATE INDEX IF NOT EXISTS idx_alamat_pelanggan ON alamat_pelanggan(pelanggan_id)",
+    "CREATE INDEX IF NOT EXISTS idx_pelanggan_nama ON pelanggan(nama)",
+    "CREATE INDEX IF NOT EXISTS idx_pembelian_faktur ON pembelian(referensi_faktur)",
   ]);
 
-  const pembelianCols: { name: string }[] = await database.select("PRAGMA table_info(pembelian)");
-  const penjualanCols: { name: string }[] = await database.select("PRAGMA table_info(penjualan)");
-  const produkCols: { name: string }[] = await database.select("PRAGMA table_info(produk)");
-  const itemPenjualanCols: { name: string }[] = await database.select("PRAGMA table_info(item_penjualan)");
+  const [pembelianCols, penjualanCols, produkCols, itemPenjualanCols] = await Promise.all([
+    database.select("PRAGMA table_info(pembelian)") as Promise<{ name: string }[]>,
+    database.select("PRAGMA table_info(penjualan)") as Promise<{ name: string }[]>,
+    database.select("PRAGMA table_info(produk)") as Promise<{ name: string }[]>,
+    database.select("PRAGMA table_info(item_penjualan)") as Promise<{ name: string }[]>,
+  ]);
 
   const pembelianSet = new Set(pembelianCols.map(c => c.name));
   const penjualanSet = new Set(penjualanCols.map(c => c.name));

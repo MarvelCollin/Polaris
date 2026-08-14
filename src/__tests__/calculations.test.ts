@@ -20,14 +20,17 @@ describe("HPP weighted average calculation", () => {
 
     await createPurchase("Supplier A", items);
 
-    const updateCalls = mockDb.execute.mock.calls.filter(
-      (c: unknown[]) => (c[0] as string).includes("UPDATE produk SET stok = stok +")
+    const batchCalls = mockDb.batch.mock.calls as unknown as unknown[][];
+    const itemBatch = batchCalls.find((c: unknown[]) =>
+      (c[0] as string[]).some((s: string) => s.includes("UPDATE produk SET stok = stok +"))
     );
-    expect(updateCalls).toHaveLength(1);
+    expect(itemBatch).toBeDefined();
+    const updateStmts = (itemBatch![0] as unknown as string[]).filter((s: string) => s.includes("UPDATE produk SET stok = stok +"));
+    expect(updateStmts).toHaveLength(1);
 
     const expectedHpp = Math.round((10 * 50000 + 10 * 60000) / (10 + 10));
     expect(expectedHpp).toBe(55000);
-    expect(updateCalls[0][1]).toContain(expectedHpp);
+    expect(updateStmts[0]).toContain(`harga_beli = ${expectedHpp}`);
   });
 
   it("should handle first purchase when existing stock is zero", async () => {
@@ -42,12 +45,15 @@ describe("HPP weighted average calculation", () => {
 
     await createPurchase("Supplier B", items);
 
-    const updateCalls = mockDb.execute.mock.calls.filter(
-      (c: unknown[]) => (c[0] as string).includes("UPDATE produk SET stok = stok +")
+    const batchCalls = mockDb.batch.mock.calls as unknown as unknown[][];
+    const itemBatch = batchCalls.find((c: unknown[]) =>
+      (c[0] as string[]).some((s: string) => s.includes("UPDATE produk SET stok = stok +"))
     );
+    expect(itemBatch).toBeDefined();
+    const updateStmts = (itemBatch![0] as unknown as string[]).filter((s: string) => s.includes("UPDATE produk SET stok = stok +"));
     const expectedHpp = Math.round((0 * 0 + 20 * 45000) / (0 + 20));
     expect(expectedHpp).toBe(45000);
-    expect(updateCalls[0][1]).toContain(expectedHpp);
+    expect(updateStmts[0]).toContain(`harga_beli = ${expectedHpp}`);
   });
 
   it("should handle unequal stock quantities in weighted average", async () => {
@@ -62,12 +68,15 @@ describe("HPP weighted average calculation", () => {
 
     await createPurchase("Supplier C", items);
 
-    const updateCalls = mockDb.execute.mock.calls.filter(
-      (c: unknown[]) => (c[0] as string).includes("UPDATE produk SET stok = stok +")
+    const batchCalls = mockDb.batch.mock.calls as unknown as unknown[][];
+    const itemBatch = batchCalls.find((c: unknown[]) =>
+      (c[0] as string[]).some((s: string) => s.includes("UPDATE produk SET stok = stok +"))
     );
+    expect(itemBatch).toBeDefined();
+    const updateStmts = (itemBatch![0] as unknown as string[]).filter((s: string) => s.includes("UPDATE produk SET stok = stok +"));
     const expectedHpp = Math.round((100 * 50000 + 50 * 55000) / (100 + 50));
     expect(expectedHpp).toBe(51667);
-    expect(updateCalls[0][1]).toContain(expectedHpp);
+    expect(updateStmts[0]).toContain(`harga_beli = ${expectedHpp}`);
   });
 });
 
@@ -453,12 +462,15 @@ describe("item subtotal stored in DB", () => {
 
     await createSale(items, 500000);
 
-    const itemInsert = mockDb.execute.mock.calls.find(
-      (c: unknown[]) => (c[0] as string).includes("INSERT INTO item_penjualan")
+    const batchCalls = mockDb.batch.mock.calls as unknown as unknown[][];
+    const itemBatch = batchCalls.find((c: unknown[]) =>
+      (c[0] as string[]).some((s: string) => s.includes("INSERT INTO item_penjualan"))
     );
+    expect(itemBatch).toBeDefined();
+    const saleStmts = (itemBatch![0] as unknown as string[]).filter((s: string) => s.includes("INSERT INTO item_penjualan"));
     const expectedSubtotal = 7 * 58000;
     expect(expectedSubtotal).toBe(406000);
-    expect(itemInsert![1]).toContain(expectedSubtotal);
+    expect(saleStmts[0]).toContain(`${expectedSubtotal}`);
   });
 
   it("purchase item subtotal should be jumlah * harga", async () => {
@@ -471,11 +483,14 @@ describe("item subtotal stored in DB", () => {
 
     await createPurchase("Supplier A", items);
 
-    const itemInsert = mockDb.execute.mock.calls.find(
-      (c: unknown[]) => (c[0] as string).includes("INSERT INTO item_pembelian")
+    const batchCalls = mockDb.batch.mock.calls as unknown as unknown[][];
+    const itemBatch = batchCalls.find((c: unknown[]) =>
+      (c[0] as string[]).some((s: string) => s.includes("INSERT INTO item_pembelian"))
     );
+    expect(itemBatch).toBeDefined();
+    const purchaseStmts = (itemBatch![0] as unknown as string[]).filter((s: string) => s.includes("INSERT INTO item_pembelian"));
     const expectedSubtotal = 15 * 45000;
     expect(expectedSubtotal).toBe(675000);
-    expect(itemInsert![1]).toContain(expectedSubtotal);
+    expect(purchaseStmts[0]).toContain(`${expectedSubtotal}`);
   });
 });

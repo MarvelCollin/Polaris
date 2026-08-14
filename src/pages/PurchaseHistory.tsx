@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useMemo } from "react";
 import { useQuery } from "@/hooks/useQuery";
 import { useSort } from "@/hooks/useSort";
 import { useDebounce } from "@/hooks/useDebounce";
@@ -24,7 +24,7 @@ import {
   XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, PieChart, Pie, Cell,
 } from "recharts";
-import { CHART_COLORS, GROUP_LABELS, formatShortRupiah, ChartTooltip, PieTooltip } from "@/lib/chart-utils";
+import { CHART_COLORS, GROUP_LABELS, formatShortRupiah, ChartTooltip, PieTooltip, TICK_10 } from "@/lib/chart-utils";
 
 const PER_PAGE = 20;
 
@@ -99,10 +99,10 @@ export default function PurchaseHistory() {
     return item.jumlah - (returReturnedMap[item.produk_id] ?? 0);
   }
 
-  const returTotal = returItems.reduce(
+  const returTotal = useMemo(() => returItems.reduce(
     (sum, item) => sum + (returQty[item.produk_id] ?? 0) * item.harga_satuan, 0
-  );
-  const hasReturItems = Object.values(returQty).some((q) => q > 0);
+  ), [returItems, returQty]);
+  const hasReturItems = useMemo(() => Object.values(returQty).some((q) => q > 0), [returQty]);
 
   async function handleRetur() {
     if (!returPurchase || !hasReturItems) return;
@@ -175,8 +175,8 @@ export default function PurchaseHistory() {
                       </linearGradient>
                     </defs>
                     <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-                    <XAxis dataKey="tanggal" tick={{ fontSize: 10 }} interval="preserveStartEnd" />
-                    <YAxis tick={{ fontSize: 10 }} tickFormatter={formatShortRupiah} width={45} />
+                    <XAxis dataKey="tanggal" tick={TICK_10} interval="preserveStartEnd" />
+                    <YAxis tick={TICK_10} tickFormatter={formatShortRupiah} width={45} />
                     <Tooltip content={<ChartTooltip />} />
                     <Area type="monotone" dataKey="total" name="Pembelian" stroke="#1b508a" fill="url(#colorPurchHist)" strokeWidth={2} />
                   </AreaChart>
@@ -195,8 +195,8 @@ export default function PurchaseHistory() {
                 <ResponsiveContainer width="100%" height={200}>
                   <BarChart data={topProducts} layout="vertical">
                     <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-                    <XAxis type="number" tick={{ fontSize: 10 }} tickFormatter={formatShortRupiah} />
-                    <YAxis type="category" dataKey="nama" tick={{ fontSize: 10 }} width={90} />
+                    <XAxis type="number" tick={TICK_10} tickFormatter={formatShortRupiah} />
+                    <YAxis type="category" dataKey="nama" tick={TICK_10} width={90} />
                     <Tooltip content={<ChartTooltip />} />
                     <Bar dataKey="total" name="Total" fill="#1b508a" radius={[0, 4, 4, 0]} />
                   </BarChart>

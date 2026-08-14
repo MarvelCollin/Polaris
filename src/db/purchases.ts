@@ -52,29 +52,28 @@ export async function createPurchase(
     );
     const purchaseId = result.lastInsertId ?? 0;
 
+    const itemStmts: string[] = [];
     for (const item of items) {
-      await db.execute(
-        `INSERT INTO item_pembelian (pembelian_id, produk_id, nama_produk, jumlah, harga_satuan, subtotal)
-         VALUES ($1, $2, $3, $4, $5, $6)`,
-        [purchaseId, item.produk_id, item.nama, item.jumlah, item.harga, item.jumlah * item.harga]
+      const escapedName = item.nama.replace(/'/g, "''");
+      itemStmts.push(
+        `INSERT INTO item_pembelian (pembelian_id, produk_id, nama_produk, jumlah, harga_satuan, subtotal) VALUES (${purchaseId}, ${item.produk_id}, '${escapedName}', ${item.jumlah}, ${item.harga}, ${item.jumlah * item.harga})`
       );
 
       const produk = produkMap.get(item.produk_id);
       if (produk) {
         const newHpp = (produk.stok * produk.harga_beli + item.jumlah * item.harga) / (produk.stok + item.jumlah);
-        await db.execute(
-          "UPDATE produk SET stok = stok + $1, harga_beli = $2, diperbarui_pada = strftime('%s','now') WHERE id = $3",
-          [item.jumlah, Math.round(newHpp), item.produk_id]
+        itemStmts.push(
+          `UPDATE produk SET stok = stok + ${item.jumlah}, harga_beli = ${Math.round(newHpp)}, diperbarui_pada = strftime('%s','now') WHERE id = ${item.produk_id}`
         );
         produk.stok += item.jumlah;
         produk.harga_beli = Math.round(newHpp);
       } else {
-        await db.execute(
-          "UPDATE produk SET stok = stok + $1, diperbarui_pada = strftime('%s','now') WHERE id = $2",
-          [item.jumlah, item.produk_id]
+        itemStmts.push(
+          `UPDATE produk SET stok = stok + ${item.jumlah}, diperbarui_pada = strftime('%s','now') WHERE id = ${item.produk_id}`
         );
       }
     }
+    await db.batch(itemStmts);
 
     await db.execute("COMMIT");
     syncDb();

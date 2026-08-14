@@ -19,7 +19,7 @@ import {
   XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, Legend,
 } from "recharts";
-import { formatShortRupiah, ChartTooltip, PieTooltip } from "@/lib/chart-utils";
+import { formatShortRupiah, ChartTooltip, PieTooltip, TICK_10 } from "@/lib/chart-utils";
 
 type Tab = "piutang" | "utang";
 
@@ -57,8 +57,8 @@ export default function UtangPiutang() {
     return purchaseDebts.filter((d) => d.supplier.toLowerCase().includes(q) || d.referensi_faktur?.toLowerCase().includes(q));
   }, [purchaseDebts, debouncedSearch]);
 
-  const totalPiutang = saleDebts?.reduce((s, d) => s + d.sisa, 0) ?? 0;
-  const totalUtang = purchaseDebts?.reduce((s, d) => s + d.sisa, 0) ?? 0;
+  const totalPiutang = useMemo(() => saleDebts?.reduce((s, d) => s + d.sisa, 0) ?? 0, [saleDebts]);
+  const totalUtang = useMemo(() => purchaseDebts?.reduce((s, d) => s + d.sisa, 0) ?? 0, [purchaseDebts]);
 
   const overviewData = useMemo(() => {
     if (totalPiutang === 0 && totalUtang === 0) return [];
@@ -202,8 +202,8 @@ export default function UtangPiutang() {
                 <ResponsiveContainer width="100%" height={180}>
                   <BarChart data={topCustomers} layout="vertical">
                     <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-                    <XAxis type="number" tick={{ fontSize: 10 }} tickFormatter={formatShortRupiah} />
-                    <YAxis type="category" dataKey="nama" tick={{ fontSize: 10 }} width={80} />
+                    <XAxis type="number" tick={TICK_10} tickFormatter={formatShortRupiah} />
+                    <YAxis type="category" dataKey="nama" tick={TICK_10} width={80} />
                     <Tooltip content={<ChartTooltip />} />
                     <Bar dataKey="sisa" name="Sisa Piutang" fill="#e07828" radius={[0, 4, 4, 0]} />
                   </BarChart>
@@ -220,8 +220,8 @@ export default function UtangPiutang() {
                 <ResponsiveContainer width="100%" height={180}>
                   <BarChart data={topSuppliers} layout="vertical">
                     <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-                    <XAxis type="number" tick={{ fontSize: 10 }} tickFormatter={formatShortRupiah} />
-                    <YAxis type="category" dataKey="nama" tick={{ fontSize: 10 }} width={80} />
+                    <XAxis type="number" tick={TICK_10} tickFormatter={formatShortRupiah} />
+                    <YAxis type="category" dataKey="nama" tick={TICK_10} width={80} />
                     <Tooltip content={<ChartTooltip />} />
                     <Bar dataKey="sisa" name="Sisa Utang" fill="#1b508a" radius={[0, 4, 4, 0]} />
                   </BarChart>

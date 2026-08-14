@@ -1,7 +1,11 @@
+import { memo } from "react";
 import { formatRupiah } from "@/types/index";
 import { type ChartGroupBy } from "@/db/sales";
 
 export const CHART_COLORS = ["#e07828", "#1b508a", "#d4952e", "#2e7ab8", "#c45a1a", "#3a8cc4", "#e8a84c", "#4a6e94", "#b84e14", "#5ba0d0"];
+
+export const TICK_10 = { fontSize: 10 };
+export const TICK_11 = { fontSize: 11 };
 
 export const GROUP_LABELS: Record<ChartGroupBy, string> = { day: "Harian", week: "Mingguan", month: "Bulanan", year: "Tahunan", all: "Semua" };
 
@@ -11,7 +15,7 @@ export function formatShortRupiah(value: number): string {
   return String(value);
 }
 
-export function ChartTooltip({ active, payload, label }: { active?: boolean; payload?: { name: string; value: number; color: string }[]; label?: string }) {
+export const ChartTooltip = memo(function ChartTooltip({ active, payload, label }: { active?: boolean; payload?: { name: string; value: number; color: string }[]; label?: string }) {
   if (!active || !payload?.length) return null;
   return (
     <div className="rounded-md border bg-background p-2 text-xs shadow-md">
@@ -21,9 +25,9 @@ export function ChartTooltip({ active, payload, label }: { active?: boolean; pay
       ))}
     </div>
   );
-}
+});
 
-export function PieTooltip({ active, payload }: { active?: boolean; payload?: { name: string; value: number; payload?: { fill: string } }[] }) {
+export const PieTooltip = memo(function PieTooltip({ active, payload }: { active?: boolean; payload?: { name: string; value: number; payload?: { fill: string } }[] }) {
   if (!active || !payload?.length) return null;
   const entry = payload[0];
   const color = entry.payload?.fill;
@@ -33,4 +37,4 @@ export function PieTooltip({ active, payload }: { active?: boolean; payload?: { 
       <p>{formatRupiah(entry.value)}</p>
     </div>
   );
-}
+});

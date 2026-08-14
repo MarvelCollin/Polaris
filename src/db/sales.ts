@@ -47,18 +47,16 @@ export async function createSale(
     );
     const saleId = result.lastInsertId ?? 0;
 
+    const itemStmts: string[] = [];
     for (const item of items) {
       const hpp = hppMap.get(item.produk_id) ?? 0;
-      await db.execute(
-        `INSERT INTO item_penjualan (penjualan_id, produk_id, nama_produk, jumlah, harga_satuan, subtotal, hpp)
-         VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-        [saleId, item.produk_id, item.nama, item.jumlah, item.harga, item.jumlah * item.harga, hpp]
-      );
-      await db.execute(
-        "UPDATE produk SET stok = stok - $1, diperbarui_pada = strftime('%s','now') WHERE id = $2",
-        [item.jumlah, item.produk_id]
+      const escapedName = item.nama.replace(/'/g, "''");
+      itemStmts.push(
+        `INSERT INTO item_penjualan (penjualan_id, produk_id, nama_produk, jumlah, harga_satuan, subtotal, hpp) VALUES (${saleId}, ${item.produk_id}, '${escapedName}', ${item.jumlah}, ${item.harga}, ${item.jumlah * item.harga}, ${hpp})`,
+        `UPDATE produk SET stok = stok - ${item.jumlah}, diperbarui_pada = strftime('%s','now') WHERE id = ${item.produk_id}`
       );
     }
+    await db.batch(itemStmts);
 
     await db.execute("COMMIT");
     syncDb();
@@ -300,17 +298,15 @@ export async function createSaleReturn(
     );
     const returId = result.lastInsertId ?? 0;
 
+    const returStmts: string[] = [];
     for (const item of items) {
-      await db.execute(
-        `INSERT INTO item_retur_penjualan (retur_id, produk_id, nama_produk, jumlah, harga_satuan, subtotal)
-         VALUES ($1, $2, $3, $4, $5, $6)`,
-        [returId, item.produk_id, item.nama_produk, item.jumlah, item.harga_satuan, item.jumlah * item.harga_satuan]
-      );
-      await db.execute(
-        "UPDATE produk SET stok = stok + $1, diperbarui_pada = strftime('%s','now') WHERE id = $2",
-        [item.jumlah, item.produk_id]
+      const escapedName = item.nama_produk.replace(/'/g, "''");
+      returStmts.push(
+        `INSERT INTO item_retur_penjualan (retur_id, produk_id, nama_produk, jumlah, harga_satuan, subtotal) VALUES (${returId}, ${item.produk_id}, '${escapedName}', ${item.jumlah}, ${item.harga_satuan}, ${item.jumlah * item.harga_satuan})`,
+        `UPDATE produk SET stok = stok + ${item.jumlah}, diperbarui_pada = strftime('%s','now') WHERE id = ${item.produk_id}`
       );
     }
+    await db.batch(returStmts);
 
     await db.execute("COMMIT");
     syncDb();

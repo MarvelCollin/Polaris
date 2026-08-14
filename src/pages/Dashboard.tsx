@@ -30,7 +30,7 @@ import {
   XAxis, YAxis, CartesianGrid, Tooltip, Legend,
   ResponsiveContainer,
 } from "recharts";
-import { CHART_COLORS, GROUP_LABELS, formatShortRupiah, ChartTooltip, PieTooltip } from "@/lib/chart-utils";
+import { CHART_COLORS, GROUP_LABELS, formatShortRupiah, ChartTooltip, PieTooltip, TICK_10, TICK_11 } from "@/lib/chart-utils";
 
 type RecapPeriod = "day" | "week" | "month";
 const recapLabels: Record<RecapPeriod, string> = { day: "Hari Ini", week: "Minggu Ini", month: "Bulan Ini" };
@@ -142,8 +142,8 @@ export default function Dashboard() {
                     </linearGradient>
                   </defs>
                   <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-                  <XAxis dataKey="tanggal" tick={{ fontSize: 10 }} interval="preserveStartEnd" />
-                  <YAxis tick={{ fontSize: 10 }} tickFormatter={formatShortRupiah} width={45} />
+                  <XAxis dataKey="tanggal" tick={TICK_10} interval="preserveStartEnd" />
+                  <YAxis tick={TICK_10} tickFormatter={formatShortRupiah} width={45} />
                   <Tooltip content={<ChartTooltip />} />
                   <Area type="monotone" dataKey="total" name="Penjualan" stroke="#e07828" fill="url(#colorSales)" strokeWidth={2} />
                 </AreaChart>
@@ -206,8 +206,8 @@ export default function Dashboard() {
               <ResponsiveContainer width="100%" height={250}>
                 <BarChart data={monthlyData}>
                   <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-                  <XAxis dataKey="bulan" tick={{ fontSize: 11 }} />
-                  <YAxis tick={{ fontSize: 10 }} tickFormatter={formatShortRupiah} width={45} />
+                  <XAxis dataKey="bulan" tick={TICK_11} />
+                  <YAxis tick={TICK_10} tickFormatter={formatShortRupiah} width={45} />
                   <Tooltip content={<ChartTooltip />} />
                   <Legend wrapperStyle={{ fontSize: 11 }} />
                   <Bar dataKey="penjualan" name="Penjualan" fill="#e07828" radius={[4, 4, 0, 0]} />

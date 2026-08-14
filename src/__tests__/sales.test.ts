@@ -29,10 +29,15 @@ describe("sales", () => {
     expect(saleInserts[0][1]).toContain(500000);
     expect(saleInserts[0][1]).toContain(500000 - total);
 
-    const itemInserts = calls.filter((c: unknown[]) => (c[0] as string).includes("INSERT INTO item_penjualan"));
+    const batchCalls = mockDb.batch.mock.calls as unknown as unknown[][];
+    const itemBatch = batchCalls.find((c: unknown[]) =>
+      (c[0] as string[]).some((s: string) => s.includes("INSERT INTO item_penjualan"))
+    );
+    expect(itemBatch).toBeDefined();
+    const stmts = itemBatch![0] as unknown as string[];
+    const itemInserts = stmts.filter((s: string) => s.includes("INSERT INTO item_penjualan"));
     expect(itemInserts).toHaveLength(2);
-
-    const stockUpdates = calls.filter((c: unknown[]) => (c[0] as string).includes("UPDATE produk SET stok = stok -"));
+    const stockUpdates = stmts.filter((s: string) => s.includes("UPDATE produk SET stok = stok -"));
     expect(stockUpdates).toHaveLength(2);
   });
 
@@ -181,13 +186,16 @@ describe("sales", () => {
 
     await createSale(items, 500000);
 
-    const itemInserts = mockDb.execute.mock.calls.filter(
-      (c: unknown[]) => (c[0] as string).includes("INSERT INTO item_penjualan")
+    const batchCalls = mockDb.batch.mock.calls as unknown as unknown[][];
+    const itemBatch = batchCalls.find((c: unknown[]) =>
+      (c[0] as string[]).some((s: string) => s.includes("INSERT INTO item_penjualan"))
     );
-    expect(itemInserts).toHaveLength(2);
-    expect((itemInserts[0][0] as string)).toContain("hpp");
-    expect(itemInserts[0][1]).toContain(45000);
-    expect(itemInserts[1][1]).toContain(38000);
+    expect(itemBatch).toBeDefined();
+    const stmts = (itemBatch![0] as unknown as string[]).filter((s: string) => s.includes("INSERT INTO item_penjualan"));
+    expect(stmts).toHaveLength(2);
+    expect(stmts[0]).toContain("hpp");
+    expect(stmts[0]).toContain("45000");
+    expect(stmts[1]).toContain("38000");
   });
 
   it("should use hpp=0 when product not found", async () => {
@@ -201,10 +209,13 @@ describe("sales", () => {
 
     await createSale(items, 10000);
 
-    const itemInsert = mockDb.execute.mock.calls.find(
-      (c: unknown[]) => (c[0] as string).includes("INSERT INTO item_penjualan")
+    const batchCalls = mockDb.batch.mock.calls as unknown as unknown[][];
+    const itemBatch = batchCalls.find((c: unknown[]) =>
+      (c[0] as string[]).some((s: string) => s.includes("INSERT INTO item_penjualan"))
     );
-    expect(itemInsert![1]).toContain(0);
+    expect(itemBatch).toBeDefined();
+    const stmts = (itemBatch![0] as unknown as string[]).filter((s: string) => s.includes("INSERT INTO item_penjualan"));
+    expect(stmts[0]).toContain(", 0)");
   });
 
   it("should create a sale return and restore stock", async () => {
@@ -226,17 +237,18 @@ describe("sales", () => {
     expect(returInsert![1]).toContain(expectedTotal);
     expect(returInsert![1]).toContain("Barang rusak");
 
-    const itemInserts = mockDb.execute.mock.calls.filter(
-      (c: unknown[]) => (c[0] as string).includes("INSERT INTO item_retur_penjualan")
+    const batchCalls = mockDb.batch.mock.calls as unknown as unknown[][];
+    const returBatch = batchCalls.find((c: unknown[]) =>
+      (c[0] as string[]).some((s: string) => s.includes("INSERT INTO item_retur_penjualan"))
     );
+    expect(returBatch).toBeDefined();
+    const returStmts = returBatch![0] as unknown as string[];
+    const itemInserts = returStmts.filter((s: string) => s.includes("INSERT INTO item_retur_penjualan"));
     expect(itemInserts).toHaveLength(2);
-
-    const stockRestores = mockDb.execute.mock.calls.filter(
-      (c: unknown[]) => (c[0] as string).includes("UPDATE produk SET stok = stok +")
-    );
+    const stockRestores = returStmts.filter((s: string) => s.includes("UPDATE produk SET stok = stok +"));
     expect(stockRestores).toHaveLength(2);
-    expect(stockRestores[0][1]).toContain(3);
-    expect(stockRestores[1][1]).toContain(1);
+    expect(stockRestores[0]).toContain("stok + 3,");
+    expect(stockRestores[1]).toContain("stok + 1,");
   });
 
   it("should create sale return with null alasan", async () => {

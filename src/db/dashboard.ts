@@ -267,7 +267,7 @@ export async function getPurchasesRecap(period: "day" | "week" | "month"): Promi
 export async function getLowStockProducts(): Promise<ProductWithCategory[]> {
   const db = await getDb();
   return await db.select(
-    `SELECT p.*, k.nama as kategori_nama
+    `SELECT p.id, p.kode, p.nama, p.kategori_id, p.satuan, p.harga_beli, p.harga_jual, p.stok, p.stok_minimum, p.dibuat_pada, p.diperbarui_pada, k.nama as kategori_nama
      FROM produk p
      JOIN kategori k ON p.kategori_id = k.id
      WHERE p.stok <= p.stok_minimum

@@ -1,4 +1,4 @@
-import { memo, useState, useCallback, useEffect, useMemo } from "react";
+import { memo, useState, useCallback, useEffect, useMemo, useRef } from "react";
 import { useQuery } from "@/hooks/useQuery";
 import { useDebounce } from "@/hooks/useDebounce";
 import { useIncrementalRender } from "@/hooks/useIncrementalRender";
@@ -95,7 +95,7 @@ export default function Sales() {
   const [qrisResponse, setQrisResponse] = useState<QrisResponse | null>(null);
   const [qrisStatus, setQrisStatus] = useState<"idle" | "pending" | "settled" | "error">("idle");
   const [qrisError, setQrisError] = useState<string | null>(null);
-  const [qrisPolling, setQrisPolling] = useState<ReturnType<typeof setInterval> | null>(null);
+  const qrisPollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
     if (selectedCustomer) {
@@ -155,6 +155,9 @@ export default function Sales() {
   const total = subtotal - discountAmount;
   const change = paid - total;
 
+  const priceMapRef = useRef(priceMap);
+  priceMapRef.current = priceMap;
+
   const addToCart = useCallback((p: { id: number; nama: string; satuan: string; harga_jual: number; stok: number }) => {
     setCart((prev) => {
       const existing = prev.find((c) => c.produk_id === p.id);
@@ -163,10 +166,10 @@ export default function Sales() {
         return prev.map((c) => c.produk_id === p.id ? { ...c, jumlah: c.jumlah + 1 } : c);
       }
       if (p.stok <= 0) return prev;
-      const price = priceMap[p.id] ?? p.harga_jual;
+      const price = priceMapRef.current[p.id] ?? p.harga_jual;
       return [...prev, { produk_id: p.id, nama: p.nama, satuan: p.satuan, jumlah: 1, harga: price, stok: p.stok }];
     });
-  }, [priceMap]);
+  }, []);
 
   const updateQty = useCallback((produkId: number, delta: number) => {
     setCart((prev) =>
@@ -202,9 +205,9 @@ export default function Sales() {
   }
 
   function stopQrisPolling() {
-    if (qrisPolling) {
-      clearInterval(qrisPolling);
-      setQrisPolling(null);
+    if (qrisPollingRef.current) {
+      clearInterval(qrisPollingRef.current);
+      qrisPollingRef.current = null;
     }
   }
 
@@ -225,7 +228,7 @@ export default function Sales() {
           const status = await checkTransactionStatus(response.order_id);
           if (isSettled(status)) {
             clearInterval(interval);
-            setQrisPolling(null);
+            qrisPollingRef.current = null;
             setQrisStatus("settled");
             await createSale(cart, total, selectedCustomer?.id, selectedCustomer?.nama, discountAmount, selectedAddress);
             setQrisOpen(false);
@@ -240,7 +243,7 @@ export default function Sales() {
             setTimeout(() => setSuccess(null), 3000);
           } else if (!isPending(status)) {
             clearInterval(interval);
-            setQrisPolling(null);
+            qrisPollingRef.current = null;
             setQrisStatus("error");
             setQrisError(`Transaksi ${status.transaction_status}`);
           }
@@ -248,7 +251,7 @@ export default function Sales() {
           // keep polling
         }
       }, 3000);
-      setQrisPolling(interval);
+      qrisPollingRef.current = interval;
     } catch (e) {
       setQrisError(e instanceof Error ? e.message : String(e));
       setQrisStatus("error");
@@ -274,9 +277,9 @@ export default function Sales() {
 
   useEffect(() => {
     return () => {
-      if (qrisPolling) clearInterval(qrisPolling);
+      if (qrisPollingRef.current) clearInterval(qrisPollingRef.current);
     };
-  }, [qrisPolling]);
+  }, []);
 
   const canCheckout = cart.length > 0 && (isUtang ? selectedCustomer !== null : paid >= total);
   const sisaUtang = isUtang ? total - paid : 0;
