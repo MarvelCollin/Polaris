@@ -357,9 +357,9 @@ pub async fn gdrive_delete_backup(file_id: String) -> Result<(), String> {
     Ok(())
 }
 
-// ── Auto backup (always on, every 8 hours) ──
+// ── Auto backup (always on, every 6 hours) ──
 
-const AUTO_BACKUP_INTERVAL_SECS: i64 = 8 * 60 * 60;
+const AUTO_BACKUP_INTERVAL_SECS: i64 = 6 * 60 * 60;
 
 #[tauri::command]
 pub async fn gdrive_get_auto_backup_status(
