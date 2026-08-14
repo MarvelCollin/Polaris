@@ -241,4 +241,20 @@ export async function initDb() {
     CREATE INDEX IF NOT EXISTS idx_pembelian_supplier ON pembelian(supplier);
     CREATE INDEX IF NOT EXISTS idx_produk_stok ON produk(stok, stok_minimum)
   `);
+
+  await database.execute(`
+    CREATE TABLE IF NOT EXISTS alamat_pelanggan (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      pelanggan_id INTEGER NOT NULL,
+      label TEXT NOT NULL,
+      alamat TEXT NOT NULL,
+      FOREIGN KEY (pelanggan_id) REFERENCES pelanggan(id) ON DELETE CASCADE
+    )
+  `);
+
+  await database.execute(`
+    CREATE INDEX IF NOT EXISTS idx_alamat_pelanggan ON alamat_pelanggan(pelanggan_id)
+  `);
+
+  try { await database.execute("ALTER TABLE penjualan ADD COLUMN alamat_pengiriman TEXT"); } catch (_) {}
 }

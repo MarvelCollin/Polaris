@@ -6,9 +6,6 @@ vi.mock("@tauri-apps/api/core", () => ({
 }));
 
 import {
-  gdriveAuth,
-  gdriveIsConnected,
-  gdriveDisconnect,
   createBackup,
   listBackups,
   restoreBackup,
@@ -22,7 +19,7 @@ describe("backup", () => {
   });
 
   describe("backup operations", () => {
-    it("should invoke gdrive_backup without tokens", async () => {
+    it("should invoke gdrive_backup", async () => {
       const mockFile = { id: "file1", name: "backup.db" };
       mockInvoke.mockResolvedValueOnce(mockFile);
 
@@ -32,7 +29,7 @@ describe("backup", () => {
       expect(result).toEqual(mockFile);
     });
 
-    it("should invoke gdrive_list_backups without tokens", async () => {
+    it("should invoke gdrive_list_backups", async () => {
       const mockFiles = [{ id: "f1", name: "b1.db" }, { id: "f2", name: "b2.db" }];
       mockInvoke.mockResolvedValueOnce(mockFiles);
 
@@ -42,7 +39,7 @@ describe("backup", () => {
       expect(result).toHaveLength(2);
     });
 
-    it("should invoke gdrive_restore with file id only", async () => {
+    it("should invoke gdrive_restore with file id", async () => {
       mockInvoke.mockResolvedValueOnce(undefined);
 
       await restoreBackup("file_id_123");
@@ -52,7 +49,7 @@ describe("backup", () => {
       });
     });
 
-    it("should invoke gdrive_delete_backup with file id only", async () => {
+    it("should invoke gdrive_delete_backup with file id", async () => {
       mockInvoke.mockResolvedValueOnce(undefined);
 
       await deleteBackup("file_id_456");
@@ -72,33 +69,6 @@ describe("backup", () => {
 
       expect(mockInvoke).toHaveBeenCalledWith("gdrive_get_auto_backup_status");
       expect(result.last_backup_ts).toBe(1722787200);
-    });
-  });
-
-  describe("gdrive connection", () => {
-    it("should invoke gdrive_auth", async () => {
-      mockInvoke.mockResolvedValueOnce(undefined);
-
-      await gdriveAuth();
-
-      expect(mockInvoke).toHaveBeenCalledWith("gdrive_auth");
-    });
-
-    it("should invoke gdrive_is_connected", async () => {
-      mockInvoke.mockResolvedValueOnce(true);
-
-      const result = await gdriveIsConnected();
-
-      expect(mockInvoke).toHaveBeenCalledWith("gdrive_is_connected");
-      expect(result).toBe(true);
-    });
-
-    it("should invoke gdrive_disconnect", async () => {
-      mockInvoke.mockResolvedValueOnce(undefined);
-
-      await gdriveDisconnect();
-
-      expect(mockInvoke).toHaveBeenCalledWith("gdrive_disconnect");
     });
   });
 });

@@ -31,6 +31,13 @@ export interface Customer {
   dibuat_pada: number;
 }
 
+export interface CustomerAddress {
+  id: number;
+  pelanggan_id: number;
+  label: string;
+  alamat: string;
+}
+
 export interface CustomerPrice {
   id: number;
   pelanggan_id: number;
@@ -50,6 +57,7 @@ export interface Sale {
   diskon: number;
   pelanggan_id: number | null;
   nama_pelanggan: string | null;
+  alamat_pengiriman: string | null;
   dibuat_pada: number;
   total_pembayaran: number;
   sisa: number;

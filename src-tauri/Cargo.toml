@@ -23,13 +23,10 @@ tauri-plugin-fs = "2.5.1"
 tauri-plugin-updater = "2"
 tauri-plugin-process = "2"
 reqwest = { version = "0.12", features = ["json"] }
-tokio = { version = "1", features = ["net", "time", "io-util"] }
-open = "5"
+tokio = { version = "1", features = ["time"] }
 chrono = { version = "0.4", default-features = false, features = ["clock"] }
 hostname = "0.4"
 base64 = "0.22"
-urlencoding = "2"
-url = "2"
 
 [features]
 default = ["midtrans-production"]

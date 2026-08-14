@@ -291,6 +291,12 @@ export default function SaleHistory() {
                 ))}
               </TableBody>
             </Table>
+            {detailSale && detailSale.alamat_pengiriman && (
+              <div className="mt-3 flex items-start gap-2 border-t pt-3 text-sm">
+                <span className="text-muted-foreground">Alamat</span>
+                <span className="text-right">{detailSale.alamat_pengiriman}</span>
+              </div>
+            )}
             {detailSale && detailSale.diskon > 0 && (
               <div className="mt-3 flex justify-between border-t pt-3 text-sm">
                 <span className="text-muted-foreground">Diskon</span>

@@ -1,5 +1,5 @@
 import { getDb } from "../database";
-import { Customer, CustomerPrice } from "../types";
+import { Customer, CustomerAddress, CustomerPrice } from "../types";
 
 export async function getCustomers(search?: string): Promise<Customer[]> {
   const db = await getDb();
@@ -39,6 +39,40 @@ export async function deleteCustomer(id: number): Promise<void> {
     throw new Error("Pelanggan tidak dapat dihapus karena sudah memiliki transaksi");
   }
   await db.execute("DELETE FROM pelanggan WHERE id = $1", [id]);
+}
+
+export async function getCustomerAddresses(pelangganId: number): Promise<CustomerAddress[]> {
+  const db = await getDb();
+  return await db.select(
+    "SELECT * FROM alamat_pelanggan WHERE pelanggan_id = $1 ORDER BY id",
+    [pelangganId]
+  );
+}
+
+export async function addCustomerAddress(pelangganId: number, label: string, alamat: string): Promise<void> {
+  const db = await getDb();
+  const rows: { count: number }[] = await db.select(
+    "SELECT COUNT(*) as count FROM alamat_pelanggan WHERE pelanggan_id = $1",
+    [pelangganId]
+  );
+  if (rows[0].count >= 3) throw new Error("Maksimal 3 alamat per pelanggan");
+  await db.execute(
+    "INSERT INTO alamat_pelanggan (pelanggan_id, label, alamat) VALUES ($1, $2, $3)",
+    [pelangganId, label, alamat]
+  );
+}
+
+export async function updateCustomerAddress(id: number, label: string, alamat: string): Promise<void> {
+  const db = await getDb();
+  await db.execute(
+    "UPDATE alamat_pelanggan SET label = $1, alamat = $2 WHERE id = $3",
+    [label, alamat, id]
+  );
+}
+
+export async function deleteCustomerAddress(id: number): Promise<void> {
+  const db = await getDb();
+  await db.execute("DELETE FROM alamat_pelanggan WHERE id = $1", [id]);
 }
 
 export async function getCustomerPrices(pelangganId: number): Promise<CustomerPrice[]> {

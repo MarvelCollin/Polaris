@@ -10,9 +10,6 @@ import {
 } from "@/components/ui/table";
 import ConfirmDialog from "@/components/ConfirmDialog";
 import {
-  gdriveAuth,
-  gdriveIsConnected,
-  gdriveDisconnect,
   createBackup,
   listBackups,
   restoreBackup,
@@ -21,7 +18,7 @@ import {
   DriveFile,
 } from "@/db/backup";
 import Spinner from "@/components/Spinner";
-import { Upload, Download, Trash2, RefreshCw, Link, Unlink } from "lucide-react";
+import { Upload, Download, Trash2, RefreshCw } from "lucide-react";
 
 export default function Backup() {
   const [loading, setLoading] = useState(true);
@@ -31,8 +28,6 @@ export default function Backup() {
   const [success, setSuccess] = useState("");
   const [confirmRestore, setConfirmRestore] = useState<DriveFile | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<DriveFile | null>(null);
-  const [confirmDisconnect, setConfirmDisconnect] = useState(false);
-  const [connected, setConnected] = useState(false);
   const [lastAutoBackup, setLastAutoBackup] = useState<number | null>(null);
 
   useEffect(() => {
@@ -42,16 +37,12 @@ export default function Backup() {
   async function init() {
     setLoading(true);
     try {
-      const isConn = await gdriveIsConnected();
-      setConnected(isConn);
-      if (isConn) {
-        const [status, files] = await Promise.all([
-          getAutoBackupStatus(),
-          listBackups(),
-        ]);
-        setLastAutoBackup(status.last_backup_ts ?? null);
-        setBackups(files);
-      }
+      const [status, files] = await Promise.all([
+        getAutoBackupStatus(),
+        listBackups(),
+      ]);
+      setLastAutoBackup(status.last_backup_ts ?? null);
+      setBackups(files);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     }
@@ -65,36 +56,6 @@ export default function Backup() {
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     }
-  }
-
-  async function handleConnect() {
-    setActionLoading("connect");
-    setError("");
-    setSuccess("");
-    try {
-      await gdriveAuth();
-      setConnected(true);
-      setSuccess("Google Drive berhasil terhubung!");
-      await loadBackups();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-    }
-    setActionLoading(null);
-  }
-
-  async function handleDisconnect() {
-    setConfirmDisconnect(false);
-    setActionLoading("disconnect");
-    setError("");
-    try {
-      await gdriveDisconnect();
-      setConnected(false);
-      setBackups([]);
-      setSuccess("Google Drive terputus.");
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-    }
-    setActionLoading(null);
   }
 
   async function handleBackup() {
@@ -163,30 +124,6 @@ export default function Backup() {
     );
   }
 
-  if (!connected) {
-    return (
-      <div className="animate-fade-in">
-        <h1 className="mb-4 text-2xl font-bold">Backup & Restore</h1>
-
-        {error && (
-          <div className="mb-4 rounded-md border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
-            {error}
-          </div>
-        )}
-
-        <div className="flex flex-col items-center gap-4 py-16">
-          <p className="text-sm text-muted-foreground">
-            Hubungkan Google Drive untuk backup otomatis setiap 6 jam.
-          </p>
-          <Button onClick={handleConnect} disabled={!!actionLoading}>
-            <Link className="mr-1 size-4" />
-            {actionLoading === "connect" ? "Menghubungkan..." : "Hubungkan Google Drive"}
-          </Button>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="animate-fade-in">
       <h1 className="mb-4 text-2xl font-bold">Backup & Restore</h1>
@@ -211,22 +148,11 @@ export default function Backup() {
           <RefreshCw className="mr-1 size-4" /> Refresh
         </Button>
 
-        <div className="ml-auto flex items-center gap-3">
-          {lastAutoBackup && (
-            <span className="text-xs text-muted-foreground">
-              Auto backup terakhir: {new Date(lastAutoBackup * 1000).toLocaleString("id-ID")}
-            </span>
-          )}
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setConfirmDisconnect(true)}
-            disabled={!!actionLoading}
-          >
-            <Unlink className="mr-1 size-3.5" />
-            Putuskan
-          </Button>
-        </div>
+        {lastAutoBackup && (
+          <span className="ml-auto text-xs text-muted-foreground">
+            Auto backup terakhir: {new Date(lastAutoBackup * 1000).toLocaleString("id-ID")}
+          </span>
+        )}
       </div>
 
       {backups.length > 0 ? (
@@ -289,14 +215,6 @@ export default function Backup() {
         onConfirm={handleDelete}
         title="Hapus Backup"
         message={`Yakin ingin menghapus backup "${confirmDelete?.name}"? Aksi ini tidak dapat dibatalkan.`}
-      />
-
-      <ConfirmDialog
-        open={confirmDisconnect}
-        onClose={() => setConfirmDisconnect(false)}
-        onConfirm={handleDisconnect}
-        title="Putuskan Google Drive"
-        message="Auto backup akan berhenti. Backup yang sudah ada di Google Drive tidak akan dihapus."
       />
     </div>
   );

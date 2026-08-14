@@ -5,15 +5,15 @@ import { useIncrementalRender } from "@/hooks/useIncrementalRender";
 import { getProducts, getFrequentProductIds } from "@/db/products";
 import { getCategories } from "@/db/categories";
 import { createSale } from "@/db/sales";
-import { getCustomers, getCustomerPriceMap } from "@/db/customers";
-import { CartEntry, Customer, ProductWithCategory, formatRupiah } from "@/types/index";
+import { getCustomers, getCustomerPriceMap, getCustomerAddresses } from "@/db/customers";
+import { CartEntry, Customer, CustomerAddress, ProductWithCategory, formatRupiah } from "@/types/index";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 import SearchInput from "@/components/SearchInput";
-import { Plus, Minus, Trash2, CheckCircle, UserCircle, Star, Percent, QrCode, Loader2, X } from "lucide-react";
+import { Plus, Minus, Trash2, CheckCircle, UserCircle, Star, Percent, QrCode, Loader2, X, MapPin } from "lucide-react";
 import ProductThumb from "@/components/ProductThumb";
 import SearchableSelect from "@/components/SearchableSelect";
 import Modal from "@/components/Modal";
@@ -35,7 +35,7 @@ const SaleProductTile = memo(function SaleProductTile({
       type="button"
       disabled={outOfStock}
       onClick={() => onAdd(p)}
-      className={`relative flex items-center gap-3 rounded-lg border p-3 text-left transition-[border-color,box-shadow,transform] duration-150 ${
+      className={`relative flex h-[88px] items-center gap-3 rounded-lg border p-3 text-left transition-[border-color,box-shadow,transform] duration-150 ${
         outOfStock
           ? "cursor-not-allowed opacity-50"
           : "cursor-pointer hover:border-primary hover:shadow-sm active:scale-[0.98]"
@@ -48,18 +48,18 @@ const SaleProductTile = memo(function SaleProductTile({
       )}
       <ProductThumb path={p.gambar} size="h-16 w-16" />
       <div className="min-w-0 flex-1">
-        <span className="text-sm font-medium leading-tight">{p.nama}</span>
-        <span className="mt-0.5 block font-mono text-[10px] text-muted-foreground">{p.kode}</span>
-        <div className="mt-1">
+        <span className="line-clamp-2 text-sm font-medium leading-tight">{p.nama}</span>
+        <span className="mt-0.5 block truncate font-mono text-[10px] text-muted-foreground">{p.kode}</span>
+        <div className="mt-1 flex items-center justify-between gap-1">
           {hasCustom ? (
-            <div className="flex items-center gap-1">
-              <span className="text-[10px] text-muted-foreground line-through">{formatRupiah(p.harga_jual)}</span>
-              <Badge variant="secondary" className="text-[10px]">{formatRupiah(price)}</Badge>
+            <div className="flex min-w-0 items-center gap-1">
+              <span className="truncate text-[10px] text-muted-foreground line-through">{formatRupiah(p.harga_jual)}</span>
+              <Badge variant="secondary" className="shrink-0 text-[10px]">{formatRupiah(price)}</Badge>
             </div>
           ) : (
-            <span className="text-sm font-semibold text-primary">{formatRupiah(price)}</span>
+            <span className="truncate text-sm font-semibold text-primary">{formatRupiah(price)}</span>
           )}
-          <span className={`block text-[10px] ${p.stok <= p.stok_minimum ? "text-destructive" : "text-muted-foreground"}`}>
+          <span className={`shrink-0 text-[10px] ${p.stok <= p.stok_minimum ? "text-destructive" : "text-muted-foreground"}`}>
             {p.stok} {p.satuan}
           </span>
         </div>
@@ -81,6 +81,8 @@ export default function Sales() {
   const { data: frequentIds } = useQuery(useCallback(() => getFrequentProductIds(8), []));
 
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
+  const [customerAddresses, setCustomerAddresses] = useState<CustomerAddress[]>([]);
+  const [selectedAddress, setSelectedAddress] = useState<string | null>(null);
   const [priceMap, setPriceMap] = useState<Record<number, number>>({});
   const [cart, setCart] = useState<CartEntry[]>([]);
   const [paid, setPaid] = useState<number>(0);
@@ -99,8 +101,14 @@ export default function Sales() {
   useEffect(() => {
     if (selectedCustomer) {
       getCustomerPriceMap(selectedCustomer.id).then(setPriceMap);
+      getCustomerAddresses(selectedCustomer.id).then((addrs) => {
+        setCustomerAddresses(addrs);
+        setSelectedAddress(addrs.length > 0 ? addrs[0].alamat : null);
+      });
     } else {
       setPriceMap({});
+      setCustomerAddresses([]);
+      setSelectedAddress(null);
     }
   }, [selectedCustomer]);
 
@@ -173,6 +181,8 @@ export default function Sales() {
   function handleCustomerChange(customerId: number) {
     if (customerId === 0) {
       setSelectedCustomer(null);
+      setCustomerAddresses([]);
+      setSelectedAddress(null);
       setCart((prev) => {
         if (!allProducts) return prev;
         return prev.map((item) => {
@@ -212,7 +222,7 @@ export default function Sales() {
             clearInterval(interval);
             setQrisPolling(null);
             setQrisStatus("settled");
-            await createSale(cart, total, selectedCustomer?.id, selectedCustomer?.nama, discountAmount);
+            await createSale(cart, total, selectedCustomer?.id, selectedCustomer?.nama, discountAmount, selectedAddress);
             setQrisOpen(false);
             setSuccess("Pembayaran QRIS berhasil!");
             setCart([]);
@@ -270,7 +280,7 @@ export default function Sales() {
     if (!canCheckout) return;
     if (isUtang && !selectedCustomer) return;
     try {
-      await createSale(cart, paid, selectedCustomer?.id, selectedCustomer?.nama, discountAmount);
+      await createSale(cart, paid, selectedCustomer?.id, selectedCustomer?.nama, discountAmount, selectedAddress);
       if (isUtang) {
         setSuccess(`Penjualan utang berhasil! Sisa: ${formatRupiah(sisaUtang)}`);
       } else {
@@ -397,6 +407,22 @@ export default function Sales() {
                     emptyLabel="Umum (tanpa pelanggan)"
                   />
                 </div>
+                {selectedCustomer && customerAddresses.length > 0 && (
+                  <div className="mt-2">
+                    <div className="flex items-center gap-2">
+                      <MapPin className="size-3.5 shrink-0 text-muted-foreground" />
+                      <select
+                        className="h-8 w-full rounded-md border bg-background px-2 text-xs"
+                        value={selectedAddress ?? ""}
+                        onChange={(e) => setSelectedAddress(e.target.value || null)}
+                      >
+                        {customerAddresses.map((a) => (
+                          <option key={a.id} value={a.alamat}>{a.label}: {a.alamat}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                )}
                 {selectedCustomer && Object.keys(priceMap).length > 0 && (
                   <p className="mt-1 text-xs text-muted-foreground">
                     {Object.keys(priceMap).length} harga khusus aktif
@@ -412,11 +438,11 @@ export default function Sales() {
                 <div className="max-h-[calc(100vh-35rem)] space-y-2 overflow-y-auto">
                   {cart.map((item) => (
                     <div key={item.produk_id} className="flex items-center gap-2 rounded-md border p-2 text-sm">
-                      <div className="flex-1">
-                        <p className="font-medium">{item.nama}</p>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate font-medium">{item.nama}</p>
                         <p className="text-xs text-muted-foreground">{formatRupiah(item.harga)} / {item.satuan}</p>
                       </div>
-                      <div className="flex items-center gap-1">
+                      <div className="flex shrink-0 items-center gap-1">
                         <Button variant="outline" size="icon-xs" onClick={() => updateQty(item.produk_id, -1)}>
                           <Minus className="size-3" />
                         </Button>
@@ -425,8 +451,8 @@ export default function Sales() {
                           <Plus className="size-3" />
                         </Button>
                       </div>
-                      <span className="min-w-[6rem] text-right text-sm font-medium">{formatRupiah(item.jumlah * item.harga)}</span>
-                      <Button variant="ghost" size="icon-xs" onClick={() => removeFromCart(item.produk_id)}>
+                      <span className="shrink-0 text-right text-sm font-medium">{formatRupiah(item.jumlah * item.harga)}</span>
+                      <Button variant="ghost" size="icon-xs" className="shrink-0" onClick={() => removeFromCart(item.produk_id)}>
                         <Trash2 className="size-3.5 text-destructive" />
                       </Button>
                     </div>

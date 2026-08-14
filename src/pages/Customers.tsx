@@ -2,9 +2,9 @@ import { useState, useCallback } from "react";
 import { useQuery } from "@/hooks/useQuery";
 import { useDebounce } from "@/hooks/useDebounce";
 import { useSort } from "@/hooks/useSort";
-import { getCustomers, createCustomer, updateCustomer, deleteCustomer, getCustomerPrices, setCustomerPrice, removeCustomerPrice } from "@/db/customers";
+import { getCustomers, createCustomer, updateCustomer, deleteCustomer, getCustomerPrices, setCustomerPrice, removeCustomerPrice, getCustomerAddresses, addCustomerAddress, updateCustomerAddress, deleteCustomerAddress } from "@/db/customers";
 import { getProducts } from "@/db/products";
-import { Customer, CustomerPrice, formatRupiah } from "@/types/index";
+import { Customer, CustomerAddress, CustomerPrice, formatRupiah } from "@/types/index";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -16,7 +16,7 @@ import Modal from "@/components/Modal";
 import ConfirmDialog from "@/components/ConfirmDialog";
 import SearchInput from "@/components/SearchInput";
 import SortableHead from "@/components/SortableHead";
-import { Plus, Pencil, Trash2, Tag } from "lucide-react";
+import { Plus, Pencil, Trash2, Tag, MapPin } from "lucide-react";
 import SearchableSelect from "@/components/SearchableSelect";
 
 const emptyForm = { nama: "", telepon: "", alamat: "" };
@@ -34,6 +34,13 @@ export default function Customers() {
   const [form, setForm] = useState(emptyForm);
   const [deleteTarget, setDeleteTarget] = useState<Customer | null>(null);
   const [error, setError] = useState("");
+
+  const [addrModalOpen, setAddrModalOpen] = useState(false);
+  const [addrCustomer, setAddrCustomer] = useState<Customer | null>(null);
+  const [addresses, setAddresses] = useState<CustomerAddress[]>([]);
+  const [addrForm, setAddrForm] = useState({ label: "", alamat: "" });
+  const [editingAddr, setEditingAddr] = useState<CustomerAddress | null>(null);
+  const [addrError, setAddrError] = useState("");
 
   const [priceModalOpen, setPriceModalOpen] = useState(false);
   const [priceCustomer, setPriceCustomer] = useState<Customer | null>(null);
@@ -113,6 +120,45 @@ export default function Customers() {
     setPrices(p);
   }
 
+  async function openAddresses(c: Customer) {
+    setAddrCustomer(c);
+    const a = await getCustomerAddresses(c.id);
+    setAddresses(a);
+    setAddrForm({ label: "", alamat: "" });
+    setEditingAddr(null);
+    setAddrError("");
+    setAddrModalOpen(true);
+  }
+
+  async function handleSaveAddr() {
+    if (!addrCustomer) return;
+    if (!addrForm.label.trim() || !addrForm.alamat.trim()) {
+      setAddrError("Label dan alamat wajib diisi");
+      return;
+    }
+    try {
+      if (editingAddr) {
+        await updateCustomerAddress(editingAddr.id, addrForm.label.trim(), addrForm.alamat.trim());
+      } else {
+        await addCustomerAddress(addrCustomer.id, addrForm.label.trim(), addrForm.alamat.trim());
+      }
+      const a = await getCustomerAddresses(addrCustomer.id);
+      setAddresses(a);
+      setAddrForm({ label: "", alamat: "" });
+      setEditingAddr(null);
+      setAddrError("");
+    } catch (e) {
+      setAddrError(e instanceof Error ? e.message : String(e));
+    }
+  }
+
+  async function handleDeleteAddr(id: number) {
+    if (!addrCustomer) return;
+    await deleteCustomerAddress(id);
+    const a = await getCustomerAddresses(addrCustomer.id);
+    setAddresses(a);
+  }
+
   const sh = (label: string, key: string) => (
     <SortableHead label={label} sortKey={key} active={sortKey === key} dir={sortDir} onSort={toggleSort} />
   );
@@ -146,6 +192,9 @@ export default function Customers() {
                 <TableCell className="max-w-48 truncate">{c.alamat || "-"}</TableCell>
                 <TableCell>
                   <div className="flex gap-1">
+                    <Button variant="ghost" size="icon-xs" onClick={() => openAddresses(c)} title="Alamat">
+                      <MapPin className="size-3.5" />
+                    </Button>
                     <Button variant="ghost" size="icon-xs" onClick={() => openPrices(c)} title="Harga Khusus">
                       <Tag className="size-3.5" />
                     </Button>
@@ -256,6 +305,71 @@ export default function Customers() {
             <Button variant="outline" className="w-full" onClick={() => setAddPriceOpen(true)}>
               <Plus className="size-4" /> Tambah Harga Khusus
             </Button>
+          )}
+        </div>
+      </Modal>
+
+      <Modal open={addrModalOpen} onClose={() => setAddrModalOpen(false)} title={`Alamat - ${addrCustomer?.nama ?? ""}`}>
+        <div className="space-y-3">
+          {addresses.length > 0 ? (
+            <div className="space-y-2">
+              {addresses.map((a) => (
+                <div key={a.id} className="flex items-start gap-2 rounded-md border p-2">
+                  <div className="flex-1">
+                    <p className="text-sm font-medium">{a.label}</p>
+                    <p className="text-xs text-muted-foreground">{a.alamat}</p>
+                  </div>
+                  <Button variant="ghost" size="icon-xs" onClick={() => {
+                    setEditingAddr(a);
+                    setAddrForm({ label: a.label, alamat: a.alamat });
+                    setAddrError("");
+                  }}>
+                    <Pencil className="size-3.5" />
+                  </Button>
+                  <Button variant="ghost" size="icon-xs" onClick={() => handleDeleteAddr(a.id)}>
+                    <Trash2 className="size-3.5 text-destructive" />
+                  </Button>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="py-4 text-center text-sm text-muted-foreground">Belum ada alamat</p>
+          )}
+
+          {addresses.length < 3 || editingAddr ? (
+            <div className="space-y-2 rounded-md border p-3">
+              <p className="text-sm font-medium">{editingAddr ? "Edit Alamat" : "Tambah Alamat"}</p>
+              <div>
+                <Label>Label</Label>
+                <Input
+                  value={addrForm.label}
+                  onChange={(e) => setAddrForm((f) => ({ ...f, label: e.target.value }))}
+                  placeholder="cth: Alamat Tetap, Pengantaran 1"
+                  autoFocus
+                />
+              </div>
+              <div>
+                <Label>Alamat</Label>
+                <Input
+                  value={addrForm.alamat}
+                  onChange={(e) => setAddrForm((f) => ({ ...f, alamat: e.target.value }))}
+                  placeholder="Alamat lengkap"
+                />
+              </div>
+              {addrError && <p className="text-sm text-destructive">{addrError}</p>}
+              <div className="flex justify-end gap-2">
+                {editingAddr && (
+                  <Button variant="outline" size="sm" onClick={() => {
+                    setEditingAddr(null);
+                    setAddrForm({ label: "", alamat: "" });
+                    setAddrError("");
+                  }}>Batal</Button>
+                )}
+                <Button size="sm" onClick={handleSaveAddr}>Simpan</Button>
+              </div>
+            </div>
+          ) : (
+            <p className="text-center text-xs text-muted-foreground">Maksimal 3 alamat</p>
           )}
         </div>
       </Modal>

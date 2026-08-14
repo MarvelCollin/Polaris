@@ -22,7 +22,8 @@ export async function createSale(
   dibayar: number,
   pelangganId?: number | null,
   namaPelanggan?: string | null,
-  diskon: number = 0
+  diskon: number = 0,
+  alamatPengiriman?: string | null
 ): Promise<number> {
   const db = await getDb();
   const subtotal = items.reduce((sum, item) => sum + item.jumlah * item.harga, 0);
@@ -41,8 +42,8 @@ export async function createSale(
   await db.execute("BEGIN TRANSACTION");
   try {
     const result = await db.execute(
-      "INSERT INTO penjualan (nomor_faktur, total, dibayar, kembalian, pelanggan_id, nama_pelanggan, diskon) VALUES ($1, $2, $3, $4, $5, $6, $7)",
-      [nomor, total, dibayar, kembalian, pelangganId ?? null, namaPelanggan ?? null, diskon]
+      "INSERT INTO penjualan (nomor_faktur, total, dibayar, kembalian, pelanggan_id, nama_pelanggan, diskon, alamat_pengiriman) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)",
+      [nomor, total, dibayar, kembalian, pelangganId ?? null, namaPelanggan ?? null, diskon, alamatPengiriman ?? null]
     );
     const saleId = result.lastInsertId ?? 0;
 
@@ -97,7 +98,7 @@ export async function getSales(
   const data: Sale[] = await db.select(
     `SELECT p.id, p.nomor_faktur,
        (p.total - COALESCE(ret.total_retur, 0)) as total,
-       p.dibayar, p.kembalian, p.dibuat_pada, p.pelanggan_id, p.nama_pelanggan, p.diskon,
+       p.dibayar, p.kembalian, p.dibuat_pada, p.pelanggan_id, p.nama_pelanggan, p.diskon, p.alamat_pengiriman,
        COALESCE(pay.total_bayar, 0) as total_pembayaran,
        ((p.total - COALESCE(ret.total_retur, 0)) - p.dibayar - COALESCE(pay.total_bayar, 0)) as sisa
      FROM penjualan p
