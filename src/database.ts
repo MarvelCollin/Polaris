@@ -31,11 +31,19 @@ export async function getDb(): Promise<Database> {
   return db;
 }
 
-export async function syncDb() {
+let syncTimer: ReturnType<typeof setTimeout> | null = null;
+
+export function syncDb() {
+  if (!db) return;
+  if (syncTimer) clearTimeout(syncTimer);
+  syncTimer = setTimeout(() => {
+    db?.sync().catch(() => {});
+  }, 2000);
+}
+
+async function syncDbImmediate() {
   if (db) {
-    try {
-      await db.sync();
-    } catch (_) {}
+    try { await db.sync(); } catch (_) {}
   }
 }
 
@@ -278,7 +286,7 @@ export async function initDb() {
 
   try { await database.execute("ALTER TABLE penjualan ADD COLUMN alamat_pengiriman TEXT"); } catch (_) {}
 
-  await syncDb();
+  await syncDbImmediate();
 }
 
 export async function resetTransactionData() {
@@ -295,5 +303,5 @@ export async function resetTransactionData() {
     "DELETE FROM penjualan",
     "DELETE FROM pembelian",
   ]);
-  await syncDb();
+  await syncDbImmediate();
 }
