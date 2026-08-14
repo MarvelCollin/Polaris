@@ -1,4 +1,5 @@
 import { memo, useState, useEffect } from "react";
+import { Package } from "lucide-react";
 import { acquireImageUrl } from "@/lib/images";
 
 export default memo(function ProductThumb({ path, size = "h-8 w-8" }: { path: string | null; size?: string }) {
@@ -11,6 +12,6 @@ export default memo(function ProductThumb({ path, size = "h-8 w-8" }: { path: st
     return release;
   }, [path]);
 
-  if (!url) return <div className={`${size} flex items-center justify-center rounded bg-muted text-[10px] text-muted-foreground`}>-</div>;
-  return <img src={url} className={`${size} rounded object-cover`} loading="lazy" />;
+  if (!url) return <div className={`${size} flex items-center justify-center rounded-lg bg-muted/50`}><Package className="size-6 text-muted-foreground/40" /></div>;
+  return <img src={url} className={`${size} rounded-lg object-cover`} loading="lazy" />;
 });

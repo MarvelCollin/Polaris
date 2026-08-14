@@ -33,21 +33,8 @@ const ProductTile = memo(function ProductTile({
   onStock: (p: ProductWithCategory) => void;
 }) {
   return (
-    <div className="relative flex items-center gap-3 rounded-lg border p-3 text-left transition-[border-color,box-shadow] duration-150 hover:border-primary hover:shadow-sm">
-      <ProductThumb path={p.gambar} size="h-16 w-16" />
-      <div className="min-w-0 flex-1">
-        <span className="text-sm font-medium leading-tight">{p.nama}</span>
-        <span className="mt-0.5 block font-mono text-[10px] text-muted-foreground">{p.kode}</span>
-        <Badge variant="secondary" className="mt-1 text-[10px]">{p.kategori_nama}</Badge>
-        <div className="mt-1">
-          <span className="text-xs text-muted-foreground">Beli: {formatRupiah(p.harga_beli)}</span>
-          <span className="ml-2 text-sm font-semibold text-primary">Jual: {formatRupiah(p.harga_jual)}</span>
-          <span className={`block text-[10px] ${p.stok <= p.stok_minimum ? "text-destructive" : "text-muted-foreground"}`}>
-            {p.stok} {p.satuan}
-          </span>
-        </div>
-      </div>
-      <div className="flex flex-col gap-1">
+    <div className="relative flex flex-col overflow-hidden rounded-lg border bg-card p-2.5 text-left transition-[border-color,box-shadow] duration-150 hover:border-primary hover:shadow-sm">
+      <div className="absolute right-1 top-1 flex gap-0.5">
         <Button variant="ghost" size="icon-xs" onClick={() => onStock(p)} title="Update Stok">
           <PackagePlus className="size-3.5" />
         </Button>
@@ -57,6 +44,19 @@ const ProductTile = memo(function ProductTile({
         <Button variant="ghost" size="icon-xs" onClick={() => onDelete(p)}>
           <Trash2 className="size-3.5 text-destructive" />
         </Button>
+      </div>
+      <div className="mb-2 flex w-full items-center justify-center pt-4">
+        <ProductThumb path={p.gambar} size="h-20 w-full max-w-[6rem]" />
+      </div>
+      <p className="line-clamp-2 text-sm font-medium leading-tight">{p.nama}</p>
+      <span className="mt-0.5 truncate font-mono text-[10px] text-muted-foreground">{p.kode}</span>
+      <Badge variant="secondary" className="mt-1 w-fit text-[10px]">{p.kategori_nama}</Badge>
+      <div className="mt-auto pt-1.5">
+        <span className="block text-[10px] text-muted-foreground line-through">{formatRupiah(p.harga_beli)}</span>
+        <span className="block text-sm font-semibold text-primary">{formatRupiah(p.harga_jual)}</span>
+        <span className={`block text-[10px] ${p.stok <= p.stok_minimum ? "text-destructive" : "text-muted-foreground"}`}>
+          {p.stok} {p.satuan}
+        </span>
       </div>
     </div>
   );
@@ -256,7 +256,7 @@ export default function Products() {
 
       <div className="max-h-[calc(100vh-18rem)] overflow-y-auto rounded-md p-1">
         {visibleProducts.length > 0 ? (
-          <div className="grid grid-cols-[repeat(auto-fill,minmax(200px,1fr))] gap-2">
+          <div className="grid grid-cols-[repeat(auto-fill,minmax(140px,1fr))] gap-2">
             {visibleProducts.map((p) => (
               <ProductTile
                 key={p.id}

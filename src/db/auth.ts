@@ -14,14 +14,14 @@ export async function initPassword(): Promise<void> {
   const ver = await db.select<{ value: string }[]>(
     "SELECT value FROM settings WHERE key = 'app_password_version'"
   );
-  if (ver.length === 0 || ver[0].value !== "2") {
+  if (ver.length === 0 || ver[0].value !== "3") {
     const hash = await invoke<string>("get_default_hash");
     await db.execute(
       "INSERT OR REPLACE INTO settings (key, value) VALUES ('app_password', $1)",
       [hash]
     );
     await db.execute(
-      "INSERT OR REPLACE INTO settings (key, value) VALUES ('app_password_version', '2')"
+      "INSERT OR REPLACE INTO settings (key, value) VALUES ('app_password_version', '3')"
     );
   }
 }

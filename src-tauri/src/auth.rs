@@ -1,4 +1,4 @@
-const DEFAULT_HASH: &str = "154c660289df60fce46c8f980429514ea0118ea854a5bc8ae974c2040e9e2959";
+const DEFAULT_HASH: &str = "849ffac9e7e000f75a9572cc09e6e0a2395c138c85b389732c79737db7869861";
 
 #[tauri::command]
 pub fn get_default_hash() -> String {

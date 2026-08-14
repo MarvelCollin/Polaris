@@ -11,7 +11,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
-import { Badge } from "@/components/ui/badge";
 import SearchInput from "@/components/SearchInput";
 import { Plus, Minus, Trash2, CheckCircle, UserCircle, Star, Percent, QrCode, Loader2, X, MapPin } from "lucide-react";
 import ProductThumb from "@/components/ProductThumb";
@@ -35,34 +34,34 @@ const SaleProductTile = memo(function SaleProductTile({
       type="button"
       disabled={outOfStock}
       onClick={() => onAdd(p)}
-      className={`relative flex h-[88px] items-center gap-3 rounded-lg border p-3 text-left transition-[border-color,box-shadow,transform] duration-150 ${
+      className={`relative flex flex-col overflow-hidden rounded-lg border bg-card p-2.5 text-left transition-[border-color,box-shadow,transform] duration-150 ${
         outOfStock
           ? "cursor-not-allowed opacity-50"
           : "cursor-pointer hover:border-primary hover:shadow-sm active:scale-[0.98]"
       } ${qty > 0 ? "border-primary bg-primary/5" : ""}`}
     >
       {qty > 0 && (
-        <span className="absolute -right-1.5 -top-1.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-bold text-primary-foreground">
+        <span className="absolute -right-1.5 -top-1.5 z-10 flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-bold text-primary-foreground">
           {qty}
         </span>
       )}
-      <ProductThumb path={p.gambar} size="h-16 w-16" />
-      <div className="min-w-0 flex-1">
-        <span className="line-clamp-2 text-sm font-medium leading-tight">{p.nama}</span>
-        <span className="mt-0.5 block truncate font-mono text-[10px] text-muted-foreground">{p.kode}</span>
-        <div className="mt-1 flex items-center justify-between gap-1">
-          {hasCustom ? (
-            <div className="flex min-w-0 items-center gap-1">
-              <span className="truncate text-[10px] text-muted-foreground line-through">{formatRupiah(p.harga_jual)}</span>
-              <Badge variant="secondary" className="shrink-0 text-[10px]">{formatRupiah(price)}</Badge>
-            </div>
-          ) : (
-            <span className="truncate text-sm font-semibold text-primary">{formatRupiah(price)}</span>
-          )}
-          <span className={`shrink-0 text-[10px] ${p.stok <= p.stok_minimum ? "text-destructive" : "text-muted-foreground"}`}>
-            {p.stok} {p.satuan}
-          </span>
-        </div>
+      <div className="mb-2 flex w-full items-center justify-center">
+        <ProductThumb path={p.gambar} size="h-20 w-full max-w-[6rem]" />
+      </div>
+      <p className="line-clamp-2 text-sm font-medium leading-tight">{p.nama}</p>
+      <span className="mt-0.5 truncate font-mono text-[10px] text-muted-foreground">{p.kode}</span>
+      <div className="mt-auto pt-1.5">
+        {hasCustom ? (
+          <>
+            <span className="block text-[10px] text-muted-foreground line-through">{formatRupiah(p.harga_jual)}</span>
+            <span className="block text-sm font-semibold text-primary">{formatRupiah(price)}</span>
+          </>
+        ) : (
+          <span className="block text-sm font-semibold text-primary">{formatRupiah(price)}</span>
+        )}
+        <span className={`block text-[10px] ${p.stok <= p.stok_minimum ? "text-destructive" : "text-muted-foreground"}`}>
+          {p.stok} {p.satuan}
+        </span>
       </div>
     </button>
   );
@@ -332,7 +331,7 @@ export default function Sales() {
               <div className="mb-2 flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
                 <Star className="size-3" /> Sering Dibeli
               </div>
-              <div className="grid grid-cols-[repeat(auto-fill,minmax(200px,1fr))] gap-2 p-1">
+              <div className="grid grid-cols-[repeat(auto-fill,minmax(140px,1fr))] gap-2 p-1">
                 {frequentProducts.map((p) => (
                   <SaleProductTile
                     key={p.id}
@@ -377,7 +376,7 @@ export default function Sales() {
 
           <div className="max-h-[calc(100vh-22rem)] overflow-y-auto rounded-md p-1">
             {visibleProducts.length > 0 ? (
-              <div className="grid grid-cols-[repeat(auto-fill,minmax(200px,1fr))] gap-2">
+              <div className="grid grid-cols-[repeat(auto-fill,minmax(140px,1fr))] gap-2">
                 {visibleProducts.map((p) => (
                   <SaleProductTile
                     key={p.id}

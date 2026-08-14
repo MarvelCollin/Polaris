@@ -22,7 +22,7 @@ export async function getDb(): Promise<Database> {
       db = await Database.load("sqlite:polaris.db");
     }
 
-    await db.execute("PRAGMA journal_mode = WAL");
+    try { await db.execute("PRAGMA journal_mode = WAL"); } catch (_) {}
     await db.execute("PRAGMA synchronous = NORMAL");
     await db.execute("PRAGMA cache_size = -8000");
     await db.execute("PRAGMA temp_store = MEMORY");

@@ -25,25 +25,25 @@ const PurchaseProductTile = memo(function PurchaseProductTile({
     <button
       type="button"
       onClick={() => onAdd(p)}
-      className={`relative flex h-[88px] items-center gap-3 rounded-lg border p-3 text-left transition-[border-color,box-shadow,transform] duration-150 cursor-pointer hover:border-primary hover:shadow-sm active:scale-[0.98] ${
+      className={`relative flex flex-col overflow-hidden rounded-lg border bg-card p-2.5 text-left transition-[border-color,box-shadow,transform] duration-150 cursor-pointer hover:border-primary hover:shadow-sm active:scale-[0.98] ${
         qty > 0 ? "border-primary bg-primary/5" : ""
       }`}
     >
       {qty > 0 && (
-        <span className="absolute -right-1.5 -top-1.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-bold text-primary-foreground">
+        <span className="absolute -right-1.5 -top-1.5 z-10 flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-bold text-primary-foreground">
           {qty}
         </span>
       )}
-      <ProductThumb path={p.gambar} size="h-16 w-16" />
-      <div className="min-w-0 flex-1">
-        <span className="line-clamp-2 text-sm font-medium leading-tight">{p.nama}</span>
-        <span className="mt-0.5 block font-mono text-[10px] text-muted-foreground">{p.kode}</span>
-        <div className="mt-1">
-          <span className="text-sm font-semibold text-primary">{formatRupiah(p.harga_beli)}</span>
-          <span className={`block text-[10px] ${p.stok <= p.stok_minimum ? "text-destructive" : "text-muted-foreground"}`}>
-            {p.stok} {p.satuan}
-          </span>
-        </div>
+      <div className="mb-2 flex w-full items-center justify-center">
+        <ProductThumb path={p.gambar} size="h-20 w-full max-w-[6rem]" />
+      </div>
+      <p className="line-clamp-2 text-sm font-medium leading-tight">{p.nama}</p>
+      <span className="mt-0.5 truncate font-mono text-[10px] text-muted-foreground">{p.kode}</span>
+      <div className="mt-auto pt-1.5">
+        <span className="block text-sm font-semibold text-primary">{formatRupiah(p.harga_beli)}</span>
+        <span className={`block text-[10px] ${p.stok <= p.stok_minimum ? "text-destructive" : "text-muted-foreground"}`}>
+          {p.stok} {p.satuan}
+        </span>
       </div>
     </button>
   );
@@ -210,7 +210,7 @@ export default function Purchases() {
 
           <div className="max-h-[calc(100vh-22rem)] overflow-y-auto rounded-md p-1">
             {visibleProducts.length > 0 ? (
-              <div className="grid grid-cols-[repeat(auto-fill,minmax(200px,1fr))] gap-2">
+              <div className="grid grid-cols-[repeat(auto-fill,minmax(140px,1fr))] gap-2">
                 {visibleProducts.map((p) => (
                   <PurchaseProductTile
                     key={p.id}

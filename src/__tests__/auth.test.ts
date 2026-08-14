@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, vi } from "vitest";
 import { resetMock, mockDb } from "./setup";
 import { initPassword, verifyPassword, changePassword } from "@/db/auth";
 
-const DEFAULT_HASH = "154c660289df60fce46c8f980429514ea0118ea854a5bc8ae974c2040e9e2959";
+const DEFAULT_HASH = "849ffac9e7e000f75a9572cc09e6e0a2395c138c85b389732c79737db7869861";
 
 vi.mock("@tauri-apps/api/core", () => ({
   invoke: vi.fn(async (cmd: string) => {
@@ -72,7 +72,7 @@ describe("auth", () => {
     });
 
     it("should skip init when version is current", async () => {
-      mockDb.select.mockResolvedValueOnce([{ value: "2" }]);
+      mockDb.select.mockResolvedValueOnce([{ value: "3" }]);
 
       await initPassword();
 

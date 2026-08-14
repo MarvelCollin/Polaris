@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from "vitest";
+import { describe, it, expect, beforeEach } from "vitest";
 import { resetMock, mockDb } from "./setup";
 import { getDashboardStats, getDailySales, getMonthlySalesVsPurchases } from "@/db/dashboard";
 import { createSale, createSaleReturn, addSalePayment } from "@/db/sales";
@@ -492,7 +492,7 @@ describe("stress: syncDb fires after every write", () => {
   });
 
   it("createPurchaseReturn triggers sync after commit", async () => {
-    mockDb.execute.mockImplementation(async (sql: string) => {
+    mockDb.execute.mockImplementation(async () => {
       return { lastInsertId: 1, rowsAffected: 1 };
     });
     await createPurchaseReturn(1, [
@@ -539,7 +539,7 @@ describe("stress: batch operations", () => {
       (c[0] as string[]).some((s: string) => s.includes("DELETE FROM"))
     );
     expect(deleteBatch).toBeDefined();
-    const stmts = deleteBatch![0] as string[];
+    const stmts = (deleteBatch as unknown[])[0] as string[];
     expect(stmts.length).toBe(10);
     expect(stmts.every((s: string) => s.startsWith("DELETE FROM"))).toBe(true);
   });
