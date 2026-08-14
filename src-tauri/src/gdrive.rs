@@ -88,12 +88,6 @@ fn save_auto_config(app_dir: &PathBuf, config: &AutoBackupConfig) -> Result<(), 
     std::fs::write(auto_backup_config_path(app_dir), json).map_err(|e| e.to_string())
 }
 
-fn device_name() -> String {
-    hostname::get()
-        .map(|h| h.to_string_lossy().to_string())
-        .unwrap_or_else(|_| "unknown".to_string())
-}
-
 async fn get_access_token() -> Result<String, String> {
     let now = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
@@ -209,9 +203,8 @@ async fn get_or_create_folder(
     Ok(folder.id)
 }
 
-async fn get_device_folder(client: &reqwest::Client, access_token: &str) -> Result<String, String> {
-    let root = get_or_create_folder(client, access_token, "Sahabat Sentarum Backup", None).await?;
-    get_or_create_folder(client, access_token, &device_name(), Some(&root)).await
+async fn get_backup_folder(client: &reqwest::Client, access_token: &str) -> Result<String, String> {
+    get_or_create_folder(client, access_token, "Sahabat Sentarum Backup", None).await
 }
 
 async fn backup_internal(db_path: &PathBuf) -> Result<DriveFile, String> {
@@ -223,7 +216,7 @@ async fn backup_internal(db_path: &PathBuf) -> Result<DriveFile, String> {
     let file_bytes = std::fs::read(db_path).map_err(|e| format!("Gagal membaca database: {}", e))?;
 
     let client = reqwest::Client::new();
-    let folder_id = get_device_folder(&client, &access_token).await?;
+    let folder_id = get_backup_folder(&client, &access_token).await?;
 
     let ts = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
@@ -285,7 +278,7 @@ pub async fn gdrive_backup(app: tauri::AppHandle) -> Result<DriveFile, String> {
 pub async fn gdrive_list_backups() -> Result<Vec<DriveFile>, String> {
     let access_token = get_access_token().await?;
     let client = reqwest::Client::new();
-    let folder_id = get_device_folder(&client, &access_token).await?;
+    let folder_id = get_backup_folder(&client, &access_token).await?;
 
     let resp = client
         .get("https://www.googleapis.com/drive/v3/files")
