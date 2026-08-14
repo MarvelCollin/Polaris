@@ -103,7 +103,13 @@ export default function Sales() {
       getCustomerPriceMap(selectedCustomer.id).then(setPriceMap);
       getCustomerAddresses(selectedCustomer.id).then((addrs) => {
         setCustomerAddresses(addrs);
-        setSelectedAddress(addrs.length > 0 ? addrs[0].alamat : null);
+        if (selectedCustomer.alamat) {
+          setSelectedAddress(selectedCustomer.alamat);
+        } else if (addrs.length > 0) {
+          setSelectedAddress(addrs[0].alamat);
+        } else {
+          setSelectedAddress(null);
+        }
       });
     } else {
       setPriceMap({});
@@ -315,8 +321,8 @@ export default function Sales() {
         </div>
       )}
 
-      <div className="flex gap-4">
-        <div className="min-w-0 flex-[3] flex-col">
+      <div className="flex flex-col gap-4 lg:flex-row">
+        <div className="min-w-0 flex-1 flex-col">
           <div className="mb-3">
             <SearchInput value={search} onChange={setSearch} placeholder="Cari produk..." />
           </div>
@@ -390,7 +396,7 @@ export default function Sales() {
           </div>
         </div>
 
-        <div className="w-[380px] shrink-0">
+        <div className="w-full shrink-0 lg:w-[380px]">
           <Card>
             <CardHeader className="pb-3">
               <CardTitle className="text-base">Keranjang</CardTitle>
@@ -407,7 +413,7 @@ export default function Sales() {
                     emptyLabel="Umum (tanpa pelanggan)"
                   />
                 </div>
-                {selectedCustomer && customerAddresses.length > 0 && (
+                {selectedCustomer && (
                   <div className="mt-2">
                     <div className="flex items-center gap-2">
                       <MapPin className="size-3.5 shrink-0 text-muted-foreground" />
@@ -416,6 +422,10 @@ export default function Sales() {
                         value={selectedAddress ?? ""}
                         onChange={(e) => setSelectedAddress(e.target.value || null)}
                       >
+                        <option value="">Tanpa Alamat</option>
+                        {selectedCustomer.alamat && (
+                          <option value={selectedCustomer.alamat}>Alamat Utama: {selectedCustomer.alamat}</option>
+                        )}
                         {customerAddresses.map((a) => (
                           <option key={a.id} value={a.alamat}>{a.label}: {a.alamat}</option>
                         ))}

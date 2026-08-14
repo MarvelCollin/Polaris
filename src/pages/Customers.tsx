@@ -180,7 +180,7 @@ export default function Customers() {
             <TableRow>
               {sh("Nama", "nama")}
               {sh("Telepon", "telepon")}
-              {sh("Alamat", "alamat")}
+              {sh("Alamat Utama", "alamat")}
               <TableHead className="w-28">Aksi</TableHead>
             </TableRow>
           </TableHeader>
@@ -225,8 +225,8 @@ export default function Customers() {
             <Input value={form.telepon} onChange={(e) => set("telepon", e.target.value)} placeholder="08xxxxxxxxxx" />
           </div>
           <div>
-            <Label>Alamat</Label>
-            <Input value={form.alamat} onChange={(e) => set("alamat", e.target.value)} placeholder="Alamat (opsional)" />
+            <Label>Alamat Utama</Label>
+            <Input value={form.alamat} onChange={(e) => set("alamat", e.target.value)} placeholder="Alamat utama (opsional)" />
           </div>
           {error && <p className="text-sm text-destructive">{error}</p>}
           <div className="flex justify-end gap-2">
@@ -309,7 +309,7 @@ export default function Customers() {
         </div>
       </Modal>
 
-      <Modal open={addrModalOpen} onClose={() => setAddrModalOpen(false)} title={`Alamat - ${addrCustomer?.nama ?? ""}`}>
+      <Modal open={addrModalOpen} onClose={() => setAddrModalOpen(false)} title={`Alamat Pengiriman - ${addrCustomer?.nama ?? ""}`}>
         <div className="space-y-3">
           {addresses.length > 0 ? (
             <div className="space-y-2">
