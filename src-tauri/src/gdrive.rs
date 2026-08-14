@@ -505,7 +505,7 @@ pub async fn auto_backup_loop(app: tauri::AppHandle) {
     }
 
     loop {
-        tokio::time::sleep(Duration::from_secs(300)).await;
+        tokio::time::sleep(Duration::from_secs(60)).await;
         if let Err(e) = try_auto_backup(&app).await {
             eprintln!("Auto backup: {}", e);
         }
