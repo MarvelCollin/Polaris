@@ -1,4 +1,4 @@
-use chrono::Local;
+use chrono::{Local, Timelike};
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use std::sync::Mutex;
@@ -347,9 +347,9 @@ pub async fn gdrive_delete_backup(file_id: String) -> Result<(), String> {
     Ok(())
 }
 
-// ── Auto backup (always on, every 6 hours) ──
+// ── Auto backup (fixed schedule: 00:00, 08:00, 16:00) ──
 
-const AUTO_BACKUP_INTERVAL_SECS: i64 = 6 * 60 * 60;
+const BACKUP_HOURS: [u32; 3] = [0, 8, 16];
 
 #[tauri::command]
 pub async fn gdrive_get_auto_backup_status(
@@ -374,6 +374,23 @@ pub async fn auto_backup_loop(app: tauri::AppHandle) {
     }
 }
 
+fn current_slot_start() -> i64 {
+    let now = Local::now();
+    let hour = now.hour();
+    let slot_hour = BACKUP_HOURS
+        .iter()
+        .rev()
+        .find(|&&h| hour >= h)
+        .copied()
+        .unwrap_or(0);
+    now.date_naive()
+        .and_hms_opt(slot_hour, 0, 0)
+        .unwrap()
+        .and_local_timezone(Local)
+        .unwrap()
+        .timestamp()
+}
+
 async fn try_auto_backup(app: &tauri::AppHandle) -> Result<(), String> {
     if REFRESH_TOKEN.is_empty() {
         return Ok(());
@@ -381,10 +398,10 @@ async fn try_auto_backup(app: &tauri::AppHandle) -> Result<(), String> {
 
     let app_dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
     let config = load_auto_config(&app_dir);
-    let now = Local::now().timestamp();
+    let slot_start = current_slot_start();
 
     if let Some(last_ts) = config.last_backup_ts {
-        if now - last_ts < AUTO_BACKUP_INTERVAL_SECS {
+        if last_ts >= slot_start {
             return Ok(());
         }
     }
@@ -393,7 +410,7 @@ async fn try_auto_backup(app: &tauri::AppHandle) -> Result<(), String> {
     backup_internal(&db_path).await?;
 
     let updated = AutoBackupConfig {
-        last_backup_ts: Some(now),
+        last_backup_ts: Some(Local::now().timestamp()),
     };
     save_auto_config(&app_dir, &updated)?;
 
