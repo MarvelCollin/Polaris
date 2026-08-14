@@ -258,3 +258,19 @@ export async function initDb() {
 
   try { await database.execute("ALTER TABLE penjualan ADD COLUMN alamat_pengiriman TEXT"); } catch (_) {}
 }
+
+export async function resetTransactionData() {
+  const database = await getDb();
+  await database.execute(`
+    DELETE FROM item_retur_penjualan;
+    DELETE FROM item_retur_pembelian;
+    DELETE FROM retur_penjualan;
+    DELETE FROM retur_pembelian;
+    DELETE FROM pembayaran_penjualan;
+    DELETE FROM pembayaran_pembelian;
+    DELETE FROM item_penjualan;
+    DELETE FROM item_pembelian;
+    DELETE FROM penjualan;
+    DELETE FROM pembelian
+  `);
+}
