@@ -95,6 +95,7 @@ export default function Products() {
   const [stockTarget, setStockTarget] = useState<ProductWithCategory | null>(null);
   const [stockValue, setStockValue] = useState(0);
   const [satuanOpen, setSatuanOpen] = useState(false);
+  const [saving, setSaving] = useState(false);
   const satuanRef = useRef<HTMLDivElement>(null);
 
   const filteredSatuan = (existingSatuan ?? []).filter(
@@ -160,10 +161,12 @@ export default function Products() {
   }
 
   async function handleSave() {
+    if (saving) return;
     if (!form.nama.trim() || !form.kategori_id) {
       setError("Nama dan kategori wajib diisi");
       return;
     }
+    setSaving(true);
     try {
       const trimmedSatuan = form.satuan.trim();
       const matchedSatuan = (existingSatuan ?? []).find(
@@ -179,6 +182,8 @@ export default function Products() {
       refetch();
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -188,13 +193,16 @@ export default function Products() {
   }
 
   async function handleStockSave() {
-    if (!stockTarget) return;
+    if (!stockTarget || saving) return;
+    setSaving(true);
     try {
       await updateStock(stockTarget.id, stockValue);
       setStockTarget(null);
       refetch();
     } catch (e) {
       alert(e instanceof Error ? e.message : String(e));
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -371,7 +379,7 @@ export default function Products() {
           {error && <p className="text-sm text-destructive">{error}</p>}
           <div className="flex justify-end gap-2">
             <Button variant="outline" onClick={() => setModalOpen(false)}>Batal</Button>
-            <Button onClick={handleSave}>Simpan</Button>
+            <Button onClick={handleSave} disabled={saving}>{saving ? "Menyimpan..." : "Simpan"}</Button>
           </div>
         </div>
       </Modal>
@@ -418,7 +426,7 @@ export default function Products() {
             </div>
             <div className="flex justify-end gap-2">
               <Button variant="outline" onClick={() => setStockTarget(null)}>Batal</Button>
-              <Button onClick={handleStockSave}>Simpan</Button>
+              <Button onClick={handleStockSave} disabled={saving}>{saving ? "Menyimpan..." : "Simpan"}</Button>
             </div>
           </div>
         )}

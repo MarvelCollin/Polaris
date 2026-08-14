@@ -32,6 +32,7 @@ export default function Categories() {
   const [nama, setNama] = useState("");
   const [deleteTarget, setDeleteTarget] = useState<Category | null>(null);
   const [error, setError] = useState("");
+  const [saving, setSaving] = useState(false);
 
   function openAdd() {
     setEditing(null);
@@ -48,7 +49,9 @@ export default function Categories() {
   }
 
   async function handleSave() {
+    if (saving) return;
     if (!nama.trim()) { setError("Nama kategori wajib diisi"); return; }
+    setSaving(true);
     try {
       if (editing) {
         await updateCategory(editing.id, nama.trim());
@@ -59,6 +62,8 @@ export default function Categories() {
       refetch();
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -123,7 +128,7 @@ export default function Categories() {
           {error && <p className="text-sm text-destructive">{error}</p>}
           <div className="flex justify-end gap-2">
             <Button variant="outline" onClick={() => setModalOpen(false)}>Batal</Button>
-            <Button onClick={handleSave}>Simpan</Button>
+            <Button onClick={handleSave} disabled={saving}>{saving ? "Menyimpan..." : "Simpan"}</Button>
           </div>
         </div>
       </Modal>
