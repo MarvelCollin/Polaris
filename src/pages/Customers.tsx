@@ -41,6 +41,10 @@ export default function Customers() {
   const [addrForm, setAddrForm] = useState({ label: "", alamat: "" });
   const [editingAddr, setEditingAddr] = useState<CustomerAddress | null>(null);
   const [addrError, setAddrError] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [savingAddr, setSavingAddr] = useState(false);
+  const [modalAddresses, setModalAddresses] = useState<CustomerAddress[]>([]);
+  const [inlineAddrForm, setInlineAddrForm] = useState({ label: "", alamat: "" });
 
   const [priceModalOpen, setPriceModalOpen] = useState(false);
   const [priceCustomer, setPriceCustomer] = useState<Customer | null>(null);
@@ -58,29 +62,41 @@ export default function Customers() {
     setEditing(null);
     setForm(emptyForm);
     setError("");
+    setModalAddresses([]);
+    setInlineAddrForm({ label: "", alamat: "" });
     setModalOpen(true);
   }
 
-  function openEdit(c: Customer) {
+  async function openEdit(c: Customer) {
     setEditing(c);
     setForm({ nama: c.nama, telepon: c.telepon ?? "", alamat: c.alamat ?? "" });
     setError("");
+    const addrs = await getCustomerAddresses(c.id);
+    setModalAddresses(addrs);
+    setInlineAddrForm({ label: "", alamat: "" });
     setModalOpen(true);
   }
 
   async function handleSave() {
+    if (saving) return;
     if (!form.nama.trim()) { setError("Nama pelanggan wajib diisi"); return; }
+    setSaving(true);
     try {
       const data = { nama: form.nama.trim(), telepon: form.telepon.trim() || null, alamat: form.alamat.trim() || null };
       if (editing) {
         await updateCustomer(editing.id, data);
       } else {
-        await createCustomer(data);
+        const newId = await createCustomer(data);
+        for (const addr of modalAddresses) {
+          await addCustomerAddress(newId, addr.label, addr.alamat);
+        }
       }
       setModalOpen(false);
       refetch();
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -131,11 +147,12 @@ export default function Customers() {
   }
 
   async function handleSaveAddr() {
-    if (!addrCustomer) return;
+    if (!addrCustomer || savingAddr) return;
     if (!addrForm.label.trim() || !addrForm.alamat.trim()) {
       setAddrError("Label dan alamat wajib diisi");
       return;
     }
+    setSavingAddr(true);
     try {
       if (editingAddr) {
         await updateCustomerAddress(editingAddr.id, addrForm.label.trim(), addrForm.alamat.trim());
@@ -149,6 +166,8 @@ export default function Customers() {
       setAddrError("");
     } catch (e) {
       setAddrError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setSavingAddr(false);
     }
   }
 
@@ -157,6 +176,33 @@ export default function Customers() {
     await deleteCustomerAddress(id);
     const a = await getCustomerAddresses(addrCustomer.id);
     setAddresses(a);
+  }
+
+  async function handleAddInlineAddr() {
+    if (!inlineAddrForm.label.trim() || !inlineAddrForm.alamat.trim()) return;
+    if (editing) {
+      await addCustomerAddress(editing.id, inlineAddrForm.label.trim(), inlineAddrForm.alamat.trim());
+      const addrs = await getCustomerAddresses(editing.id);
+      setModalAddresses(addrs);
+    } else {
+      setModalAddresses(prev => [...prev, {
+        id: -(Date.now()),
+        pelanggan_id: 0,
+        label: inlineAddrForm.label.trim(),
+        alamat: inlineAddrForm.alamat.trim(),
+      }]);
+    }
+    setInlineAddrForm({ label: "", alamat: "" });
+  }
+
+  async function handleRemoveInlineAddr(addr: CustomerAddress) {
+    if (editing) {
+      await deleteCustomerAddress(addr.id);
+      const addrs = await getCustomerAddresses(editing.id);
+      setModalAddresses(addrs);
+    } else {
+      setModalAddresses(prev => prev.filter(a => a.id !== addr.id));
+    }
   }
 
   const sh = (label: string, key: string) => (
@@ -228,10 +274,51 @@ export default function Customers() {
             <Label>Alamat Utama</Label>
             <Input value={form.alamat} onChange={(e) => set("alamat", e.target.value)} placeholder="Alamat utama (opsional)" />
           </div>
+          <div>
+            <Label>Alamat Pengiriman</Label>
+            {modalAddresses.length > 0 && (
+              <div className="mt-1 space-y-1.5">
+                {modalAddresses.map((a) => (
+                  <div key={a.id} className="flex items-start gap-2 rounded-md border p-2">
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-medium">{a.label}</p>
+                      <p className="truncate text-xs text-muted-foreground">{a.alamat}</p>
+                    </div>
+                    <Button variant="ghost" size="icon-xs" onClick={() => handleRemoveInlineAddr(a)}>
+                      <Trash2 className="size-3.5 text-destructive" />
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            )}
+            <div className="mt-2 flex gap-2">
+              <Input
+                value={inlineAddrForm.label}
+                onChange={(e) => setInlineAddrForm(f => ({ ...f, label: e.target.value }))}
+                placeholder="Label"
+                className="w-1/3"
+              />
+              <Input
+                value={inlineAddrForm.alamat}
+                onChange={(e) => setInlineAddrForm(f => ({ ...f, alamat: e.target.value }))}
+                placeholder="Alamat lengkap"
+                className="flex-1"
+              />
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                onClick={handleAddInlineAddr}
+                disabled={!inlineAddrForm.label.trim() || !inlineAddrForm.alamat.trim()}
+              >
+                <Plus className="size-4" />
+              </Button>
+            </div>
+          </div>
           {error && <p className="text-sm text-destructive">{error}</p>}
           <div className="flex justify-end gap-2">
             <Button variant="outline" onClick={() => setModalOpen(false)}>Batal</Button>
-            <Button onClick={handleSave}>Simpan</Button>
+            <Button onClick={handleSave} disabled={saving}>{saving ? "Menyimpan..." : "Simpan"}</Button>
           </div>
         </div>
       </Modal>
@@ -364,7 +451,7 @@ export default function Customers() {
                   setAddrError("");
                 }}>Batal</Button>
               )}
-              <Button size="sm" onClick={handleSaveAddr}>Simpan</Button>
+              <Button size="sm" onClick={handleSaveAddr} disabled={savingAddr}>{savingAddr ? "Menyimpan..." : "Simpan"}</Button>
             </div>
           </div>
         </div>
