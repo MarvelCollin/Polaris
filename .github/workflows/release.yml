@@ -35,10 +35,13 @@ jobs:
       - name: Write secrets
         shell: bash
         run: |
-          cat > src-tauri/gdrive_secrets.toml << 'TOML'
-          service_account_email = "${{ secrets.GDRIVE_SA_EMAIL }}"
-          service_account_private_key = "${{ secrets.GDRIVE_SA_KEY }}"
+          cat > src-tauri/gdrive_secrets.toml << TOML
           midtrans_server_key = "${{ secrets.MIDTRANS_SERVER_KEY }}"
+          client_id = "${{ secrets.GDRIVE_CLIENT_ID }}"
+          client_secret = "${{ secrets.GDRIVE_CLIENT_SECRET }}"
+          refresh_token = "${{ secrets.GDRIVE_REFRESH_TOKEN }}"
+          turso_url = "${{ secrets.TURSO_URL }}"
+          turso_auth_token = "${{ secrets.TURSO_AUTH_TOKEN }}"
           TOML
 
       - uses: tauri-apps/tauri-action@v0
