@@ -19,10 +19,9 @@ describe("database", () => {
     const { getDb } = await import("@/database");
     await getDb();
     const execCalls = mockDb.execute.mock.calls.map((c: unknown[]) => c[0] as string);
-    const batchCalls = mockDb.batch.mock.calls.flatMap((c: unknown[]) => c[0] as string[]);
     expect(execCalls.some((c: string) => c.includes("PRAGMA journal_mode = WAL"))).toBe(true);
-    expect(batchCalls.some((c: string) => c.includes("PRAGMA synchronous = NORMAL"))).toBe(true);
-    expect(batchCalls.some((c: string) => c.includes("PRAGMA cache_size"))).toBe(true);
+    expect(execCalls.some((c: string) => c.includes("PRAGMA synchronous = NORMAL"))).toBe(true);
+    expect(execCalls.some((c: string) => c.includes("PRAGMA cache_size"))).toBe(true);
   });
 
   it("should create all tables on initDb", async () => {

@@ -38,6 +38,9 @@ async function defaultSelect(sql: string, _params?: unknown[]): Promise<Record<s
   if (sql.match(/COALESCE\(SUM/i)) {
     return [{ total: 0 }];
   }
+  if (sql.match(/sqlite_sequence/i)) {
+    return [{ seq: 1 }];
+  }
   return [];
 }
 

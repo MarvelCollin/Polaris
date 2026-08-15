@@ -97,12 +97,14 @@ describe("sale total and discount calculations", () => {
 
     await createSale(items, 1000000);
 
-    const saleInsert = mockDb.execute.mock.calls.find(
-      (c: unknown[]) => (c[0] as string).includes("INSERT INTO penjualan")
+    const batchCalls = mockDb.batch.mock.calls as unknown as unknown[][];
+    const saleBatch = batchCalls.find((c: unknown[]) =>
+      (c[0] as string[]).some((s: string) => s.includes("INSERT INTO penjualan"))
     );
+    const saleInsert = (saleBatch![0] as unknown as string[]).find((s: string) => s.includes("INSERT INTO penjualan"))!;
     const expectedTotal = 10 * 58000 + 5 * 55000;
     expect(expectedTotal).toBe(855000);
-    expect(saleInsert![1]).toContain(expectedTotal);
+    expect(saleInsert).toContain(String(expectedTotal));
   });
 
   it("should apply discount and compute correct total", async () => {
@@ -116,14 +118,16 @@ describe("sale total and discount calculations", () => {
 
     await createSale(items, 475000, null, null, diskon);
 
-    const saleInsert = mockDb.execute.mock.calls.find(
-      (c: unknown[]) => (c[0] as string).includes("INSERT INTO penjualan")
+    const batchCalls = mockDb.batch.mock.calls as unknown as unknown[][];
+    const saleBatch = batchCalls.find((c: unknown[]) =>
+      (c[0] as string[]).some((s: string) => s.includes("INSERT INTO penjualan"))
     );
+    const saleInsert = (saleBatch![0] as unknown as string[]).find((s: string) => s.includes("INSERT INTO penjualan"))!;
     const subtotal = 10 * 50000;
     const total = subtotal - diskon;
     expect(total).toBe(475000);
-    expect(saleInsert![1]).toContain(total);
-    expect(saleInsert![1]).toContain(diskon);
+    expect(saleInsert).toContain(String(total));
+    expect(saleInsert).toContain(String(diskon));
   });
 
   it("should compute kembalian as max(0, paid - total)", async () => {
@@ -136,13 +140,15 @@ describe("sale total and discount calculations", () => {
 
     await createSale(items, 300000);
 
-    const saleInsert = mockDb.execute.mock.calls.find(
-      (c: unknown[]) => (c[0] as string).includes("INSERT INTO penjualan")
+    const batchCalls = mockDb.batch.mock.calls as unknown as unknown[][];
+    const saleBatch = batchCalls.find((c: unknown[]) =>
+      (c[0] as string[]).some((s: string) => s.includes("INSERT INTO penjualan"))
     );
+    const saleInsert = (saleBatch![0] as unknown as string[]).find((s: string) => s.includes("INSERT INTO penjualan"))!;
     const total = 5 * 50000;
     const kembalian = 300000 - total;
     expect(kembalian).toBe(50000);
-    expect(saleInsert![1]).toContain(kembalian);
+    expect(saleInsert).toContain(String(kembalian));
   });
 
   it("should return zero kembalian when underpaying (utang)", async () => {
@@ -155,10 +161,12 @@ describe("sale total and discount calculations", () => {
 
     await createSale(items, 100000, 1, "Pak Budi");
 
-    const saleInsert = mockDb.execute.mock.calls.find(
-      (c: unknown[]) => (c[0] as string).includes("INSERT INTO penjualan")
+    const batchCalls = mockDb.batch.mock.calls as unknown as unknown[][];
+    const saleBatch = batchCalls.find((c: unknown[]) =>
+      (c[0] as string[]).some((s: string) => s.includes("INSERT INTO penjualan"))
     );
-    expect(saleInsert![1]).toContain(0);
+    const saleInsert = (saleBatch![0] as unknown as string[]).find((s: string) => s.includes("INSERT INTO penjualan"))!;
+    expect(saleInsert).toContain(", 0,");
   });
 });
 
@@ -179,12 +187,14 @@ describe("purchase total calculation", () => {
 
     await createPurchase("Supplier X", items);
 
-    const purchaseInsert = mockDb.execute.mock.calls.find(
-      (c: unknown[]) => (c[0] as string).includes("INSERT INTO pembelian")
+    const batchCalls = mockDb.batch.mock.calls as unknown as unknown[][];
+    const purchaseBatch = batchCalls.find((c: unknown[]) =>
+      (c[0] as string[]).some((s: string) => s.includes("INSERT INTO pembelian"))
     );
+    const purchaseInsert = (purchaseBatch![0] as unknown as string[]).find((s: string) => s.includes("INSERT INTO pembelian"))!;
     const expectedTotal = 20 * 48000 + 10 * 75000;
     expect(expectedTotal).toBe(1710000);
-    expect(purchaseInsert![1]).toContain(expectedTotal);
+    expect(purchaseInsert).toContain(String(expectedTotal));
   });
 
   it("should use full total as dibayar when no partial payment", async () => {
@@ -197,13 +207,13 @@ describe("purchase total calculation", () => {
 
     await createPurchase("Supplier Y", items);
 
-    const purchaseInsert = mockDb.execute.mock.calls.find(
-      (c: unknown[]) => (c[0] as string).includes("INSERT INTO pembelian")
+    const batchCalls = mockDb.batch.mock.calls as unknown as unknown[][];
+    const purchaseBatch = batchCalls.find((c: unknown[]) =>
+      (c[0] as string[]).some((s: string) => s.includes("INSERT INTO pembelian"))
     );
+    const purchaseInsert = (purchaseBatch![0] as unknown as string[]).find((s: string) => s.includes("INSERT INTO pembelian"))!;
     const total = 5 * 45000;
-    expect(purchaseInsert![1]).toContain(total);
-    expect((purchaseInsert![1] as unknown[])[2]).toBe(total);
-    expect((purchaseInsert![1] as unknown[])[3]).toBe(total);
+    expect(purchaseInsert).toContain(`${total}, ${total}`);
   });
 
   it("should store partial payment for purchase utang", async () => {
@@ -217,13 +227,14 @@ describe("purchase total calculation", () => {
 
     await createPurchase("Supplier Z", items, partialPay);
 
-    const purchaseInsert = mockDb.execute.mock.calls.find(
-      (c: unknown[]) => (c[0] as string).includes("INSERT INTO pembelian")
+    const batchCalls = mockDb.batch.mock.calls as unknown as unknown[][];
+    const purchaseBatch = batchCalls.find((c: unknown[]) =>
+      (c[0] as string[]).some((s: string) => s.includes("INSERT INTO pembelian"))
     );
+    const purchaseInsert = (purchaseBatch![0] as unknown as string[]).find((s: string) => s.includes("INSERT INTO pembelian"))!;
     const total = 10 * 45000;
     expect(total).toBe(450000);
-    expect((purchaseInsert![1] as unknown[])[2]).toBe(total);
-    expect((purchaseInsert![1] as unknown[])[3]).toBe(partialPay);
+    expect(purchaseInsert).toContain(`${total}, ${partialPay}`);
   });
 });
 
@@ -413,7 +424,6 @@ describe("retur total calculations", () => {
 
   it("sale return total should be sum of qty * harga_satuan", async () => {
     const { createSaleReturn } = await import("@/db/sales");
-    mockDb.execute.mockResolvedValueOnce({ lastInsertId: 1, rowsAffected: 1 });
 
     const returItems = [
       { produk_id: 1, nama_produk: "Semen", jumlah: 3, harga_satuan: 58000 },
@@ -422,17 +432,20 @@ describe("retur total calculations", () => {
 
     await createSaleReturn(1, returItems);
 
-    const returInsert = mockDb.execute.mock.calls.find(
-      (c: unknown[]) => (c[0] as string).includes("INSERT INTO retur_penjualan")
+    const batchCalls = mockDb.batch.mock.calls as unknown as unknown[][];
+    const returBatch = batchCalls.find((c: unknown[]) =>
+      (c[0] as string[]).some((s: string) => s.includes("INSERT INTO retur_penjualan"))
     );
+    const returInsert = (returBatch![0] as unknown as string[]).find((s: string) => s.includes("INSERT INTO retur_penjualan"))!;
     const expectedTotal = 3 * 58000 + 2 * 55000;
     expect(expectedTotal).toBe(284000);
-    expect(returInsert![1]).toContain(expectedTotal);
+    expect(returInsert).toContain(String(expectedTotal));
   });
 
   it("purchase return total should be sum of qty * harga_satuan", async () => {
     const { createPurchaseReturn } = await import("@/db/purchases");
-    mockDb.execute.mockResolvedValueOnce({ lastInsertId: 1, rowsAffected: 1 });
+
+    mockDb.select.mockResolvedValueOnce([{ id: 1, stok: 100 }]);
 
     const returItems = [
       { produk_id: 1, nama_produk: "Semen", jumlah: 5, harga_satuan: 45000 },
@@ -440,12 +453,14 @@ describe("retur total calculations", () => {
 
     await createPurchaseReturn(1, returItems);
 
-    const returInsert = mockDb.execute.mock.calls.find(
-      (c: unknown[]) => (c[0] as string).includes("INSERT INTO retur_pembelian")
+    const batchCalls = mockDb.batch.mock.calls as unknown as unknown[][];
+    const returBatch = batchCalls.find((c: unknown[]) =>
+      (c[0] as string[]).some((s: string) => s.includes("INSERT INTO retur_pembelian"))
     );
+    const returInsert = (returBatch![0] as unknown as string[]).find((s: string) => s.includes("INSERT INTO retur_pembelian"))!;
     const expectedTotal = 5 * 45000;
     expect(expectedTotal).toBe(225000);
-    expect(returInsert![1]).toContain(expectedTotal);
+    expect(returInsert).toContain(String(expectedTotal));
   });
 });
 

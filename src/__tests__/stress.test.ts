@@ -87,13 +87,10 @@ describe("stress: transaction batching", () => {
     await createSale(items, 500000);
 
     const selectCalls = mockDb.select.mock.calls;
-    expect(selectCalls).toHaveLength(2);
+    expect(selectCalls).toHaveLength(3);
 
-    const executeCalls = mockDb.execute.mock.calls;
-    const beginCall = executeCalls.find((c) => (c[0] as string).includes("BEGIN"));
-    const commitCall = executeCalls.find((c) => (c[0] as string).includes("COMMIT"));
-    expect(beginCall).toBeDefined();
-    expect(commitCall).toBeDefined();
+    const batchCalls = mockDb.batch.mock.calls;
+    expect(batchCalls).toHaveLength(1);
   });
 
   it("createPurchase batches stock lookup into single query for N items", async () => {
@@ -113,16 +110,13 @@ describe("stress: transaction batching", () => {
     await createPurchase("Test Supplier", items);
 
     const selectCalls = mockDb.select.mock.calls;
-    expect(selectCalls).toHaveLength(2);
+    expect(selectCalls).toHaveLength(3);
 
-    const executeCalls = mockDb.execute.mock.calls;
-    const beginCall = executeCalls.find((c) => (c[0] as string).includes("BEGIN"));
-    const commitCall = executeCalls.find((c) => (c[0] as string).includes("COMMIT"));
-    expect(beginCall).toBeDefined();
-    expect(commitCall).toBeDefined();
+    const batchCalls = mockDb.batch.mock.calls;
+    expect(batchCalls).toHaveLength(1);
   });
 
-  it("createSale rolls back on error", async () => {
+  it("createSale propagates batch error", async () => {
     mockDb.select.mockResolvedValueOnce([{ count: 0 }]);
     mockDb.select.mockResolvedValueOnce([{ id: 1, harga_beli: 8000 }]);
 
@@ -131,10 +125,6 @@ describe("stress: transaction batching", () => {
     await expect(
       createSale([{ produk_id: 1, nama: "X", satuan: "pcs", jumlah: 1, harga: 10000, stok: 10 }], 10000)
     ).rejects.toThrow("disk full");
-
-    const executeCalls = mockDb.execute.mock.calls;
-    const rollbackCall = executeCalls.find((c) => (c[0] as string).includes("ROLLBACK"));
-    expect(rollbackCall).toBeDefined();
   });
 
   it("createSale with 50 items stays under 50ms", async () => {
@@ -506,9 +496,7 @@ describe("stress: syncDb fires after every write", () => {
   });
 
   it("createPurchaseReturn triggers sync after commit", async () => {
-    mockDb.execute.mockImplementation(async () => {
-      return { lastInsertId: 1, rowsAffected: 1 };
-    });
+    mockDb.select.mockResolvedValueOnce([{ id: 1, stok: 100 }]);
     await createPurchaseReturn(1, [
       { produk_id: 1, nama_produk: "X", jumlah: 1, harga_satuan: 5000 },
     ], "salah kirim");
@@ -632,9 +620,7 @@ describe("stress: return operations", () => {
     const elapsed = performance.now() - start;
 
     expect(elapsed).toBeLessThan(50);
-    const executeCalls = mockDb.execute.mock.calls;
-    expect(executeCalls.some((c) => (c[0] as string).includes("BEGIN"))).toBe(true);
-    expect(executeCalls.some((c) => (c[0] as string).includes("COMMIT"))).toBe(true);
+    expect(mockDb.batch).toHaveBeenCalledTimes(1);
   });
 
   it("createSaleReturn restores stock for each item", async () => {
@@ -656,27 +642,24 @@ describe("stress: return operations", () => {
     expect(stockUpdates[1]).toContain("WHERE id = 8");
   });
 
-  it("createPurchaseReturn decrements stock and validates sufficiency", async () => {
-    mockDb.execute.mockImplementation(async (sql: string) => {
-      if ((sql as string).includes("stok = stok -")) return { lastInsertId: 0, rowsAffected: 1 };
-      return { lastInsertId: 1, rowsAffected: 1 };
-    });
+  it("createPurchaseReturn decrements stock via batch", async () => {
+    mockDb.select.mockResolvedValueOnce([{ id: 1, stok: 100 }]);
 
     await createPurchaseReturn(1, [
       { produk_id: 1, nama_produk: "X", jumlah: 2, harga_satuan: 5000 },
     ]);
 
-    const stockUpdates = mockDb.execute.mock.calls.filter(
-      (c) => (c[0] as string).includes("stok = stok -")
+    const batchCalls = mockDb.batch.mock.calls as unknown as unknown[][];
+    const returBatch = batchCalls.find((c: unknown[]) =>
+      (c[0] as string[]).some((s: string) => s.includes("stok = stok -"))
     );
+    expect(returBatch).toBeDefined();
+    const stockUpdates = (returBatch![0] as unknown as string[]).filter((s: string) => s.includes("stok = stok -"));
     expect(stockUpdates).toHaveLength(1);
   });
 
-  it("createPurchaseReturn rolls back on insufficient stock", async () => {
-    mockDb.execute.mockImplementation(async (sql: string) => {
-      if ((sql as string).includes("stok = stok -")) return { lastInsertId: 0, rowsAffected: 0 };
-      return { lastInsertId: 1, rowsAffected: 1 };
-    });
+  it("createPurchaseReturn rejects on insufficient stock", async () => {
+    mockDb.select.mockResolvedValueOnce([{ id: 1, stok: 5 }]);
 
     await expect(
       createPurchaseReturn(1, [
@@ -684,10 +667,7 @@ describe("stress: return operations", () => {
       ])
     ).rejects.toThrow("tidak mencukupi");
 
-    const rollback = mockDb.execute.mock.calls.find(
-      (c) => (c[0] as string).includes("ROLLBACK")
-    );
-    expect(rollback).toBeDefined();
+    expect(mockDb.batch).not.toHaveBeenCalled();
   });
 });
 

@@ -23,7 +23,9 @@ export async function getDb(): Promise<Database> {
     }
 
     try { await db.execute("PRAGMA journal_mode = WAL"); } catch (_) {}
-    await db.batch(["PRAGMA synchronous = NORMAL", "PRAGMA cache_size = -8000", "PRAGMA temp_store = MEMORY"]);
+    try { await db.execute("PRAGMA synchronous = NORMAL"); } catch (_) {}
+    try { await db.execute("PRAGMA cache_size = -8000"); } catch (_) {}
+    try { await db.execute("PRAGMA temp_store = MEMORY"); } catch (_) {}
     await db.execute("PRAGMA foreign_keys = ON");
   }
   return db;
