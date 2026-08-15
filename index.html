@@ -5,10 +5,6 @@
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Polaris</title>
-  </head>
-
-  <body>
-    <div id="root"></div>
     <script>
       (function() {
         var theme = localStorage.getItem("polaris-theme");
@@ -18,6 +14,145 @@
         var sizes = { small: "14px", medium: "16px", large: "18px" };
         var fs = localStorage.getItem("polaris-font-size");
         if (fs && sizes[fs]) document.documentElement.style.fontSize = sizes[fs];
+      })();
+    </script>
+    <style>
+      :root {
+        --boot-bg: #fdfcfb;
+        --boot-fg: #1b2130;
+        --boot-muted: #6a7383;
+        --boot-primary: #e07a1f;
+        --boot-danger: #d33a2c;
+        --boot-surface: #ffffff;
+        --boot-border: #e3e6eb;
+      }
+      html.dark {
+        --boot-bg: #14181f;
+        --boot-fg: #eceef2;
+        --boot-muted: #9aa2b1;
+        --boot-primary: #f0932f;
+        --boot-danger: #f0655a;
+        --boot-surface: #1c2029;
+        --boot-border: #2b303b;
+      }
+      html, body { margin: 0; padding: 0; height: 100%; }
+      body {
+        background: var(--boot-bg);
+        color: var(--boot-fg);
+        font-family: "Inter", ui-sans-serif, system-ui, sans-serif;
+      }
+      #boot {
+        position: fixed;
+        inset: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 14px;
+        padding: 32px;
+        text-align: center;
+      }
+      #boot-spinner {
+        width: 42px;
+        height: 42px;
+        border-radius: 50%;
+        border: 3px solid var(--boot-border);
+        border-top-color: var(--boot-primary);
+        animation: boot-spin 0.7s linear infinite;
+      }
+      #boot-title { font-size: 17px; font-weight: 600; letter-spacing: -0.01em; }
+      #boot-step { font-size: 13px; color: var(--boot-muted); }
+      #boot-hint {
+        display: none;
+        max-width: 420px;
+        font-size: 12px;
+        line-height: 1.5;
+        color: var(--boot-muted);
+      }
+      #boot-detail {
+        display: none;
+        width: 100%;
+        max-width: 560px;
+        max-height: 38vh;
+        margin: 0;
+        overflow: auto;
+        text-align: left;
+        white-space: pre-wrap;
+        word-break: break-word;
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        font-size: 12px;
+        line-height: 1.5;
+        background: var(--boot-surface);
+        border: 1px solid var(--boot-border);
+        border-radius: 10px;
+        padding: 12px 14px;
+      }
+      #boot-actions { display: none; gap: 10px; }
+      #boot button {
+        font: inherit;
+        font-size: 13px;
+        padding: 8px 16px;
+        border-radius: 8px;
+        border: 1px solid var(--boot-border);
+        background: var(--boot-surface);
+        color: var(--boot-fg);
+        cursor: pointer;
+      }
+      #boot button.primary {
+        background: var(--boot-primary);
+        border-color: var(--boot-primary);
+        color: #ffffff;
+      }
+      #boot.boot-error #boot-spinner { display: none; }
+      #boot.boot-error #boot-title { color: var(--boot-danger); }
+      #boot.boot-error #boot-detail { display: block; }
+      #boot.boot-error #boot-actions { display: flex; }
+      @keyframes boot-spin { to { transform: rotate(360deg); } }
+    </style>
+  </head>
+
+  <body>
+    <div id="root">
+      <div id="boot">
+        <div id="boot-spinner"></div>
+        <div id="boot-title">Memuat Polaris</div>
+        <div id="boot-step">Menyiapkan aplikasi...</div>
+        <div id="boot-hint"></div>
+        <pre id="boot-detail"></pre>
+        <div id="boot-actions">
+          <button class="primary" onclick="location.reload()">Muat Ulang</button>
+        </div>
+      </div>
+    </div>
+    <script>
+      (function() {
+        var boot = document.getElementById("boot");
+        function fail(title, detail) {
+          if (window.__polarisMounted || !boot.isConnected) return;
+          boot.className = "boot-error";
+          document.getElementById("boot-title").textContent = title;
+          document.getElementById("boot-step").textContent = "Aplikasi berhenti sebelum antarmuka siap dimuat.";
+          document.getElementById("boot-detail").textContent = detail || "Tidak ada detail tambahan.";
+        }
+        window.addEventListener("error", function(e) {
+          if (e.target && e.target !== window && e.target.tagName) {
+            fail("Gagal memuat sumber daya", "Tidak dapat memuat: " + (e.target.src || e.target.href));
+            return;
+          }
+          var stack = (e.error && e.error.stack) || "";
+          fail("Gagal memuat aplikasi", (e.message || "Unknown error") + "\n" + (e.filename || "") + ":" + (e.lineno || 0) + "\n\n" + stack);
+        }, true);
+        window.addEventListener("unhandledrejection", function(e) {
+          var r = e.reason;
+          fail("Gagal memuat aplikasi", (r && (r.stack || r.message)) || String(r));
+        });
+        setTimeout(function() {
+          if (window.__polarisMounted || !boot.isConnected || boot.className === "boot-error") return;
+          var hint = document.getElementById("boot-hint");
+          hint.style.display = "block";
+          hint.textContent = "Pemuatan lebih lama dari biasanya. Jika layar tidak berubah, tutup lalu buka ulang aplikasi.";
+          document.getElementById("boot-actions").style.display = "flex";
+        }, 15000);
       })();
     </script>
     <script type="module" src="/src/main.tsx"></script>
