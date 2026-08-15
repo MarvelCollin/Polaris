@@ -230,7 +230,7 @@ export default function Sales() {
             clearInterval(interval);
             qrisPollingRef.current = null;
             setQrisStatus("settled");
-            await createSale(cart, total, selectedCustomer?.id, selectedCustomer?.nama, discountAmount, selectedAddress);
+            const qSnap = { cart: [...cart], total, customerId: selectedCustomer?.id, customerName: selectedCustomer?.nama, discountAmount, selectedAddress };
             setQrisOpen(false);
             setSuccess("Pembayaran QRIS berhasil!");
             setCart([]);
@@ -239,8 +239,10 @@ export default function Sales() {
             setDiscountValue(0);
             setQrisResponse(null);
             setQrisStatus("idle");
-            refetchProducts();
             setTimeout(() => setSuccess(null), 3000);
+            createSale(qSnap.cart, qSnap.total, qSnap.customerId, qSnap.customerName, qSnap.discountAmount, qSnap.selectedAddress)
+              .then(() => refetchProducts())
+              .catch(() => {});
           } else if (!isPending(status)) {
             clearInterval(interval);
             qrisPollingRef.current = null;
@@ -284,25 +286,26 @@ export default function Sales() {
   const canCheckout = cart.length > 0 && (isUtang ? selectedCustomer !== null : paid >= total);
   const sisaUtang = isUtang ? total - paid : 0;
 
-  async function handleCheckout() {
+  function handleCheckout() {
     if (!canCheckout) return;
     if (isUtang && !selectedCustomer) return;
-    try {
-      await createSale(cart, paid, selectedCustomer?.id, selectedCustomer?.nama, discountAmount, selectedAddress);
-      if (isUtang) {
-        setSuccess(`Penjualan utang berhasil! Sisa: ${formatRupiah(sisaUtang)}`);
-      } else {
-        setSuccess(`Pembayaran berhasil! Kembalian: ${formatRupiah(change)}`);
-      }
-      setCart([]);
-      setPaid(0);
-      setIsUtang(false);
-      setDiscountValue(0);
-      refetchProducts();
-      setTimeout(() => setSuccess(null), 3000);
-    } catch (e) {
-      alert(e instanceof Error ? e.message : String(e));
-    }
+
+    const snap = { cart, paid, discountAmount, selectedAddress, customerId: selectedCustomer?.id, customerName: selectedCustomer?.nama };
+    const msg = isUtang ? `Penjualan utang berhasil! Sisa: ${formatRupiah(sisaUtang)}` : `Pembayaran berhasil! Kembalian: ${formatRupiah(change)}`;
+
+    setCart([]);
+    setPaid(0);
+    setIsUtang(false);
+    setDiscountValue(0);
+    setSuccess(msg);
+    setTimeout(() => setSuccess(null), 3000);
+
+    createSale(snap.cart, snap.paid, snap.customerId, snap.customerName, snap.discountAmount, snap.selectedAddress)
+      .then(() => refetchProducts())
+      .catch((e) => {
+        setSuccess(null);
+        alert(e instanceof Error ? e.message : String(e));
+      });
   }
 
   const { visible: visibleProducts, Sentinel } = useIncrementalRender(filteredProducts, 48);

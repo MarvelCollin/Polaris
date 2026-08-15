@@ -138,30 +138,31 @@ export default function Purchases() {
     return map;
   }, [items]);
 
-  async function handleSave() {
+  function handleSave() {
     if (!supplier.trim() || items.length === 0) return;
-    try {
-      const paidAmount = isUtang ? dibayar : total;
-      const trimmed = supplier.trim();
-      const matched = (existingSuppliers ?? []).find(
-        (s) => s.toLowerCase() === trimmed.toLowerCase()
-      );
-      await createPurchase(matched ?? trimmed, items, paidAmount);
-      const sisaUtang = total - paidAmount;
-      if (isUtang && sisaUtang > 0) {
-        setSuccess(`Pembelian disimpan! Utang: ${formatRupiah(sisaUtang)}`);
-      } else {
-        setSuccess("Pembelian berhasil disimpan!");
-      }
-      setSupplier("");
-      setItems([]);
-      setIsUtang(false);
-      setDibayar(0);
-      refetchProducts();
-      setTimeout(() => setSuccess(null), 3000);
-    } catch (e) {
-      alert(e instanceof Error ? e.message : String(e));
-    }
+
+    const paidAmount = isUtang ? dibayar : total;
+    const trimmed = supplier.trim();
+    const matched = (existingSuppliers ?? []).find(
+      (s) => s.toLowerCase() === trimmed.toLowerCase()
+    );
+    const snap = { supplier: matched ?? trimmed, items: [...items], paidAmount };
+    const sisaUtang = total - paidAmount;
+    const msg = isUtang && sisaUtang > 0 ? `Pembelian disimpan! Utang: ${formatRupiah(sisaUtang)}` : "Pembelian berhasil disimpan!";
+
+    setSupplier("");
+    setItems([]);
+    setIsUtang(false);
+    setDibayar(0);
+    setSuccess(msg);
+    setTimeout(() => setSuccess(null), 3000);
+
+    createPurchase(snap.supplier, snap.items, snap.paidAmount)
+      .then(() => refetchProducts())
+      .catch((e) => {
+        setSuccess(null);
+        alert(e instanceof Error ? e.message : String(e));
+      });
   }
 
   return (

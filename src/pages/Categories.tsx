@@ -32,7 +32,7 @@ export default function Categories() {
   const [nama, setNama] = useState("");
   const [deleteTarget, setDeleteTarget] = useState<Category | null>(null);
   const [error, setError] = useState("");
-  const [saving, setSaving] = useState(false);
+  const [saving] = useState(false);
 
   function openAdd() {
     setEditing(null);
@@ -48,23 +48,15 @@ export default function Categories() {
     setModalOpen(true);
   }
 
-  async function handleSave() {
+  function handleSave() {
     if (saving) return;
     if (!nama.trim()) { setError("Nama kategori wajib diisi"); return; }
-    setSaving(true);
-    try {
-      if (editing) {
-        await updateCategory(editing.id, nama.trim());
-      } else {
-        await createCategory(nama.trim());
-      }
-      setModalOpen(false);
-      refetch();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setSaving(false);
-    }
+    const trimmed = nama.trim();
+    const editId = editing?.id;
+    setModalOpen(false);
+
+    const op = editId ? updateCategory(editId, trimmed) : createCategory(trimmed);
+    op.then(() => refetch()).catch((e) => alert(e instanceof Error ? e.message : String(e)));
   }
 
   async function handleDelete() {

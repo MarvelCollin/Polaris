@@ -41,8 +41,8 @@ export default function Customers() {
   const [addrForm, setAddrForm] = useState({ label: "", alamat: "" });
   const [editingAddr, setEditingAddr] = useState<CustomerAddress | null>(null);
   const [addrError, setAddrError] = useState("");
-  const [saving, setSaving] = useState(false);
-  const [savingAddr, setSavingAddr] = useState(false);
+  const [saving] = useState(false);
+  const [savingAddr] = useState(false);
   const [modalAddresses, setModalAddresses] = useState<CustomerAddress[]>([]);
   const [inlineAddrForm, setInlineAddrForm] = useState("");
 
@@ -77,27 +77,20 @@ export default function Customers() {
     setModalOpen(true);
   }
 
-  async function handleSave() {
+  function handleSave() {
     if (saving) return;
     if (!form.nama.trim()) { setError("Nama pelanggan wajib diisi"); return; }
-    setSaving(true);
-    try {
-      const data = { nama: form.nama.trim(), telepon: form.telepon.trim() || null, alamat: form.alamat.trim() || null };
-      if (editing) {
-        await updateCustomer(editing.id, data);
-      } else {
-        const newId = await createCustomer(data);
-        for (const addr of modalAddresses) {
-          await addCustomerAddress(newId, addr.label, addr.alamat);
-        }
-      }
-      setModalOpen(false);
-      refetch();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setSaving(false);
-    }
+    const data = { nama: form.nama.trim(), telepon: form.telepon.trim() || null, alamat: form.alamat.trim() || null };
+    const editId = editing?.id;
+    const addrsCopy = [...modalAddresses];
+    setModalOpen(false);
+
+    const op = editId
+      ? updateCustomer(editId, data)
+      : createCustomer(data).then(async (newId) => {
+          for (const addr of addrsCopy) await addCustomerAddress(newId, addr.label, addr.alamat);
+        });
+    op.then(() => refetch()).catch((e) => alert(e instanceof Error ? e.message : String(e)));
   }
 
   async function handleDelete() {
@@ -146,29 +139,22 @@ export default function Customers() {
     setAddrModalOpen(true);
   }
 
-  async function handleSaveAddr() {
+  function handleSaveAddr() {
     if (!addrCustomer || savingAddr) return;
     if (!addrForm.label.trim() || !addrForm.alamat.trim()) {
       setAddrError("Label dan alamat wajib diisi");
       return;
     }
-    setSavingAddr(true);
-    try {
-      if (editingAddr) {
-        await updateCustomerAddress(editingAddr.id, addrForm.label.trim(), addrForm.alamat.trim());
-      } else {
-        await addCustomerAddress(addrCustomer.id, addrForm.label.trim(), addrForm.alamat.trim());
-      }
-      const a = await getCustomerAddresses(addrCustomer.id);
-      setAddresses(a);
-      setAddrForm({ label: "", alamat: "" });
-      setEditingAddr(null);
-      setAddrError("");
-    } catch (e) {
-      setAddrError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setSavingAddr(false);
-    }
+    const label = addrForm.label.trim();
+    const alamat = addrForm.alamat.trim();
+    const editAddrId = editingAddr?.id;
+    const custId = addrCustomer.id;
+    setAddrForm({ label: "", alamat: "" });
+    setEditingAddr(null);
+    setAddrError("");
+
+    const op = editAddrId ? updateCustomerAddress(editAddrId, label, alamat) : addCustomerAddress(custId, label, alamat);
+    op.then(() => getCustomerAddresses(custId)).then(setAddresses).catch((e) => setAddrError(e instanceof Error ? e.message : String(e)));
   }
 
   async function handleDeleteAddr(id: number) {

@@ -95,7 +95,7 @@ export default function Products() {
   const [stockTarget, setStockTarget] = useState<ProductWithCategory | null>(null);
   const [stockValue, setStockValue] = useState(0);
   const [satuanOpen, setSatuanOpen] = useState(false);
-  const [saving, setSaving] = useState(false);
+  const [saving] = useState(false);
   const satuanRef = useRef<HTMLDivElement>(null);
 
   const filteredSatuan = (existingSatuan ?? []).filter(
@@ -160,31 +160,22 @@ export default function Products() {
     setPreviewUrl(null);
   }
 
-  async function handleSave() {
+  function handleSave() {
     if (saving) return;
     if (!form.nama.trim() || !form.kategori_id) {
       setError("Nama dan kategori wajib diisi");
       return;
     }
-    setSaving(true);
-    try {
-      const trimmedSatuan = form.satuan.trim();
-      const matchedSatuan = (existingSatuan ?? []).find(
-        (s) => s.toLowerCase() === trimmedSatuan.toLowerCase()
-      );
-      const normalizedForm = { ...form, satuan: matchedSatuan ?? trimmedSatuan };
-      if (editing) {
-        await updateProduct(editing.id, normalizedForm);
-      } else {
-        await createProduct(normalizedForm);
-      }
-      setModalOpen(false);
-      refetch();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setSaving(false);
-    }
+    const trimmedSatuan = form.satuan.trim();
+    const matchedSatuan = (existingSatuan ?? []).find(
+      (s) => s.toLowerCase() === trimmedSatuan.toLowerCase()
+    );
+    const normalizedForm = { ...form, satuan: matchedSatuan ?? trimmedSatuan };
+    const editId = editing?.id;
+    setModalOpen(false);
+
+    const op = editId ? updateProduct(editId, normalizedForm) : createProduct(normalizedForm);
+    op.then(() => refetch()).catch((e) => alert(e instanceof Error ? e.message : String(e)));
   }
 
   function openStock(p: ProductWithCategory) {
@@ -192,18 +183,11 @@ export default function Products() {
     setStockValue(p.stok);
   }
 
-  async function handleStockSave() {
-    if (!stockTarget || saving) return;
-    setSaving(true);
-    try {
-      await updateStock(stockTarget.id, stockValue);
-      setStockTarget(null);
-      refetch();
-    } catch (e) {
-      alert(e instanceof Error ? e.message : String(e));
-    } finally {
-      setSaving(false);
-    }
+  function handleStockSave() {
+    if (!stockTarget) return;
+    const id = stockTarget.id;
+    setStockTarget(null);
+    updateStock(id, stockValue).then(() => refetch()).catch((e) => alert(e instanceof Error ? e.message : String(e)));
   }
 
   async function handleDelete() {
