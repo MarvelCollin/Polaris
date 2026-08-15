@@ -2,6 +2,7 @@ import { Database } from "tauri-plugin-libsql-api";
 import { invoke } from "@tauri-apps/api/core";
 
 let db: Database | null = null;
+let tursoConnected = false;
 
 interface TursoConfig {
   url: string;
@@ -10,17 +11,7 @@ interface TursoConfig {
 
 export async function getDb(): Promise<Database> {
   if (!db) {
-    const config: TursoConfig | null = await invoke("get_turso_config");
-
-    if (config) {
-      db = await Database.load({
-        path: "sqlite:polaris.db",
-        syncUrl: config.url,
-        authToken: config.token,
-      });
-    } else {
-      db = await Database.load("sqlite:polaris.db");
-    }
+    db = await Database.load("sqlite:polaris.db");
 
     try { await db.execute("PRAGMA journal_mode = WAL"); } catch (_) {}
     try { await db.execute("PRAGMA synchronous = NORMAL"); } catch (_) {}
@@ -31,10 +22,34 @@ export async function getDb(): Promise<Database> {
   return db;
 }
 
+export async function connectTurso(): Promise<void> {
+  if (tursoConnected) return;
+  try {
+    const config: TursoConfig | null = await invoke("get_turso_config");
+    if (!config) return;
+
+    const synced = await Database.load({
+      path: "sqlite:polaris.db",
+      syncUrl: config.url,
+      authToken: config.token,
+    });
+
+    try { await synced.execute("PRAGMA journal_mode = WAL"); } catch (_) {}
+    try { await synced.execute("PRAGMA synchronous = NORMAL"); } catch (_) {}
+    try { await synced.execute("PRAGMA cache_size = -8000"); } catch (_) {}
+    try { await synced.execute("PRAGMA temp_store = MEMORY"); } catch (_) {}
+    await synced.execute("PRAGMA foreign_keys = ON");
+
+    await synced.sync();
+    db = synced;
+    tursoConnected = true;
+  } catch (_) {}
+}
+
 let syncTimer: ReturnType<typeof setTimeout> | null = null;
 
 export function syncDb() {
-  if (!db) return;
+  if (!db || !tursoConnected) return;
   if (syncTimer) clearTimeout(syncTimer);
   syncTimer = setTimeout(() => {
     db?.sync().catch(() => {});
@@ -42,7 +57,7 @@ export function syncDb() {
 }
 
 async function syncDbImmediate() {
-  if (db) {
+  if (db && tursoConnected) {
     try { await db.sync(); } catch (_) {}
   }
 }
@@ -117,8 +132,6 @@ export async function initDb() {
   if (!penjualanSet.has("diskon")) await database.execute("ALTER TABLE penjualan ADD COLUMN diskon REAL NOT NULL DEFAULT 0");
   if (!itemPenjualanSet.has("hpp")) await database.execute("ALTER TABLE item_penjualan ADD COLUMN hpp REAL NOT NULL DEFAULT 0");
   if (!penjualanSet.has("alamat_pengiriman")) await database.execute("ALTER TABLE penjualan ADD COLUMN alamat_pengiriman TEXT");
-
-  syncDb();
 }
 
 export async function resetTransactionData() {
