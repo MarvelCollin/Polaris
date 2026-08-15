@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef } from "react";
 import { useQuery } from "@/hooks/useQuery";
 import { useDebounce } from "@/hooks/useDebounce";
 import { useSort } from "@/hooks/useSort";
@@ -18,10 +18,13 @@ import SearchInput from "@/components/SearchInput";
 import SortableHead from "@/components/SortableHead";
 import { Plus, Pencil, Trash2, Tag, MapPin } from "lucide-react";
 import SearchableSelect from "@/components/SearchableSelect";
+import { useToast } from "@/components/Toast";
 
 const emptyForm = { nama: "", telepon: "", alamat: "" };
 
 export default function Customers() {
+  const toast = useToast();
+  const busyRef = useRef(false);
   const [search, setSearch] = useState("");
   const debouncedSearch = useDebounce(search);
   const { data: customers, refetch } = useQuery(
@@ -41,8 +44,6 @@ export default function Customers() {
   const [addrForm, setAddrForm] = useState({ label: "", alamat: "" });
   const [editingAddr, setEditingAddr] = useState<CustomerAddress | null>(null);
   const [addrError, setAddrError] = useState("");
-  const [saving] = useState(false);
-  const [savingAddr] = useState(false);
   const [modalAddresses, setModalAddresses] = useState<CustomerAddress[]>([]);
   const [inlineAddrForm, setInlineAddrForm] = useState("");
 
@@ -78,8 +79,9 @@ export default function Customers() {
   }
 
   function handleSave() {
-    if (saving) return;
+    if (busyRef.current) return;
     if (!form.nama.trim()) { setError("Nama pelanggan wajib diisi"); return; }
+    busyRef.current = true;
     const data = { nama: form.nama.trim(), telepon: form.telepon.trim() || null, alamat: form.alamat.trim() || null };
     const editId = editing?.id;
     const addrsCopy = [...modalAddresses];
@@ -90,19 +92,21 @@ export default function Customers() {
       : createCustomer(data).then(async (newId) => {
           for (const addr of addrsCopy) await addCustomerAddress(newId, addr.label, addr.alamat);
         });
-    op.then(() => refetch()).catch((e) => alert(e instanceof Error ? e.message : String(e)));
+    op.then(() => { toast.success(editId ? "Pelanggan diperbarui" : "Pelanggan ditambahkan"); refetch(); })
+      .catch((e) => toast.error(e instanceof Error ? e.message : String(e)))
+      .finally(() => { busyRef.current = false; });
   }
 
-  async function handleDelete() {
-    if (!deleteTarget) return;
-    try {
-      await deleteCustomer(deleteTarget.id);
-      setDeleteTarget(null);
-      refetch();
-    } catch (e) {
-      alert(e instanceof Error ? e.message : String(e));
-      setDeleteTarget(null);
-    }
+  function handleDelete() {
+    if (!deleteTarget || busyRef.current) return;
+    busyRef.current = true;
+    const target = deleteTarget;
+    setDeleteTarget(null);
+
+    deleteCustomer(target.id)
+      .then(() => { toast.success("Pelanggan dihapus"); refetch(); })
+      .catch((e) => toast.error(e instanceof Error ? e.message : String(e)))
+      .finally(() => { busyRef.current = false; });
   }
 
   async function openPrices(c: Customer) {
@@ -112,21 +116,26 @@ export default function Customers() {
     setPriceModalOpen(true);
   }
 
-  async function handleAddPrice() {
-    if (!priceCustomer || !selectedProdukId || selectedHarga <= 0) return;
-    await setCustomerPrice(priceCustomer.id, selectedProdukId, selectedHarga);
-    const p = await getCustomerPrices(priceCustomer.id);
-    setPrices(p);
-    setAddPriceOpen(false);
-    setSelectedProdukId(0);
-    setSelectedHarga(0);
+  function handleAddPrice() {
+    if (!priceCustomer || !selectedProdukId || selectedHarga <= 0 || busyRef.current) return;
+    busyRef.current = true;
+    const custId = priceCustomer.id;
+    setCustomerPrice(custId, selectedProdukId, selectedHarga)
+      .then(() => getCustomerPrices(custId))
+      .then((p) => { setPrices(p); toast.success("Harga khusus ditambahkan"); setAddPriceOpen(false); setSelectedProdukId(0); setSelectedHarga(0); })
+      .catch((e) => toast.error(e instanceof Error ? e.message : String(e)))
+      .finally(() => { busyRef.current = false; });
   }
 
-  async function handleRemovePrice(produkId: number) {
-    if (!priceCustomer) return;
-    await removeCustomerPrice(priceCustomer.id, produkId);
-    const p = await getCustomerPrices(priceCustomer.id);
-    setPrices(p);
+  function handleRemovePrice(produkId: number) {
+    if (!priceCustomer || busyRef.current) return;
+    busyRef.current = true;
+    const custId = priceCustomer.id;
+    removeCustomerPrice(custId, produkId)
+      .then(() => getCustomerPrices(custId))
+      .then((p) => { setPrices(p); toast.success("Harga khusus dihapus"); })
+      .catch((e) => toast.error(e instanceof Error ? e.message : String(e)))
+      .finally(() => { busyRef.current = false; });
   }
 
   async function openAddresses(c: Customer) {
@@ -140,11 +149,12 @@ export default function Customers() {
   }
 
   function handleSaveAddr() {
-    if (!addrCustomer || savingAddr) return;
+    if (!addrCustomer || busyRef.current) return;
     if (!addrForm.label.trim() || !addrForm.alamat.trim()) {
       setAddrError("Label dan alamat wajib diisi");
       return;
     }
+    busyRef.current = true;
     const label = addrForm.label.trim();
     const alamat = addrForm.alamat.trim();
     const editAddrId = editingAddr?.id;
@@ -154,14 +164,21 @@ export default function Customers() {
     setAddrError("");
 
     const op = editAddrId ? updateCustomerAddress(editAddrId, label, alamat) : addCustomerAddress(custId, label, alamat);
-    op.then(() => getCustomerAddresses(custId)).then(setAddresses).catch((e) => setAddrError(e instanceof Error ? e.message : String(e)));
+    op.then(() => getCustomerAddresses(custId))
+      .then((a) => { setAddresses(a); toast.success(editAddrId ? "Alamat diperbarui" : "Alamat ditambahkan"); })
+      .catch((e) => setAddrError(e instanceof Error ? e.message : String(e)))
+      .finally(() => { busyRef.current = false; });
   }
 
-  async function handleDeleteAddr(id: number) {
-    if (!addrCustomer) return;
-    await deleteCustomerAddress(id);
-    const a = await getCustomerAddresses(addrCustomer.id);
-    setAddresses(a);
+  function handleDeleteAddr(id: number) {
+    if (!addrCustomer || busyRef.current) return;
+    busyRef.current = true;
+    const custId = addrCustomer.id;
+    deleteCustomerAddress(id)
+      .then(() => getCustomerAddresses(custId))
+      .then((a) => { setAddresses(a); toast.success("Alamat dihapus"); })
+      .catch((e) => toast.error(e instanceof Error ? e.message : String(e)))
+      .finally(() => { busyRef.current = false; });
   }
 
   async function handleAddInlineAddr() {
@@ -296,7 +313,7 @@ export default function Customers() {
           {error && <p className="text-sm text-destructive">{error}</p>}
           <div className="flex justify-end gap-2">
             <Button variant="outline" onClick={() => setModalOpen(false)}>Batal</Button>
-            <Button onClick={handleSave} disabled={saving}>{saving ? "Menyimpan..." : "Simpan"}</Button>
+            <Button onClick={handleSave}>Simpan</Button>
           </div>
         </div>
       </Modal>
@@ -429,7 +446,7 @@ export default function Customers() {
                   setAddrError("");
                 }}>Batal</Button>
               )}
-              <Button size="sm" onClick={handleSaveAddr} disabled={savingAddr}>{savingAddr ? "Menyimpan..." : "Simpan"}</Button>
+              <Button size="sm" onClick={handleSaveAddr}>Simpan</Button>
             </div>
           </div>
         </div>

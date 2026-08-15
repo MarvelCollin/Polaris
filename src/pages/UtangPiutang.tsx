@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo } from "react";
+import { useState, useCallback, useMemo, useRef } from "react";
 import { useQuery } from "@/hooks/useQuery";
 import { useDebounce } from "@/hooks/useDebounce";
 import { getSaleDebts, getSalePayments, addSalePayment } from "@/db/sales";
@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/table";
 import Modal from "@/components/Modal";
 import { CreditCard, History } from "lucide-react";
+import { useToast } from "@/components/Toast";
 import {
   BarChart, Bar, PieChart, Pie, Cell,
   XAxis, YAxis, CartesianGrid, Tooltip,
@@ -24,6 +25,8 @@ import { formatShortRupiah, ChartTooltip, PieTooltip, TICK_10 } from "@/lib/char
 type Tab = "piutang" | "utang";
 
 export default function UtangPiutang() {
+  const toast = useToast();
+  const busyRef = useRef(false);
   const [tab, setTab] = useState<Tab>("piutang");
   const [search, setSearch] = useState("");
   const debouncedSearch = useDebounce(search);
@@ -106,16 +109,21 @@ export default function UtangPiutang() {
     setPayModalType(null);
   }
 
-  async function handlePay() {
-    if (payAmount <= 0 || payAmount > payModalSisa) return;
-    if (payModalType === "sale") {
-      await addSalePayment(payModalId, payAmount, payNote || undefined);
-      refetchSale();
-    } else {
-      await addPurchasePayment(payModalId, payAmount, payNote || undefined);
-      refetchPurchase();
-    }
+  function handlePay() {
+    if (payAmount <= 0 || payAmount > payModalSisa || busyRef.current) return;
+    busyRef.current = true;
+    const type = payModalType;
+    const id = payModalId;
+    const amount = payAmount;
+    const note = payNote || undefined;
     closePayModal();
+
+    const op = type === "sale"
+      ? addSalePayment(id, amount, note).then(() => refetchSale())
+      : addPurchasePayment(id, amount, note).then(() => refetchPurchase());
+    op.then(() => toast.success("Pembayaran berhasil"))
+      .catch((e) => toast.error(e instanceof Error ? e.message : String(e)))
+      .finally(() => { busyRef.current = false; });
   }
 
   async function openHistory(type: "sale" | "purchase", id: number, label: string) {

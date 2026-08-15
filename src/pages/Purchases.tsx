@@ -1,4 +1,5 @@
 import { memo, useState, useCallback, useMemo, useRef, useEffect } from "react";
+import { useToast } from "@/components/Toast";
 import { useQuery } from "@/hooks/useQuery";
 import { useDebounce } from "@/hooks/useDebounce";
 import { useIncrementalRender } from "@/hooks/useIncrementalRender";
@@ -11,7 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import SearchInput from "@/components/SearchInput";
-import { Plus, Minus, Trash2, CheckCircle } from "lucide-react";
+import { Plus, Minus, Trash2 } from "lucide-react";
 import ProductThumb from "@/components/ProductThumb";
 
 const PurchaseProductTile = memo(function PurchaseProductTile({
@@ -50,6 +51,8 @@ const PurchaseProductTile = memo(function PurchaseProductTile({
 });
 
 export default function Purchases() {
+  const toast = useToast();
+  const busyRef = useRef(false);
   const [search, setSearch] = useState("");
   const debouncedSearch = useDebounce(search);
   const [selectedCat, setSelectedCat] = useState(0);
@@ -68,7 +71,6 @@ export default function Purchases() {
   const [items, setItems] = useState<PurchaseEntry[]>([]);
   const [isUtang, setIsUtang] = useState(false);
   const [dibayar, setDibayar] = useState<number>(0);
-  const [success, setSuccess] = useState<string | null>(null);
 
   const filteredSuppliers = (existingSuppliers ?? []).filter(
     (s) => supplier.length > 0 && s.toLowerCase().includes(supplier.toLowerCase()) && s !== supplier
@@ -139,7 +141,8 @@ export default function Purchases() {
   }, [items]);
 
   function handleSave() {
-    if (!supplier.trim() || items.length === 0) return;
+    if (!supplier.trim() || items.length === 0 || busyRef.current) return;
+    busyRef.current = true;
 
     const paidAmount = isUtang ? dibayar : total;
     const trimmed = supplier.trim();
@@ -154,26 +157,17 @@ export default function Purchases() {
     setItems([]);
     setIsUtang(false);
     setDibayar(0);
-    setSuccess(msg);
-    setTimeout(() => setSuccess(null), 3000);
+    toast.success(msg);
 
     createPurchase(snap.supplier, snap.items, snap.paidAmount)
       .then(() => refetchProducts())
-      .catch((e) => {
-        setSuccess(null);
-        alert(e instanceof Error ? e.message : String(e));
-      });
+      .catch((e) => toast.error(e instanceof Error ? e.message : String(e)))
+      .finally(() => { busyRef.current = false; });
   }
 
   return (
     <div className="animate-fade-in">
       <h1 className="mb-4 text-2xl font-bold">Pembelian</h1>
-
-      {success && (
-        <div className="animate-fade-in-up mb-4 flex items-center gap-2 rounded-md bg-[#1b508a]/10 p-3 text-sm text-[#1b508a] dark:bg-[#1b508a]/20 dark:text-[#5ba0d0]">
-          <CheckCircle className="size-4" /> {success}
-        </div>
-      )}
 
       <div className="flex flex-col gap-4 lg:flex-row">
         <div className="min-w-0 flex-1 flex-col">

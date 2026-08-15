@@ -17,6 +17,7 @@ import ConfirmDialog from "@/components/ConfirmDialog";
 import SearchInput from "@/components/SearchInput";
 import { Plus, Minus, Pencil, Trash2, ImagePlus, X, PackagePlus } from "lucide-react";
 import SearchableSelect from "@/components/SearchableSelect";
+import { useToast } from "@/components/Toast";
 
 const emptyForm = {
   kode: "", nama: "", kategori_id: 0, satuan: "pcs",
@@ -63,6 +64,8 @@ const ProductTile = memo(function ProductTile({
 });
 
 export default function Products() {
+  const toast = useToast();
+  const busyRef = useRef(false);
   const [search, setSearch] = useState("");
   const [catFilter, setCatFilter] = useState(0);
   const debouncedSearch = useDebounce(search);
@@ -95,7 +98,6 @@ export default function Products() {
   const [stockTarget, setStockTarget] = useState<ProductWithCategory | null>(null);
   const [stockValue, setStockValue] = useState(0);
   const [satuanOpen, setSatuanOpen] = useState(false);
-  const [saving] = useState(false);
   const satuanRef = useRef<HTMLDivElement>(null);
 
   const filteredSatuan = (existingSatuan ?? []).filter(
@@ -161,11 +163,12 @@ export default function Products() {
   }
 
   function handleSave() {
-    if (saving) return;
+    if (busyRef.current) return;
     if (!form.nama.trim() || !form.kategori_id) {
       setError("Nama dan kategori wajib diisi");
       return;
     }
+    busyRef.current = true;
     const trimmedSatuan = form.satuan.trim();
     const matchedSatuan = (existingSatuan ?? []).find(
       (s) => s.toLowerCase() === trimmedSatuan.toLowerCase()
@@ -175,7 +178,9 @@ export default function Products() {
     setModalOpen(false);
 
     const op = editId ? updateProduct(editId, normalizedForm) : createProduct(normalizedForm);
-    op.then(() => refetch()).catch((e) => alert(e instanceof Error ? e.message : String(e)));
+    op.then(() => { toast.success(editId ? "Produk diperbarui" : "Produk ditambahkan"); refetch(); })
+      .catch((e) => toast.error(e instanceof Error ? e.message : String(e)))
+      .finally(() => { busyRef.current = false; });
   }
 
   function openStock(p: ProductWithCategory) {
@@ -184,22 +189,25 @@ export default function Products() {
   }
 
   function handleStockSave() {
-    if (!stockTarget) return;
+    if (!stockTarget || busyRef.current) return;
+    busyRef.current = true;
     const id = stockTarget.id;
     setStockTarget(null);
-    updateStock(id, stockValue).then(() => refetch()).catch((e) => alert(e instanceof Error ? e.message : String(e)));
+    updateStock(id, stockValue)
+      .then(() => { toast.success("Stok diperbarui"); refetch(); })
+      .catch((e) => toast.error(e instanceof Error ? e.message : String(e)))
+      .finally(() => { busyRef.current = false; });
   }
 
-  async function handleDelete() {
-    if (!deleteTarget) return;
-    try {
-      await deleteProduct(deleteTarget.id);
-      setDeleteTarget(null);
-      refetch();
-    } catch (e) {
-      alert(e instanceof Error ? e.message : String(e));
-      setDeleteTarget(null);
-    }
+  function handleDelete() {
+    if (!deleteTarget || busyRef.current) return;
+    busyRef.current = true;
+    const target = deleteTarget;
+    setDeleteTarget(null);
+    deleteProduct(target.id)
+      .then(() => { toast.success("Produk dihapus"); refetch(); })
+      .catch((e) => toast.error(e instanceof Error ? e.message : String(e)))
+      .finally(() => { busyRef.current = false; });
   }
 
   const { visible: visibleProducts, Sentinel } = useIncrementalRender(filteredProducts, 48);
@@ -363,7 +371,7 @@ export default function Products() {
           {error && <p className="text-sm text-destructive">{error}</p>}
           <div className="flex justify-end gap-2">
             <Button variant="outline" onClick={() => setModalOpen(false)}>Batal</Button>
-            <Button onClick={handleSave} disabled={saving}>{saving ? "Menyimpan..." : "Simpan"}</Button>
+            <Button onClick={handleSave}>Simpan</Button>
           </div>
         </div>
       </Modal>
@@ -410,7 +418,7 @@ export default function Products() {
             </div>
             <div className="flex justify-end gap-2">
               <Button variant="outline" onClick={() => setStockTarget(null)}>Batal</Button>
-              <Button onClick={handleStockSave} disabled={saving}>{saving ? "Menyimpan..." : "Simpan"}</Button>
+              <Button onClick={handleStockSave}>Simpan</Button>
             </div>
           </div>
         )}

@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo } from "react";
+import { useState, useCallback, useMemo, useRef } from "react";
 import { useQuery } from "@/hooks/useQuery";
 import { useSort } from "@/hooks/useSort";
 import { useDebounce } from "@/hooks/useDebounce";
@@ -18,6 +18,7 @@ import Pagination from "@/components/Pagination";
 import SortableHead from "@/components/SortableHead";
 import { Badge } from "@/components/ui/badge";
 import { Eye, RotateCcw } from "lucide-react";
+import { useToast } from "@/components/Toast";
 import {
   AreaChart, Area, BarChart, Bar,
   XAxis, YAxis, CartesianGrid, Tooltip,
@@ -28,6 +29,8 @@ import { GROUP_LABELS, formatShortRupiah, ChartTooltip, TICK_10 } from "@/lib/ch
 const PER_PAGE = 20;
 
 export default function SaleHistory() {
+  const toast = useToast();
+  const busyRef = useRef(false);
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
   const debouncedSearch = useDebounce(search);
@@ -72,7 +75,7 @@ export default function SaleHistory() {
   const [returItems, setReturItems] = useState<SaleItem[]>([]);
   const [returQty, setReturQty] = useState<Record<number, number>>({});
   const [returAlasan, setReturAlasan] = useState("");
-  const [returLoading, setReturLoading] = useState(false);
+  const [returLoading] = useState(false);
   const [returReturnedMap, setReturReturnedMap] = useState<Record<number, number>>({});
 
   async function openRetur(sale: Sale) {
@@ -103,9 +106,9 @@ export default function SaleHistory() {
   ), [returItems, returQty]);
   const hasReturItems = useMemo(() => Object.values(returQty).some((q) => q > 0), [returQty]);
 
-  async function handleRetur() {
-    if (!returSale || !hasReturItems) return;
-    setReturLoading(true);
+  function handleRetur() {
+    if (!returSale || !hasReturItems || busyRef.current) return;
+    busyRef.current = true;
     const items = returItems
       .filter((i) => (returQty[i.produk_id] ?? 0) > 0)
       .map((i) => ({
@@ -114,16 +117,14 @@ export default function SaleHistory() {
         jumlah: returQty[i.produk_id],
         harga_satuan: i.harga_satuan,
       }));
-    try {
-      await createSaleReturn(returSale.id, items, returAlasan || undefined);
-      closeRetur();
-      refetch();
-      refetchStats();
-    } catch (e) {
-      alert(e instanceof Error ? e.message : String(e));
-    } finally {
-      setReturLoading(false);
-    }
+    const saleId = returSale.id;
+    const alasan = returAlasan || undefined;
+    closeRetur();
+
+    createSaleReturn(saleId, items, alasan)
+      .then(() => { toast.success("Retur berhasil"); refetch(); refetchStats(); })
+      .catch((e) => toast.error(e instanceof Error ? e.message : String(e)))
+      .finally(() => { busyRef.current = false; });
   }
 
   const sh = (label: string, key: string) => (

@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo } from "react";
+import { useState, useCallback, useMemo, useRef } from "react";
 import { useQuery } from "@/hooks/useQuery";
 import { useSort } from "@/hooks/useSort";
 import { useDebounce } from "@/hooks/useDebounce";
@@ -19,6 +19,7 @@ import Pagination from "@/components/Pagination";
 import SortableHead from "@/components/SortableHead";
 import { Badge } from "@/components/ui/badge";
 import { Eye, RotateCcw } from "lucide-react";
+import { useToast } from "@/components/Toast";
 import {
   AreaChart, Area, BarChart, Bar,
   XAxis, YAxis, CartesianGrid, Tooltip,
@@ -29,6 +30,8 @@ import { CHART_COLORS, GROUP_LABELS, formatShortRupiah, ChartTooltip, PieTooltip
 const PER_PAGE = 20;
 
 export default function PurchaseHistory() {
+  const toast = useToast();
+  const busyRef = useRef(false);
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
   const debouncedSearch = useDebounce(search);
@@ -73,7 +76,7 @@ export default function PurchaseHistory() {
   const [returItems, setReturItems] = useState<PurchaseItem[]>([]);
   const [returQty, setReturQty] = useState<Record<number, number>>({});
   const [returAlasan, setReturAlasan] = useState("");
-  const [returLoading, setReturLoading] = useState(false);
+  const [returLoading] = useState(false);
   const [returReturnedMap, setReturReturnedMap] = useState<Record<number, number>>({});
 
   async function openRetur(purchase: Purchase) {
@@ -104,9 +107,9 @@ export default function PurchaseHistory() {
   ), [returItems, returQty]);
   const hasReturItems = useMemo(() => Object.values(returQty).some((q) => q > 0), [returQty]);
 
-  async function handleRetur() {
-    if (!returPurchase || !hasReturItems) return;
-    setReturLoading(true);
+  function handleRetur() {
+    if (!returPurchase || !hasReturItems || busyRef.current) return;
+    busyRef.current = true;
     const items = returItems
       .filter((i) => (returQty[i.produk_id] ?? 0) > 0)
       .map((i) => ({
@@ -115,16 +118,14 @@ export default function PurchaseHistory() {
         jumlah: returQty[i.produk_id],
         harga_satuan: i.harga_satuan,
       }));
-    try {
-      await createPurchaseReturn(returPurchase.id, items, returAlasan || undefined);
-      closeRetur();
-      refetch();
-      refetchStats();
-    } catch (e) {
-      alert(e instanceof Error ? e.message : String(e));
-    } finally {
-      setReturLoading(false);
-    }
+    const purchaseId = returPurchase.id;
+    const alasan = returAlasan || undefined;
+    closeRetur();
+
+    createPurchaseReturn(purchaseId, items, alasan)
+      .then(() => { toast.success("Retur berhasil"); refetch(); refetchStats(); })
+      .catch((e) => toast.error(e instanceof Error ? e.message : String(e)))
+      .finally(() => { busyRef.current = false; });
   }
 
   const sh = (label: string, key: string) => (

@@ -1,4 +1,5 @@
 import { memo, useState, useCallback, useEffect, useMemo, useRef } from "react";
+import { useToast } from "@/components/Toast";
 import { useQuery } from "@/hooks/useQuery";
 import { useDebounce } from "@/hooks/useDebounce";
 import { useIncrementalRender } from "@/hooks/useIncrementalRender";
@@ -12,7 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import SearchInput from "@/components/SearchInput";
-import { Plus, Minus, Trash2, CheckCircle, UserCircle, Star, Percent, QrCode, Loader2, X, MapPin } from "lucide-react";
+import { Plus, Minus, Trash2, UserCircle, Star, Percent, QrCode, Loader2, X, MapPin, CheckCircle } from "lucide-react";
 import ProductThumb from "@/components/ProductThumb";
 import SearchableSelect from "@/components/SearchableSelect";
 import Modal from "@/components/Modal";
@@ -68,6 +69,8 @@ const SaleProductTile = memo(function SaleProductTile({
 });
 
 export default function Sales() {
+  const toast = useToast();
+  const busyRef = useRef(false);
   const [search, setSearch] = useState("");
   const debouncedSearch = useDebounce(search);
   const [selectedCat, setSelectedCat] = useState(0);
@@ -86,7 +89,6 @@ export default function Sales() {
   const [cart, setCart] = useState<CartEntry[]>([]);
   const [paid, setPaid] = useState<number>(0);
   const [isUtang, setIsUtang] = useState(false);
-  const [success, setSuccess] = useState<string | null>(null);
   const [discountType, setDiscountType] = useState<"percent" | "rupiah">("percent");
   const [discountValue, setDiscountValue] = useState<number>(0);
 
@@ -232,17 +234,16 @@ export default function Sales() {
             setQrisStatus("settled");
             const qSnap = { cart: [...cart], total, customerId: selectedCustomer?.id, customerName: selectedCustomer?.nama, discountAmount, selectedAddress };
             setQrisOpen(false);
-            setSuccess("Pembayaran QRIS berhasil!");
             setCart([]);
             setPaid(0);
             setIsUtang(false);
             setDiscountValue(0);
             setQrisResponse(null);
             setQrisStatus("idle");
-            setTimeout(() => setSuccess(null), 3000);
+            toast.success("Pembayaran QRIS berhasil!");
             createSale(qSnap.cart, qSnap.total, qSnap.customerId, qSnap.customerName, qSnap.discountAmount, qSnap.selectedAddress)
               .then(() => refetchProducts())
-              .catch(() => {});
+              .catch((e) => toast.error(e instanceof Error ? e.message : String(e)));
           } else if (!isPending(status)) {
             clearInterval(interval);
             qrisPollingRef.current = null;
@@ -287,8 +288,9 @@ export default function Sales() {
   const sisaUtang = isUtang ? total - paid : 0;
 
   function handleCheckout() {
-    if (!canCheckout) return;
+    if (!canCheckout || busyRef.current) return;
     if (isUtang && !selectedCustomer) return;
+    busyRef.current = true;
 
     const snap = { cart, paid, discountAmount, selectedAddress, customerId: selectedCustomer?.id, customerName: selectedCustomer?.nama };
     const msg = isUtang ? `Penjualan utang berhasil! Sisa: ${formatRupiah(sisaUtang)}` : `Pembayaran berhasil! Kembalian: ${formatRupiah(change)}`;
@@ -297,15 +299,12 @@ export default function Sales() {
     setPaid(0);
     setIsUtang(false);
     setDiscountValue(0);
-    setSuccess(msg);
-    setTimeout(() => setSuccess(null), 3000);
+    toast.success(msg);
 
     createSale(snap.cart, snap.paid, snap.customerId, snap.customerName, snap.discountAmount, snap.selectedAddress)
       .then(() => refetchProducts())
-      .catch((e) => {
-        setSuccess(null);
-        alert(e instanceof Error ? e.message : String(e));
-      });
+      .catch((e) => toast.error(e instanceof Error ? e.message : String(e)))
+      .finally(() => { busyRef.current = false; });
   }
 
   const { visible: visibleProducts, Sentinel } = useIncrementalRender(filteredProducts, 48);
@@ -319,12 +318,6 @@ export default function Sales() {
   return (
     <div className="animate-fade-in">
       <h1 className="mb-4 text-2xl font-bold">Kasir</h1>
-
-      {success && (
-        <div className="animate-fade-in-up mb-4 flex items-center gap-2 rounded-md bg-[#1b508a]/10 p-3 text-sm text-[#1b508a] dark:bg-[#1b508a]/20 dark:text-[#5ba0d0]">
-          <CheckCircle className="size-4" /> {success}
-        </div>
-      )}
 
       <div className="flex flex-col gap-4 lg:flex-row">
         <div className="min-w-0 flex-1 flex-col">

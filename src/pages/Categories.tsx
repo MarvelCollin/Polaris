@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo } from "react";
+import { useState, useCallback, useMemo, useRef } from "react";
 import { useQuery } from "@/hooks/useQuery";
 import { useSort } from "@/hooks/useSort";
 import { useDebounce } from "@/hooks/useDebounce";
@@ -16,8 +16,11 @@ import ConfirmDialog from "@/components/ConfirmDialog";
 import SortableHead from "@/components/SortableHead";
 import { Plus, Pencil, Trash2 } from "lucide-react";
 import { TableHead } from "@/components/ui/table";
+import { useToast } from "@/components/Toast";
 
 export default function Categories() {
+  const toast = useToast();
+  const busyRef = useRef(false);
   const [search, setSearch] = useState("");
   const debouncedSearch = useDebounce(search);
   const { data: categories, refetch } = useQuery(useCallback(() => getCategories(), []));
@@ -32,7 +35,6 @@ export default function Categories() {
   const [nama, setNama] = useState("");
   const [deleteTarget, setDeleteTarget] = useState<Category | null>(null);
   const [error, setError] = useState("");
-  const [saving] = useState(false);
 
   function openAdd() {
     setEditing(null);
@@ -49,26 +51,29 @@ export default function Categories() {
   }
 
   function handleSave() {
-    if (saving) return;
+    if (busyRef.current) return;
     if (!nama.trim()) { setError("Nama kategori wajib diisi"); return; }
+    busyRef.current = true;
     const trimmed = nama.trim();
     const editId = editing?.id;
     setModalOpen(false);
 
     const op = editId ? updateCategory(editId, trimmed) : createCategory(trimmed);
-    op.then(() => refetch()).catch((e) => alert(e instanceof Error ? e.message : String(e)));
+    op.then(() => { toast.success(editId ? "Kategori diperbarui" : "Kategori ditambahkan"); refetch(); })
+      .catch((e) => toast.error(e instanceof Error ? e.message : String(e)))
+      .finally(() => { busyRef.current = false; });
   }
 
-  async function handleDelete() {
-    if (!deleteTarget) return;
-    try {
-      await deleteCategory(deleteTarget.id);
-      setDeleteTarget(null);
-      refetch();
-    } catch (e) {
-      alert(e instanceof Error ? e.message : String(e));
-      setDeleteTarget(null);
-    }
+  function handleDelete() {
+    if (!deleteTarget || busyRef.current) return;
+    busyRef.current = true;
+    const target = deleteTarget;
+    setDeleteTarget(null);
+
+    deleteCategory(target.id)
+      .then(() => { toast.success("Kategori dihapus"); refetch(); })
+      .catch((e) => toast.error(e instanceof Error ? e.message : String(e)))
+      .finally(() => { busyRef.current = false; });
   }
 
   return (
@@ -120,7 +125,7 @@ export default function Categories() {
           {error && <p className="text-sm text-destructive">{error}</p>}
           <div className="flex justify-end gap-2">
             <Button variant="outline" onClick={() => setModalOpen(false)}>Batal</Button>
-            <Button onClick={handleSave} disabled={saving}>{saving ? "Menyimpan..." : "Simpan"}</Button>
+            <Button onClick={handleSave}>Simpan</Button>
           </div>
         </div>
       </Modal>

@@ -10,6 +10,7 @@ import ErrorBoundary from "./components/ErrorBoundary";
 import { BootLoading, BootError } from "./components/BootScreen";
 import { UpdateProvider } from "./hooks/useUpdate";
 import UpdateChecker from "./components/UpdateChecker";
+import { ToastProvider } from "./components/Toast";
 
 const Login = lazy(() => import("./pages/Login"));
 const Dashboard = lazy(() => import("./pages/Dashboard"));
@@ -67,6 +68,7 @@ function startBoot() {
 
 function AppRoutes() {
   return (
+    <ToastProvider>
     <UpdateProvider>
       <BrowserRouter>
         <UpdateChecker />
@@ -90,6 +92,7 @@ function AppRoutes() {
         </Suspense>
       </BrowserRouter>
     </UpdateProvider>
+    </ToastProvider>
   );
 }
 
