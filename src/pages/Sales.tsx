@@ -41,7 +41,7 @@ const SaleProductTile = memo(function SaleProductTile({
       } ${qty > 0 ? "border-primary bg-primary/5" : ""}`}
     >
       {qty > 0 && (
-        <span className="absolute -right-1.5 -top-1.5 z-10 flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-bold text-primary-foreground">
+        <span className="absolute right-1 top-1 z-10 flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-bold text-primary-foreground">
           {qty}
         </span>
       )}
