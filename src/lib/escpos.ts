@@ -118,6 +118,53 @@ export function receiptLines(data: ReceiptData, settings: PrinterSettings): stri
   return lines;
 }
 
+function scaleOn(settings: PrinterSettings): number[] {
+  if (settings.scale < 2) return [];
+  return settings.dialect === "escp" ? [ESC, 0x57, 0x01] : [GS, 0x21, 0x11];
+}
+
+function scaleOff(settings: PrinterSettings): number[] {
+  if (settings.scale < 2) return [];
+  return settings.dialect === "escp" ? [ESC, 0x57, 0x00] : [GS, 0x21, 0x00];
+}
+
+export function rulerLine(width: number): string {
+  let out = "";
+  for (let i = 1; i <= width; i += 1) {
+    if (i % 10 === 0) out += String((i / 10) % 10);
+    else if (i % 5 === 0) out += "|";
+    else out += ".";
+  }
+  return out;
+}
+
+export function buildRuler(settings: PrinterSettings): Uint8Array {
+  const escp = settings.dialect === "escp";
+  const bytes: number[] = escp
+    ? [ESC, 0x40, DC2, ESC, 0x50, ESC, 0x32]
+    : [ESC, 0x40, ESC, 0x74, 0x00];
+
+  const half = Math.floor(settings.width / 2);
+
+  bytes.push(...ascii(`PENGGARIS ${settings.dialect.toUpperCase()} ${settings.paper}mm`), 0x0a);
+  bytes.push(...ascii(`1x ${settings.width} kolom:`), 0x0a);
+  bytes.push(...ascii(rulerLine(settings.width)), 0x0a);
+  bytes.push(...ascii(`2x ${half} kolom:`), 0x0a);
+  bytes.push(...(escp ? [ESC, 0x57, 0x01] : [GS, 0x21, 0x11]));
+  bytes.push(...ascii(rulerLine(half)), 0x0a);
+  bytes.push(...(escp ? [ESC, 0x57, 0x00] : [GS, 0x21, 0x00]));
+  bytes.push(...ascii("ukur sampai mana yang muat"), 0x0a);
+
+  if (escp) {
+    bytes.push(0x0c);
+  } else {
+    bytes.push(0x0a, 0x0a, 0x0a);
+  }
+  for (let i = 0; i < settings.tearFeed; i += 1) bytes.push(0x0a);
+
+  return new Uint8Array(bytes);
+}
+
 export function buildReceipt(data: ReceiptData, settings: PrinterSettings): Uint8Array {
   const escp = settings.dialect === "escp";
   const bytes: number[] = escp
@@ -140,9 +187,11 @@ export function buildReceipt(data: ReceiptData, settings: PrinterSettings): Uint
     bytes.push(ESC, 0x61, 0x00);
   }
 
+  bytes.push(...scaleOn(settings));
   for (const line of receiptLines(data, settings)) {
     bytes.push(...ascii(line), 0x0a);
   }
+  bytes.push(...scaleOff(settings));
 
   if (escp) {
     bytes.push(...ascii(center(settings.footer, settings.width)), 0x0a);
@@ -157,6 +206,7 @@ export function buildReceipt(data: ReceiptData, settings: PrinterSettings): Uint
     for (let i = 0; i < settings.tearFeed; i += 1) bytes.push(0x0a);
   } else {
     bytes.push(0x0a, 0x0a, 0x0a);
+    for (let i = 0; i < settings.tearFeed; i += 1) bytes.push(0x0a);
     if (settings.cut) bytes.push(GS, 0x56, 0x42, 0x00);
   }
 

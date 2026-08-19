@@ -126,3 +126,11 @@ describe("tear off feed", () => {
     expect(bytes.slice(-7)).toEqual([0x0c, 0x0a, 0x0a, 0x0a, 0x0a, 0x0a, 0x0a]);
   });
 });
+
+describe("tear off on roll paper", () => {
+  it("feeds before cutting so the paper clears the tear bar", () => {
+    const bytes = Array.from(buildReceipt(base, { ...settings, tearFeed: 4, cut: true }));
+    expect(bytes.slice(-4)).toEqual([0x1d, 0x56, 0x42, 0x00]);
+    expect(bytes.slice(-11, -4)).toEqual([0x0a, 0x0a, 0x0a, 0x0a, 0x0a, 0x0a, 0x0a]);
+  });
+});

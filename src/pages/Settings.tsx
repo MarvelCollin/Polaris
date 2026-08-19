@@ -4,7 +4,7 @@ import { useFontSize, FONT_SIZE_LABELS, type FontSize } from "@/hooks/useFontSiz
 import { useUpdate } from "@/hooks/useUpdate";
 import { changePassword } from "@/db/auth";
 import { getPrinterSettings, savePrinterSettings, DEFAULT_PRINTER_SETTINGS, PAPER_SIZES, columnsForPaper, dialectForPaper, isContinuousForm, PrinterSettings } from "@/db/settings";
-import { listPrinters, printTest, printerStatus, PrinterState } from "@/lib/printer";
+import { listPrinters, printTest, printRuler, printerStatus, PrinterState } from "@/lib/printer";
 import { previewText } from "@/lib/escpos";
 import SearchableSelect from "@/components/SearchableSelect";
 import { resetTransactionData } from "@/database";
@@ -231,6 +231,19 @@ function PrinterSection() {
     setBusy(false);
   }
 
+  async function handleRuler() {
+    setBusy(true);
+    setError("");
+    setStatus("");
+    try {
+      await printRuler(settings);
+      setStatus("Penggaris terkirim, ukur hasilnya");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    }
+    setBusy(false);
+  }
+
   async function handleTest() {
     setBusy(true);
     setError("");
@@ -347,7 +360,7 @@ function PrinterSection() {
           </p>
         </div>
 
-        {isContinuousForm(settings.paper) && (
+        {(
           <div className="space-y-2">
             <Label>Maju ke posisi sobek</Label>
             <div className="flex gap-2">
@@ -367,6 +380,25 @@ function PrinterSection() {
             </p>
           </div>
         )}
+
+        <div className="space-y-2">
+          <Label>Ukuran huruf</Label>
+          <div className="flex gap-2">
+            {[1, 2].map((scale) => (
+              <Button
+                key={scale}
+                variant={settings.scale === scale ? "default" : "outline"}
+                size="sm"
+                onClick={() => update({ scale })}
+              >
+                {scale}x
+              </Button>
+            ))}
+          </div>
+          <p className="text-sm text-muted-foreground">
+            2x menggandakan lebar huruf, jadi kolom efektif tinggal separuh
+          </p>
+        </div>
 
         <div className="space-y-2">
           <Label htmlFor="printer-header">Judul struk</Label>
@@ -417,6 +449,9 @@ function PrinterSection() {
           <Button variant="outline" onClick={handleTest} disabled={busy || !settings.name}>
             <Printer className="mr-2 size-4" />
             Tes Cetak
+          </Button>
+          <Button variant="outline" onClick={handleRuler} disabled={busy || !settings.name}>
+            Cetak Penggaris
           </Button>
 
           {dirty && <span className="text-sm text-amber-600 dark:text-amber-400">Belum disimpan</span>}
