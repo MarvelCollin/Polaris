@@ -167,6 +167,7 @@ function UpdateSection() {
 
 function PrinterSection() {
   const [settings, setSettings] = useState<PrinterSettings>(DEFAULT_PRINTER_SETTINGS);
+  const [saved, setSaved] = useState<PrinterSettings>(DEFAULT_PRINTER_SETTINGS);
   const [printers, setPrinters] = useState<string[]>([]);
   const [state, setState] = useState<PrinterState | null>(null);
   const [stateError, setStateError] = useState("");
@@ -176,9 +177,10 @@ function PrinterSection() {
 
   useEffect(() => {
     getPrinterSettings()
-      .then((saved) => {
-        setSettings(saved);
-        refreshState(saved.name);
+      .then((stored) => {
+        setSettings(stored);
+        setSaved(stored);
+        refreshState(stored.name);
       })
       .catch(() => {});
     refreshPrinters();
@@ -209,6 +211,7 @@ function PrinterSection() {
   }
 
   const printerNames = printers.includes(settings.name) || !settings.name ? printers : [...printers, settings.name];
+  const dirty = JSON.stringify(settings) !== JSON.stringify(saved);
 
   function update(patch: Partial<PrinterSettings>) {
     setSettings((prev) => ({ ...prev, ...patch }));
@@ -220,6 +223,7 @@ function PrinterSection() {
     setError("");
     try {
       await savePrinterSettings(settings);
+      setSaved(settings);
       setStatus("Pengaturan printer disimpan");
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -271,7 +275,7 @@ function PrinterSection() {
                 placeholder="Cari printer..."
                 onChange={(index) => {
                   const name = printerNames[index] ?? "";
-                  update({ name });
+                  update({ name, enabled: name ? true : settings.enabled });
                   refreshState(name);
                 }}
               />
@@ -362,12 +366,14 @@ function PrinterSection() {
           </pre>
         </div>
 
-        <div className="flex gap-2">
-          <Button onClick={handleSave} disabled={busy}>Simpan</Button>
+        <div className="flex items-center gap-2">
+          <Button onClick={handleSave} disabled={busy || !dirty}>Simpan</Button>
           <Button variant="outline" onClick={handleTest} disabled={busy || !settings.name}>
             <Printer className="mr-2 size-4" />
             Tes Cetak
           </Button>
+
+          {dirty && <span className="text-sm text-amber-600 dark:text-amber-400">Belum disimpan</span>}
         </div>
 
         {status && <p className="text-sm text-green-600 dark:text-green-400">{status}</p>}
