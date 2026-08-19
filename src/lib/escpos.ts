@@ -233,9 +233,15 @@ export function previewText(settings: PrinterSettings, now: Date = new Date()): 
     metode: "Tunai",
   };
 
-  return [
+  const lines = [
     center(settings.header.slice(0, Math.floor(settings.width / 2)), settings.width),
     ...receiptLines(data, settings),
     center(settings.footer, settings.width),
-  ].join("\n");
+  ];
+
+  if (settings.dialect === "escp" && settings.pageLines > 0) {
+    while (lines.length < settings.pageLines - 1) lines.push("");
+  }
+
+  return lines.join("\n");
 }
