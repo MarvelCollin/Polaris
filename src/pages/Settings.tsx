@@ -237,7 +237,7 @@ function PrinterSection() {
     setStatus("");
     try {
       await printRuler(settings);
-      setStatus("Penggaris terkirim, ukur hasilnya");
+      setStatus("Lembar diagnosa terkirim, lihat baris mana yang paling lebar");
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     }
@@ -382,6 +382,21 @@ function PrinterSection() {
         )}
 
         <div className="space-y-2">
+          <Label htmlFor="printer-columns">Jumlah kolom</Label>
+          <Input
+            id="printer-columns"
+            type="number"
+            min={16}
+            max={136}
+            value={settings.width}
+            onChange={(e) => update({ width: Math.min(136, Math.max(16, Number(e.target.value) || 0)) })}
+          />
+          <p className="text-sm text-muted-foreground">
+            Diisi otomatis dari ukuran kertas, ubah manual kalau hasil cetak belum pas
+          </p>
+        </div>
+
+        <div className="space-y-2">
           <Label>Ukuran huruf</Label>
           <div className="flex gap-2">
             {[1, 2].map((scale) => (
@@ -451,7 +466,7 @@ function PrinterSection() {
             Tes Cetak
           </Button>
           <Button variant="outline" onClick={handleRuler} disabled={busy || !settings.name}>
-            Cetak Penggaris
+            Cetak Diagnosa
           </Button>
 
           {dirty && <span className="text-sm text-amber-600 dark:text-amber-400">Belum disimpan</span>}

@@ -139,23 +139,33 @@ export function rulerLine(width: number): string {
 }
 
 export function buildRuler(settings: PrinterSettings): Uint8Array {
-  const escp = settings.dialect === "escp";
-  const bytes: number[] = escp
-    ? [ESC, 0x40, DC2, ESC, 0x50, ESC, 0x32]
-    : [ESC, 0x40, ESC, 0x74, 0x00];
+  const bytes: number[] = [ESC, 0x40];
+  const width = settings.width;
+  const half = Math.floor(width / 2);
 
-  const half = Math.floor(settings.width / 2);
+  const probes: { label: string; on: number[]; off: number[]; cols: number }[] = [
+    { label: "A normal", on: [], off: [], cols: width },
+    { label: "B GS ! 11", on: [GS, 0x21, 0x11], off: [GS, 0x21, 0x00], cols: half },
+    { label: "C ESC ! 20", on: [ESC, 0x21, 0x20], off: [ESC, 0x21, 0x00], cols: half },
+    { label: "D ESC W 1", on: [ESC, 0x57, 0x01], off: [ESC, 0x57, 0x00], cols: half },
+    { label: "E ESC P 10cpi", on: [DC2, ESC, 0x50], off: [], cols: width },
+    { label: "F ESC M 12cpi", on: [ESC, 0x4d], off: [], cols: width },
+    { label: "G SO 1 baris", on: [0x0e], off: [], cols: half },
+  ];
 
-  bytes.push(...ascii(`PENGGARIS ${settings.dialect.toUpperCase()} ${settings.paper}mm`), 0x0a);
-  bytes.push(...ascii(`1x ${settings.width} kolom:`), 0x0a);
-  bytes.push(...ascii(rulerLine(settings.width)), 0x0a);
-  bytes.push(...ascii(`2x ${half} kolom:`), 0x0a);
-  bytes.push(...(escp ? [ESC, 0x57, 0x01] : [GS, 0x21, 0x11]));
-  bytes.push(...ascii(rulerLine(half)), 0x0a);
-  bytes.push(...(escp ? [ESC, 0x57, 0x00] : [GS, 0x21, 0x00]));
-  bytes.push(...ascii("ukur sampai mana yang muat"), 0x0a);
+  for (const probe of probes) {
+    bytes.push(ESC, 0x40);
+    bytes.push(...ascii(probe.label), 0x0a);
+    bytes.push(...probe.on);
+    bytes.push(...ascii(rulerLine(probe.cols)), 0x0a);
+    bytes.push(...probe.off);
+    bytes.push(0x0a);
+  }
 
-  if (escp) {
+  bytes.push(ESC, 0x40);
+  bytes.push(...ascii("mana yang paling lebar?"), 0x0a);
+
+  if (settings.dialect === "escp") {
     bytes.push(0x0c);
   } else {
     bytes.push(0x0a, 0x0a, 0x0a);

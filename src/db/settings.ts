@@ -76,7 +76,7 @@ export async function getPrinterSettings(): Promise<PrinterSettings> {
     const merged = { ...DEFAULT_PRINTER_SETTINGS, ...saved };
     if (saved.paper == null && saved.width != null) merged.paper = paperForColumns(saved.width);
     if (saved.dialect == null) merged.dialect = dialectForPaper(merged.paper);
-    merged.width = columnsForPaper(merged.paper);
+    if (saved.width == null) merged.width = columnsForPaper(merged.paper);
     return merged;
   } catch {
     return { ...DEFAULT_PRINTER_SETTINGS };
