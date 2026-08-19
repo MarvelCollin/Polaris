@@ -134,3 +134,29 @@ describe("tear off on roll paper", () => {
     expect(bytes.slice(-11, -4)).toEqual([0x0a, 0x0a, 0x0a, 0x0a, 0x0a, 0x0a, 0x0a]);
   });
 });
+
+describe("fixed page height", () => {
+  const escp = { ...settings, dialect: "escp" as const, paper: 241, width: 80, pageLines: 40 };
+
+  function lineCount(bytes: Uint8Array): number {
+    return Array.from(bytes).filter((b) => b === 0x0a).length;
+  }
+
+  it("pads short receipts so the page always holds the same number of lines", () => {
+    const short = buildReceipt(base, escp);
+    const long = buildReceipt({ ...base, items: Array.from({ length: 6 }, () => base.items[0]) }, escp);
+    expect(lineCount(short)).toBe(escp.pageLines - 1);
+    expect(lineCount(long)).toBe(escp.pageLines - 1);
+  });
+
+  it("never truncates a receipt taller than the page", () => {
+    const huge = buildReceipt({ ...base, items: Array.from({ length: 40 }, () => base.items[0]) }, escp);
+    expect(lineCount(huge)).toBeGreaterThan(escp.pageLines);
+  });
+
+  it("keeps the footer as the last printed line", () => {
+    const text = new TextDecoder().decode(buildReceipt(base, escp));
+    const lines = text.split("\n").filter((l) => l.trim().length && !l.includes("\f"));
+    expect(lines[lines.length - 1].trim()).toBe(settings.footer);
+  });
+});

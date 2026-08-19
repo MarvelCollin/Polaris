@@ -11,6 +11,7 @@ export interface PrinterSettings {
   cut: boolean;
   tearFeed: number;
   scale: number;
+  pageLines: number;
   drawer: boolean;
   header: string;
   footer: string;
@@ -46,6 +47,7 @@ export const DEFAULT_PRINTER_SETTINGS: PrinterSettings = {
   cut: true,
   tearFeed: 0,
   scale: 1,
+  pageLines: 66,
   drawer: false,
   header: "POLARIS",
   footer: "Terima kasih",

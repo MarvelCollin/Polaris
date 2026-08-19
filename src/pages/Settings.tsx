@@ -397,6 +397,24 @@ function PrinterSection() {
           </p>
         </div>
 
+        {isContinuousForm(settings.paper) && (
+          <div className="space-y-2">
+            <Label htmlFor="printer-page-lines">Baris per lembar</Label>
+            <Input
+              id="printer-page-lines"
+              type="number"
+              min={10}
+              max={120}
+              value={settings.pageLines}
+              onChange={(e) => update({ pageLines: Number(e.target.value) || 0 })}
+              onBlur={() => update({ pageLines: Math.min(120, Math.max(10, settings.pageLines || 66)) })}
+            />
+            <p className="text-sm text-muted-foreground">
+              Struk diisi baris kosong sampai catatan bawah jatuh di baris terakhir lembar. 11 inci pada 6 baris per inci = 66 baris.
+            </p>
+          </div>
+        )}
+
         <div className="space-y-2">
           <Label>Ukuran huruf</Label>
           <div className="flex gap-2">

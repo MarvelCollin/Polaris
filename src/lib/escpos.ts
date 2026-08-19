@@ -181,13 +181,18 @@ export function buildReceipt(data: ReceiptData, settings: PrinterSettings): Uint
     bytes.push(ESC, 0x61, 0x00);
   }
 
+  const body = receiptLines(data, settings);
+
   bytes.push(...scaleOn(settings));
-  for (const line of receiptLines(data, settings)) {
+  for (const line of body) {
     bytes.push(...ascii(line), 0x0a);
   }
   bytes.push(...scaleOff(settings));
 
   if (escp) {
+    const printed = 1 + body.length + 1;
+    const target = Math.max(printed, settings.pageLines - 1);
+    for (let i = 0; i < target - printed; i += 1) bytes.push(0x0a);
     bytes.push(...ascii(center(settings.footer, settings.width)), 0x0a);
   } else {
     bytes.push(ESC, 0x61, 0x01);
