@@ -37,21 +37,42 @@ export default function PagePreview({ lines, settings, scale = 2.4 }: Props) {
         </pre>
 
         <div
-          className="absolute left-0 right-0 border-t border-dashed border-blue-500"
-          style={{ top: `${usedLines * LINE_MM * scale}px` }}
+          style={{
+            position: "absolute",
+            left: 0,
+            right: 0,
+            top: `${usedLines * LINE_MM * scale}px`,
+            borderTop: "2px dashed #2563eb",
+          }}
         />
         {settings.tearFeed > 0 && (
           <div
-            className="absolute left-0 right-0 border-t-2 border-dashed border-red-500"
-            style={{ top: `${Math.min(tearMm, PAGE_HEIGHT_MM) * scale}px` }}
+            style={{
+              position: "absolute",
+              left: 0,
+              right: 0,
+              top: `${Math.min(tearMm, PAGE_HEIGHT_MM) * scale}px`,
+              borderTop: "2px dashed #dc2626",
+            }}
           />
         )}
         <div
-          className="absolute bottom-0 left-0 right-0 border-t-2 border-dashed border-amber-500"
+          style={{
+            position: "absolute",
+            left: 0,
+            right: 0,
+            bottom: 0,
+            borderTop: "2px dashed #d97706",
+          }}
         />
         <div
-          className="absolute bottom-0 top-0 border-r border-dotted border-green-600"
-          style={{ left: `${Math.min(textMm, paperMm) * scale}px` }}
+          style={{
+            position: "absolute",
+            top: 0,
+            bottom: 0,
+            left: `${Math.min(textMm, paperMm) * scale}px`,
+            borderRight: "2px dotted #16a34a",
+          }}
         />
       </div>
 
@@ -64,7 +85,19 @@ export default function PagePreview({ lines, settings, scale = 2.4 }: Props) {
           {usedLines} baris terpakai, berhenti di {(usedLines * LINE_MM).toFixed(0)} mm
           {settings.tearFeed > 0 ? `, setelah maju sobek ${tearMm.toFixed(0)} mm` : ""}
         </p>
-        <p>Garis hijau batas teks, biru akhir cetak, merah posisi setelah maju sobek, kuning perforasi lembar</p>
+        <div className="flex flex-wrap gap-4">
+          {[
+            { color: "#16a34a", label: "batas teks" },
+            { color: "#2563eb", label: "akhir cetak" },
+            { color: "#dc2626", label: "setelah maju sobek" },
+            { color: "#d97706", label: "perforasi lembar" },
+          ].map((item) => (
+            <span key={item.label} className="flex items-center gap-1">
+              <span style={{ width: 16, height: 0, borderTop: `2px dashed ${item.color}` }} />
+              {item.label}
+            </span>
+          ))}
+        </div>
       </div>
     </div>
   );
