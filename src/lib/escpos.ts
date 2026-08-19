@@ -136,3 +136,35 @@ export function buildReceipt(data: ReceiptData, settings: PrinterSettings): Uint
 
   return new Uint8Array(bytes);
 }
+
+function center(text: string, width: number): string {
+  const pad = Math.max(0, Math.floor((width - text.length) / 2));
+  return " ".repeat(pad) + text;
+}
+
+const SAMPLE_ITEMS: SaleItem[] = [
+  { id: 1, penjualan_id: 0, produk_id: 1, nama_produk: "Semen Tiga Roda 50kg", jumlah: 3, harga_satuan: 68000, subtotal: 204000 },
+  { id: 2, penjualan_id: 0, produk_id: 2, nama_produk: "Cat Tembok Avitex 5kg Putih", jumlah: 2, harga_satuan: 87500, subtotal: 175000 },
+  { id: 3, penjualan_id: 0, produk_id: 3, nama_produk: "Paku Beton 5cm", jumlah: 1.5, harga_satuan: 24000, subtotal: 36000 },
+];
+
+export function previewText(settings: PrinterSettings, now: Date = new Date()): string {
+  const data: ReceiptData = {
+    nomor: "INV-20260101-0001",
+    tanggal: now,
+    items: SAMPLE_ITEMS,
+    subtotal: 415000,
+    diskon: 15000,
+    total: 400000,
+    dibayar: 400000,
+    kembalian: 0,
+    pelanggan: "Pak Budi Santoso",
+    metode: "Tunai",
+  };
+
+  return [
+    center(settings.header.slice(0, Math.floor(settings.width / 2)), settings.width),
+    ...receiptLines(data, settings),
+    center(settings.footer, settings.width),
+  ].join("\n");
+}

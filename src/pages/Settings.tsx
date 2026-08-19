@@ -5,6 +5,8 @@ import { useUpdate } from "@/hooks/useUpdate";
 import { changePassword } from "@/db/auth";
 import { getPrinterSettings, savePrinterSettings, DEFAULT_PRINTER_SETTINGS, PrinterSettings } from "@/db/settings";
 import { listPrinters, printTest, printerStatus, PrinterState } from "@/lib/printer";
+import { previewText } from "@/lib/escpos";
+import SearchableSelect from "@/components/SearchableSelect";
 import { resetTransactionData } from "@/database";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -208,6 +210,8 @@ function PrinterSection() {
     }
   }
 
+  const printerNames = printers.includes(settings.name) || !settings.name ? printers : [...printers, settings.name];
+
   function update(patch: Partial<PrinterSettings>) {
     setSettings((prev) => ({ ...prev, ...patch }));
     setStatus("");
@@ -261,19 +265,19 @@ function PrinterSection() {
         <div className="space-y-2">
           <Label>Printer</Label>
           <div className="flex gap-2">
-            <select
-              className="h-9 flex-1 rounded-md border border-input bg-transparent px-3 text-sm"
-              value={settings.name}
-              onChange={(e) => {
-                update({ name: e.target.value });
-                refreshState(e.target.value);
-              }}
-            >
-              <option value="">Pilih printer</option>
-              {printers.map((name) => (
-                <option key={name} value={name}>{name}</option>
-              ))}
-            </select>
+            <div className="flex-1">
+              <SearchableSelect
+                options={printerNames.map((name, index) => ({ value: index, label: name }))}
+                value={printerNames.indexOf(settings.name)}
+                emptyLabel="Pilih printer"
+                placeholder="Cari printer..."
+                onChange={(index) => {
+                  const name = printerNames[index] ?? "";
+                  update({ name });
+                  refreshState(name);
+                }}
+              />
+            </div>
             <Button
               variant="outline"
               size="sm"
@@ -345,6 +349,13 @@ function PrinterSection() {
           >
             Buka laci kasir
           </Button>
+        </div>
+
+        <div className="space-y-2">
+          <Label>Pratinjau struk</Label>
+          <pre className="overflow-x-auto rounded-md border bg-muted/40 p-3 font-mono text-xs leading-tight">
+            {previewText(settings)}
+          </pre>
         </div>
 
         <div className="flex gap-2">
