@@ -92,3 +92,23 @@ describe("escpos bytes", () => {
     expect(bytes).toContain(0x3f);
   });
 });
+
+describe("escp dialect", () => {
+  const escp = { ...settings, dialect: "escp" as const, paper: 241, width: 80 };
+
+  it("cancels condensed mode and pins ten characters per inch", () => {
+    const bytes = Array.from(buildReceipt(base, escp));
+    expect(bytes.slice(0, 11)).toEqual([0x1b, 0x40, 0x12, 0x1b, 0x50, 0x1b, 0x32, 0x1b, 0x43, 0x00, 0x0b]);
+  });
+
+  it("ends the page with a form feed and never a cut", () => {
+    const bytes = Array.from(buildReceipt(base, escp));
+    expect(bytes[bytes.length - 1]).toBe(0x0c);
+    expect(bytes.join(",")).not.toContain("29,86,66");
+  });
+
+  it("skips escpos-only sizing commands", () => {
+    const bytes = Array.from(buildReceipt(base, escp));
+    expect(bytes.join(",")).not.toContain("27,33,48");
+  });
+});

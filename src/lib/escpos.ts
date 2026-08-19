@@ -1,8 +1,9 @@
 import { SaleItem } from "@/types";
-import { PrinterSettings, isContinuousForm } from "@/db/settings";
+import { PrinterSettings } from "@/db/settings";
 
 const ESC = 0x1b;
 const GS = 0x1d;
+const DC2 = 0x12;
 
 export interface ReceiptData {
   nomor: string;
@@ -25,6 +26,11 @@ function ascii(text: string): number[] {
     out.push(code >= 0x20 && code <= 0x7e ? code : 0x3f);
   }
   return out;
+}
+
+function center(text: string, width: number): string {
+  const pad = Math.max(0, Math.floor((width - text.length) / 2));
+  return " ".repeat(pad) + text;
 }
 
 export function money(value: number): string {
@@ -113,24 +119,40 @@ export function receiptLines(data: ReceiptData, settings: PrinterSettings): stri
 }
 
 export function buildReceipt(data: ReceiptData, settings: PrinterSettings): Uint8Array {
-  const bytes: number[] = [ESC, 0x40, ESC, 0x74, 0x00];
+  const escp = settings.dialect === "escp";
+  const bytes: number[] = escp
+    ? [ESC, 0x40, DC2, ESC, 0x50, ESC, 0x32, ESC, 0x43, 0x00, 0x0b]
+    : [ESC, 0x40, ESC, 0x74, 0x00];
 
   if (settings.drawer) bytes.push(ESC, 0x70, 0x00, 0x19, 0xfa);
 
-  bytes.push(ESC, 0x61, 0x01);
-  bytes.push(ESC, 0x21, 0x30);
-  bytes.push(...ascii(settings.header.slice(0, Math.floor(settings.width / 2))), 0x0a);
-  bytes.push(ESC, 0x21, 0x00);
-  bytes.push(ESC, 0x61, 0x00);
+  const headerCap = Math.floor(settings.width / 2);
+  const header = ascii(settings.header.slice(0, headerCap));
+
+  if (escp) {
+    bytes.push(...ascii(center(settings.header.slice(0, headerCap), Math.floor(settings.width / 2))));
+    bytes.push(0x0a);
+  } else {
+    bytes.push(ESC, 0x61, 0x01);
+    bytes.push(ESC, 0x21, 0x30);
+    bytes.push(...header, 0x0a);
+    bytes.push(ESC, 0x21, 0x00);
+    bytes.push(ESC, 0x61, 0x00);
+  }
 
   for (const line of receiptLines(data, settings)) {
     bytes.push(...ascii(line), 0x0a);
   }
 
-  bytes.push(ESC, 0x61, 0x01);
-  bytes.push(...ascii(settings.footer), 0x0a);
-  bytes.push(ESC, 0x61, 0x00);
-  if (isContinuousForm(settings.paper)) {
+  if (escp) {
+    bytes.push(...ascii(center(settings.footer, settings.width)), 0x0a);
+  } else {
+    bytes.push(ESC, 0x61, 0x01);
+    bytes.push(...ascii(settings.footer), 0x0a);
+    bytes.push(ESC, 0x61, 0x00);
+  }
+
+  if (escp) {
     bytes.push(0x0c);
   } else {
     bytes.push(0x0a, 0x0a, 0x0a);
@@ -138,11 +160,6 @@ export function buildReceipt(data: ReceiptData, settings: PrinterSettings): Uint
   }
 
   return new Uint8Array(bytes);
-}
-
-function center(text: string, width: number): string {
-  const pad = Math.max(0, Math.floor((width - text.length) / 2));
-  return " ".repeat(pad) + text;
 }
 
 const SAMPLE_ITEMS: SaleItem[] = [

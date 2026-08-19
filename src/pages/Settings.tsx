@@ -3,7 +3,7 @@ import { useTheme } from "@/hooks/useTheme";
 import { useFontSize, FONT_SIZE_LABELS, type FontSize } from "@/hooks/useFontSize";
 import { useUpdate } from "@/hooks/useUpdate";
 import { changePassword } from "@/db/auth";
-import { getPrinterSettings, savePrinterSettings, DEFAULT_PRINTER_SETTINGS, PAPER_SIZES, columnsForPaper, isContinuousForm, PrinterSettings } from "@/db/settings";
+import { getPrinterSettings, savePrinterSettings, DEFAULT_PRINTER_SETTINGS, PAPER_SIZES, columnsForPaper, dialectForPaper, isContinuousForm, PrinterSettings } from "@/db/settings";
 import { listPrinters, printTest, printerStatus, PrinterState } from "@/lib/printer";
 import { previewText } from "@/lib/escpos";
 import SearchableSelect from "@/components/SearchableSelect";
@@ -310,7 +310,7 @@ function PrinterSection() {
                 key={paper}
                 variant={settings.paper === paper ? "default" : "outline"}
                 size="sm"
-                onClick={() => update({ paper, width: columnsForPaper(paper) })}
+                onClick={() => update({ paper, width: columnsForPaper(paper), dialect: dialectForPaper(paper) })}
               >
                 {paper} mm
               </Button>
@@ -319,6 +319,31 @@ function PrinterSection() {
           <p className="text-sm text-muted-foreground">
             Muat {settings.width} karakter per baris
             {isContinuousForm(settings.paper) ? " (kertas continuous form, akhiri dengan form feed)" : ""}
+          </p>
+        </div>
+
+        <div className="space-y-2">
+          <Label>Jenis printer</Label>
+          <div className="flex gap-2">
+            <Button
+              variant={settings.dialect === "escpos" ? "default" : "outline"}
+              size="sm"
+              onClick={() => update({ dialect: "escpos" })}
+            >
+              Struk gulungan
+            </Button>
+            <Button
+              variant={settings.dialect === "escp" ? "default" : "outline"}
+              size="sm"
+              onClick={() => update({ dialect: "escp" })}
+            >
+              Continuous form
+            </Button>
+          </div>
+          <p className="text-sm text-muted-foreground">
+            {settings.dialect === "escp"
+              ? "Perintah ESC/P, 10 CPI, panjang halaman 11 inci"
+              : "Perintah ESC/POS, judul besar, potong kertas"}
           </p>
         </div>
 

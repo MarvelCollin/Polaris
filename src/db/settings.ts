@@ -1,8 +1,11 @@
 import { getDb, syncDb } from "@/database";
 
+export type PrinterDialect = "escpos" | "escp";
+
 export interface PrinterSettings {
   enabled: boolean;
   name: string;
+  dialect: PrinterDialect;
   paper: number;
   width: number;
   cut: boolean;
@@ -28,9 +31,14 @@ export function paperForColumns(width: number): number {
   return match ?? 76;
 }
 
+export function dialectForPaper(paper: number): PrinterDialect {
+  return isContinuousForm(paper) ? "escp" : "escpos";
+}
+
 export const DEFAULT_PRINTER_SETTINGS: PrinterSettings = {
   enabled: false,
   name: "",
+  dialect: "escpos",
   paper: 76,
   width: 40,
   cut: true,
@@ -63,6 +71,7 @@ export async function getPrinterSettings(): Promise<PrinterSettings> {
     const saved = JSON.parse(raw) as Partial<PrinterSettings>;
     const merged = { ...DEFAULT_PRINTER_SETTINGS, ...saved };
     if (saved.paper == null && saved.width != null) merged.paper = paperForColumns(saved.width);
+    if (saved.dialect == null) merged.dialect = dialectForPaper(merged.paper);
     merged.width = columnsForPaper(merged.paper);
     return merged;
   } catch {
