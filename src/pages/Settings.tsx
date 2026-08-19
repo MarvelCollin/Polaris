@@ -3,7 +3,7 @@ import { useTheme } from "@/hooks/useTheme";
 import { useFontSize, FONT_SIZE_LABELS, type FontSize } from "@/hooks/useFontSize";
 import { useUpdate } from "@/hooks/useUpdate";
 import { changePassword } from "@/db/auth";
-import { getPrinterSettings, savePrinterSettings, DEFAULT_PRINTER_SETTINGS, PrinterSettings } from "@/db/settings";
+import { getPrinterSettings, savePrinterSettings, DEFAULT_PRINTER_SETTINGS, PAPER_SIZES, columnsForPaper, isContinuousForm, PrinterSettings } from "@/db/settings";
 import { listPrinters, printTest, printerStatus, PrinterState } from "@/lib/printer";
 import { previewText } from "@/lib/escpos";
 import SearchableSelect from "@/components/SearchableSelect";
@@ -165,8 +165,6 @@ function UpdateSection() {
   );
 }
 
-const PAPER_WIDTHS = [32, 40, 48];
-
 function PrinterSection() {
   const [settings, setSettings] = useState<PrinterSettings>(DEFAULT_PRINTER_SETTINGS);
   const [printers, setPrinters] = useState<string[]>([]);
@@ -303,17 +301,21 @@ function PrinterSection() {
         <div className="space-y-2">
           <Label>Lebar kertas</Label>
           <div className="flex gap-2">
-            {PAPER_WIDTHS.map((width) => (
+            {PAPER_SIZES.map((paper) => (
               <Button
-                key={width}
-                variant={settings.width === width ? "default" : "outline"}
+                key={paper}
+                variant={settings.paper === paper ? "default" : "outline"}
                 size="sm"
-                onClick={() => update({ width })}
+                onClick={() => update({ paper, width: columnsForPaper(paper) })}
               >
-                {width} kolom
+                {paper} mm
               </Button>
             ))}
           </div>
+          <p className="text-sm text-muted-foreground">
+            Muat {settings.width} karakter per baris
+            {isContinuousForm(settings.paper) ? " (kertas continuous form, akhiri dengan form feed)" : ""}
+          </p>
         </div>
 
         <div className="space-y-2">
@@ -335,13 +337,15 @@ function PrinterSection() {
         </div>
 
         <div className="flex gap-2">
-          <Button
-            variant={settings.cut ? "default" : "outline"}
-            size="sm"
-            onClick={() => update({ cut: !settings.cut })}
-          >
-            Potong kertas
-          </Button>
+          {!isContinuousForm(settings.paper) && (
+            <Button
+              variant={settings.cut ? "default" : "outline"}
+              size="sm"
+              onClick={() => update({ cut: !settings.cut })}
+            >
+              Potong kertas
+            </Button>
+          )}
           <Button
             variant={settings.drawer ? "default" : "outline"}
             size="sm"

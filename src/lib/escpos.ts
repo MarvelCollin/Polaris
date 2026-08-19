@@ -1,5 +1,5 @@
 import { SaleItem } from "@/types";
-import { PrinterSettings } from "@/db/settings";
+import { PrinterSettings, isContinuousForm } from "@/db/settings";
 
 const ESC = 0x1b;
 const GS = 0x1d;
@@ -130,9 +130,12 @@ export function buildReceipt(data: ReceiptData, settings: PrinterSettings): Uint
   bytes.push(ESC, 0x61, 0x01);
   bytes.push(...ascii(settings.footer), 0x0a);
   bytes.push(ESC, 0x61, 0x00);
-  bytes.push(0x0a, 0x0a, 0x0a);
-
-  if (settings.cut) bytes.push(GS, 0x56, 0x42, 0x00);
+  if (isContinuousForm(settings.paper)) {
+    bytes.push(0x0c);
+  } else {
+    bytes.push(0x0a, 0x0a, 0x0a);
+    if (settings.cut) bytes.push(GS, 0x56, 0x42, 0x00);
+  }
 
   return new Uint8Array(bytes);
 }
