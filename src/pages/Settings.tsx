@@ -6,6 +6,7 @@ import { changePassword } from "@/db/auth";
 import { getPrinterSettings, savePrinterSettings, DEFAULT_PRINTER_SETTINGS, PAPER_SIZES, columnsForPaper, dialectForPaper, isContinuousForm, PrinterSettings } from "@/db/settings";
 import { listPrinters, printTest, printRuler, printerStatus, PrinterState } from "@/lib/printer";
 import { previewText } from "@/lib/escpos";
+import PagePreview from "@/components/PagePreview";
 import SearchableSelect from "@/components/SearchableSelect";
 import { resetTransactionData } from "@/database";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
@@ -471,6 +472,13 @@ function PrinterSection() {
           <pre className="overflow-x-auto rounded-md border bg-muted/40 p-3 font-mono text-xs leading-tight">
             {previewText(settings)}
           </pre>
+        </div>
+
+        <div className="space-y-2">
+          <Label>Pratinjau ukuran kertas asli</Label>
+          <div className="overflow-auto">
+            <PagePreview lines={previewText(settings).split("\n")} settings={settings} />
+          </div>
         </div>
 
         <div className="flex items-center gap-2">
