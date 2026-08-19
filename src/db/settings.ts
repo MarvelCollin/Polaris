@@ -18,7 +18,7 @@ export interface PrinterSettings {
 
 export const PAPER_SIZES = [58, 76, 80, 241];
 
-export const PAPER_COLUMNS: Record<number, number> = { 58: 32, 76: 40, 80: 48, 241: 80 };
+export const PAPER_COLUMNS: Record<number, number> = { 58: 32, 76: 40, 80: 48, 241: 120 };
 
 export function columnsForPaper(paper: number): number {
   return PAPER_COLUMNS[paper] ?? 40;
