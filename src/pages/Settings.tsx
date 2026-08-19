@@ -389,7 +389,8 @@ function PrinterSection() {
             min={16}
             max={136}
             value={settings.width}
-            onChange={(e) => update({ width: Math.min(136, Math.max(16, Number(e.target.value) || 0)) })}
+            onChange={(e) => update({ width: Number(e.target.value) || 0 })}
+            onBlur={() => update({ width: Math.min(136, Math.max(16, settings.width || 40)) })}
           />
           <p className="text-sm text-muted-foreground">
             Diisi otomatis dari ukuran kertas, ubah manual kalau hasil cetak belum pas
