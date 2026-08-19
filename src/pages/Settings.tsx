@@ -360,26 +360,21 @@ function PrinterSection() {
           </p>
         </div>
 
-        {(
-          <div className="space-y-2">
-            <Label>Maju ke posisi sobek</Label>
-            <div className="flex gap-2">
-              {[0, 3, 6, 9, 12].map((lines) => (
-                <Button
-                  key={lines}
-                  variant={settings.tearFeed === lines ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => update({ tearFeed: lines })}
-                >
-                  {lines}
-                </Button>
-              ))}
-            </div>
-            <p className="text-sm text-muted-foreground">
-              Baris tambahan setelah struk supaya perforasi lewat tear bar. Pakai 0 kalau printer sudah punya fitur Tear Off sendiri.
-            </p>
-          </div>
-        )}
+        <div className="space-y-2">
+          <Label htmlFor="printer-tear-feed">Maju ke posisi sobek</Label>
+          <Input
+            id="printer-tear-feed"
+            type="number"
+            min={0}
+            max={40}
+            value={settings.tearFeed}
+            onChange={(e) => update({ tearFeed: Number(e.target.value) || 0 })}
+            onBlur={() => update({ tearFeed: Math.min(40, Math.max(0, settings.tearFeed || 0)) })}
+          />
+          <p className="text-sm text-muted-foreground">
+            Baris tambahan setelah struk supaya perforasi lewat gerigi sobek. Pakai 0 kalau fitur Tear Off printer sudah aktif.
+          </p>
+        </div>
 
         <div className="space-y-2">
           <Label htmlFor="printer-columns">Jumlah kolom</Label>
