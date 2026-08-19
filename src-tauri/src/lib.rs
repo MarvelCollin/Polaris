@@ -1,6 +1,7 @@
 mod auth;
 mod gdrive;
 mod midtrans;
+mod printer;
 mod turso;
 
 use tauri::Manager;
@@ -41,6 +42,8 @@ pub fn run() {
             midtrans::midtrans_create_qris,
             midtrans::midtrans_check_status,
             midtrans::midtrans_cancel,
+            printer::list_printers,
+            printer::print_raw,
             turso::get_turso_config,
         ])
         .run(tauri::generate_context!())

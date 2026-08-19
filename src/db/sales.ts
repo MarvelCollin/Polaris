@@ -111,6 +111,22 @@ export async function getSales(
   return { data, total: countRows[0].count };
 }
 
+export async function getSaleById(saleId: number): Promise<Sale | null> {
+  const db = await getDb();
+  const rows = await db.select<Sale[]>(
+    `SELECT p.id, p.nomor_faktur, p.total, p.dibayar, p.kembalian, p.dibuat_pada, p.pelanggan_id,
+       p.nama_pelanggan, p.diskon, p.alamat_pengiriman,
+       COALESCE(pay.total_bayar, 0) as total_pembayaran,
+       (p.total - p.dibayar - COALESCE(pay.total_bayar, 0)) as sisa
+     FROM penjualan p
+     LEFT JOIN (SELECT penjualan_id, SUM(jumlah) as total_bayar FROM pembayaran_penjualan GROUP BY penjualan_id) pay
+       ON pay.penjualan_id = p.id
+     WHERE p.id = $1`,
+    [saleId]
+  );
+  return rows[0] ?? null;
+}
+
 export async function getSaleItems(saleId: number): Promise<SaleItem[]> {
   const db = await getDb();
   return await db.select(

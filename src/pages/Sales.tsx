@@ -6,6 +6,7 @@ import { useIncrementalRender } from "@/hooks/useIncrementalRender";
 import { getProducts, getFrequentProductIds } from "@/db/products";
 import { getCategories } from "@/db/categories";
 import { createSale } from "@/db/sales";
+import { printSale } from "@/lib/printer";
 import { getCustomers, getCustomerPriceMap, getCustomerAddresses } from "@/db/customers";
 import { CartEntry, Customer, CustomerAddress, ProductWithCategory, formatRupiah } from "@/types/index";
 import { Button } from "@/components/ui/button";
@@ -242,7 +243,10 @@ export default function Sales() {
             setQrisStatus("idle");
             toast.success("Pembayaran QRIS berhasil!");
             createSale(qSnap.cart, qSnap.total, qSnap.customerId, qSnap.customerName, qSnap.discountAmount, qSnap.selectedAddress)
-              .then(() => refetchProducts())
+              .then((saleId) => {
+                refetchProducts();
+                printSale(saleId, "QRIS").catch((e) => toast.error(`Gagal cetak struk: ${e instanceof Error ? e.message : String(e)}`));
+              })
               .catch((e) => toast.error(e instanceof Error ? e.message : String(e)));
           } else if (!isPending(status)) {
             clearInterval(interval);
@@ -293,6 +297,7 @@ export default function Sales() {
     busyRef.current = true;
 
     const snap = { cart, paid, discountAmount, selectedAddress, customerId: selectedCustomer?.id, customerName: selectedCustomer?.nama };
+    const metode = isUtang ? "Utang" : "Tunai";
     const msg = isUtang ? `Penjualan utang berhasil! Sisa: ${formatRupiah(sisaUtang)}` : `Pembayaran berhasil! Kembalian: ${formatRupiah(change)}`;
 
     setCart([]);
@@ -302,7 +307,10 @@ export default function Sales() {
     toast.success(msg);
 
     createSale(snap.cart, snap.paid, snap.customerId, snap.customerName, snap.discountAmount, snap.selectedAddress)
-      .then(() => refetchProducts())
+      .then((saleId) => {
+        refetchProducts();
+        printSale(saleId, metode).catch((e) => toast.error(`Gagal cetak struk: ${e instanceof Error ? e.message : String(e)}`));
+      })
       .catch((e) => toast.error(e instanceof Error ? e.message : String(e)))
       .finally(() => { busyRef.current = false; });
   }

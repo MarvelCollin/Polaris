@@ -1,15 +1,17 @@
-import { useState, FormEvent } from "react";
+import { useState, useEffect, FormEvent } from "react";
 import { useTheme } from "@/hooks/useTheme";
 import { useFontSize, FONT_SIZE_LABELS, type FontSize } from "@/hooks/useFontSize";
 import { useUpdate } from "@/hooks/useUpdate";
 import { changePassword } from "@/db/auth";
+import { getPrinterSettings, savePrinterSettings, DEFAULT_PRINTER_SETTINGS, PrinterSettings } from "@/db/settings";
+import { listPrinters, printTest } from "@/lib/printer";
 import { resetTransactionData } from "@/database";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import ConfirmDialog from "@/components/ConfirmDialog";
-import { Moon, Sun, ArrowDownToLine, Trash2 } from "lucide-react";
+import { Moon, Sun, ArrowDownToLine, Trash2, Printer, RefreshCw } from "lucide-react";
 
 const fontSizes: FontSize[] = ["small", "medium", "large"];
 
@@ -161,6 +163,164 @@ function UpdateSection() {
   );
 }
 
+const PAPER_WIDTHS = [32, 40, 48];
+
+function PrinterSection() {
+  const [settings, setSettings] = useState<PrinterSettings>(DEFAULT_PRINTER_SETTINGS);
+  const [printers, setPrinters] = useState<string[]>([]);
+  const [status, setStatus] = useState("");
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    getPrinterSettings().then(setSettings).catch(() => {});
+    refreshPrinters();
+  }, []);
+
+  async function refreshPrinters() {
+    try {
+      setPrinters(await listPrinters());
+      setError("");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    }
+  }
+
+  function update(patch: Partial<PrinterSettings>) {
+    setSettings((prev) => ({ ...prev, ...patch }));
+    setStatus("");
+  }
+
+  async function handleSave() {
+    setBusy(true);
+    setError("");
+    try {
+      await savePrinterSettings(settings);
+      setStatus("Pengaturan printer disimpan");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    }
+    setBusy(false);
+  }
+
+  async function handleTest() {
+    setBusy(true);
+    setError("");
+    setStatus("");
+    try {
+      await printTest(settings);
+      setStatus("Struk tes terkirim ke printer");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    }
+    setBusy(false);
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Printer Struk</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-sm font-medium">Cetak otomatis</p>
+            <p className="text-sm text-muted-foreground">Struk dicetak setelah transaksi tersimpan</p>
+          </div>
+          <Button
+            variant={settings.enabled ? "default" : "outline"}
+            size="sm"
+            onClick={() => update({ enabled: !settings.enabled })}
+          >
+            {settings.enabled ? "Aktif" : "Nonaktif"}
+          </Button>
+        </div>
+
+        <div className="space-y-2">
+          <Label>Printer</Label>
+          <div className="flex gap-2">
+            <select
+              className="h-9 flex-1 rounded-md border border-input bg-transparent px-3 text-sm"
+              value={settings.name}
+              onChange={(e) => update({ name: e.target.value })}
+            >
+              <option value="">Pilih printer</option>
+              {printers.map((name) => (
+                <option key={name} value={name}>{name}</option>
+              ))}
+            </select>
+            <Button variant="outline" size="sm" onClick={refreshPrinters}>
+              <RefreshCw className="size-4" />
+            </Button>
+          </div>
+        </div>
+
+        <div className="space-y-2">
+          <Label>Lebar kertas</Label>
+          <div className="flex gap-2">
+            {PAPER_WIDTHS.map((width) => (
+              <Button
+                key={width}
+                variant={settings.width === width ? "default" : "outline"}
+                size="sm"
+                onClick={() => update({ width })}
+              >
+                {width} kolom
+              </Button>
+            ))}
+          </div>
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="printer-header">Judul struk</Label>
+          <Input
+            id="printer-header"
+            value={settings.header}
+            onChange={(e) => update({ header: e.target.value })}
+          />
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="printer-footer">Catatan bawah</Label>
+          <Input
+            id="printer-footer"
+            value={settings.footer}
+            onChange={(e) => update({ footer: e.target.value })}
+          />
+        </div>
+
+        <div className="flex gap-2">
+          <Button
+            variant={settings.cut ? "default" : "outline"}
+            size="sm"
+            onClick={() => update({ cut: !settings.cut })}
+          >
+            Potong kertas
+          </Button>
+          <Button
+            variant={settings.drawer ? "default" : "outline"}
+            size="sm"
+            onClick={() => update({ drawer: !settings.drawer })}
+          >
+            Buka laci kasir
+          </Button>
+        </div>
+
+        <div className="flex gap-2">
+          <Button onClick={handleSave} disabled={busy}>Simpan</Button>
+          <Button variant="outline" onClick={handleTest} disabled={busy || !settings.name}>
+            <Printer className="mr-2 size-4" />
+            Tes Cetak
+          </Button>
+        </div>
+
+        {status && <p className="text-sm text-green-600 dark:text-green-400">{status}</p>}
+        {error && <p className="text-sm text-destructive">{error}</p>}
+      </CardContent>
+    </Card>
+  );
+}
+
 function ResetSection() {
   const [showConfirm, setShowConfirm] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -218,6 +378,7 @@ export default function Settings() {
       <ThemeSection />
       <FontSizeSection />
       <PasswordSection />
+      <PrinterSection />
       <ResetSection />
     </div>
   );
