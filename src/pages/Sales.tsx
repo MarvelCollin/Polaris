@@ -7,6 +7,7 @@ import { getProducts, getFrequentProductIds } from "@/db/products";
 import { getCategories } from "@/db/categories";
 import { createSale } from "@/db/sales";
 import { printSale } from "@/lib/printer";
+import { usePrinterStatus } from "@/hooks/usePrinterStatus";
 import { getCustomers, getCustomerPriceMap, getCustomerAddresses } from "@/db/customers";
 import { CartEntry, Customer, CustomerAddress, ProductWithCategory, formatRupiah } from "@/types/index";
 import { Button } from "@/components/ui/button";
@@ -14,7 +15,7 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import SearchInput from "@/components/SearchInput";
-import { Plus, Minus, Trash2, UserCircle, Star, Percent, QrCode, Loader2, X, MapPin, CheckCircle } from "lucide-react";
+import { Plus, Minus, Trash2, UserCircle, Star, Percent, QrCode, Loader2, X, MapPin, CheckCircle, Printer, PrinterCheck, PrinterX } from "lucide-react";
 import ProductThumb from "@/components/ProductThumb";
 import SearchableSelect from "@/components/SearchableSelect";
 import Modal from "@/components/Modal";
@@ -69,6 +70,31 @@ const SaleProductTile = memo(function SaleProductTile({
   );
 });
 
+const PRINTER_BADGE = {
+  ready: { icon: PrinterCheck, tone: "text-green-600 dark:text-green-400" },
+  disabled: { icon: Printer, tone: "text-muted-foreground" },
+  unset: { icon: Printer, tone: "text-amber-600 dark:text-amber-400" },
+  blocked: { icon: PrinterX, tone: "text-destructive" },
+  missing: { icon: PrinterX, tone: "text-destructive" },
+} as const;
+
+function PrinterBadge({ report, onRefresh }: { report: ReturnType<typeof usePrinterStatus>["report"]; onRefresh: () => void }) {
+  if (!report) return null;
+
+  const { icon: Icon, tone } = PRINTER_BADGE[report.health];
+  return (
+    <button
+      type="button"
+      onClick={onRefresh}
+      title={`${report.label} - ${report.detail}`}
+      className={`flex items-center gap-1 text-xs ${tone}`}
+    >
+      <Icon className="size-4" />
+      <span className="max-w-[140px] truncate">{report.health === "ready" ? report.detail : report.label}</span>
+    </button>
+  );
+}
+
 export default function Sales() {
   const toast = useToast();
   const busyRef = useRef(false);
@@ -88,6 +114,7 @@ export default function Sales() {
   const [selectedAddress, setSelectedAddress] = useState<string | null>(null);
   const [priceMap, setPriceMap] = useState<Record<number, number>>({});
   const [cart, setCart] = useState<CartEntry[]>([]);
+  const { report: printerReport, refresh: refreshPrinter } = usePrinterStatus();
   const [paid, setPaid] = useState<number>(0);
   const [isUtang, setIsUtang] = useState(false);
   const [discountType, setDiscountType] = useState<"percent" | "rupiah">("percent");
@@ -245,7 +272,10 @@ export default function Sales() {
             createSale(qSnap.cart, qSnap.total, qSnap.customerId, qSnap.customerName, qSnap.discountAmount, qSnap.selectedAddress)
               .then((saleId) => {
                 refetchProducts();
-                printSale(saleId, "QRIS").catch((e) => toast.error(`Gagal cetak struk: ${e instanceof Error ? e.message : String(e)}`));
+                printSale(saleId, "QRIS")
+                  .then((result) => { if (result === "printed") toast.success("Struk tercetak"); })
+                  .catch((e) => toast.error(`Gagal cetak struk: ${e instanceof Error ? e.message : String(e)}`))
+                  .finally(refreshPrinter);
               })
               .catch((e) => toast.error(e instanceof Error ? e.message : String(e)));
           } else if (!isPending(status)) {
@@ -309,7 +339,10 @@ export default function Sales() {
     createSale(snap.cart, snap.paid, snap.customerId, snap.customerName, snap.discountAmount, snap.selectedAddress)
       .then((saleId) => {
         refetchProducts();
-        printSale(saleId, metode).catch((e) => toast.error(`Gagal cetak struk: ${e instanceof Error ? e.message : String(e)}`));
+        printSale(saleId, metode)
+          .then((result) => { if (result === "printed") toast.success("Struk tercetak"); })
+          .catch((e) => toast.error(`Gagal cetak struk: ${e instanceof Error ? e.message : String(e)}`))
+          .finally(refreshPrinter);
       })
       .catch((e) => toast.error(e instanceof Error ? e.message : String(e)))
       .finally(() => { busyRef.current = false; });
@@ -405,7 +438,10 @@ export default function Sales() {
         <div className="w-full shrink-0 lg:w-[380px]">
           <Card>
             <CardHeader className="pb-3">
-              <CardTitle className="text-base">Keranjang</CardTitle>
+              <div className="flex items-center justify-between gap-2">
+                <CardTitle className="text-base">Keranjang</CardTitle>
+                <PrinterBadge report={printerReport} onRefresh={refreshPrinter} />
+              </div>
             </CardHeader>
             <CardContent>
               <div className="mb-3">

@@ -4,7 +4,7 @@ import { useFontSize, FONT_SIZE_LABELS, type FontSize } from "@/hooks/useFontSiz
 import { useUpdate } from "@/hooks/useUpdate";
 import { changePassword } from "@/db/auth";
 import { getPrinterSettings, savePrinterSettings, DEFAULT_PRINTER_SETTINGS, PrinterSettings } from "@/db/settings";
-import { listPrinters, printTest } from "@/lib/printer";
+import { listPrinters, printTest, printerStatus, PrinterState } from "@/lib/printer";
 import { resetTransactionData } from "@/database";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -168,14 +168,36 @@ const PAPER_WIDTHS = [32, 40, 48];
 function PrinterSection() {
   const [settings, setSettings] = useState<PrinterSettings>(DEFAULT_PRINTER_SETTINGS);
   const [printers, setPrinters] = useState<string[]>([]);
+  const [state, setState] = useState<PrinterState | null>(null);
+  const [stateError, setStateError] = useState("");
   const [status, setStatus] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
-    getPrinterSettings().then(setSettings).catch(() => {});
+    getPrinterSettings()
+      .then((saved) => {
+        setSettings(saved);
+        refreshState(saved.name);
+      })
+      .catch(() => {});
     refreshPrinters();
   }, []);
+
+  async function refreshState(name: string) {
+    if (!name) {
+      setState(null);
+      setStateError("");
+      return;
+    }
+    try {
+      setState(await printerStatus(name));
+      setStateError("");
+    } catch (e) {
+      setState(null);
+      setStateError(e instanceof Error ? e.message : String(e));
+    }
+  }
 
   async function refreshPrinters() {
     try {
@@ -242,17 +264,36 @@ function PrinterSection() {
             <select
               className="h-9 flex-1 rounded-md border border-input bg-transparent px-3 text-sm"
               value={settings.name}
-              onChange={(e) => update({ name: e.target.value })}
+              onChange={(e) => {
+                update({ name: e.target.value });
+                refreshState(e.target.value);
+              }}
             >
               <option value="">Pilih printer</option>
               {printers.map((name) => (
                 <option key={name} value={name}>{name}</option>
               ))}
             </select>
-            <Button variant="outline" size="sm" onClick={refreshPrinters}>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                refreshPrinters();
+                refreshState(settings.name);
+              }}
+            >
               <RefreshCw className="size-4" />
             </Button>
           </div>
+          {settings.name && (
+            <p className={`text-sm ${state?.ready ? "text-green-600 dark:text-green-400" : "text-destructive"}`}>
+              {stateError
+                ? `Tidak terhubung: ${stateError}`
+                : state
+                  ? `Status: ${state.message}${state.jobs > 0 ? ` (${state.jobs} antrian)` : ""}`
+                  : "Memeriksa status..."}
+            </p>
+          )}
         </div>
 
         <div className="space-y-2">

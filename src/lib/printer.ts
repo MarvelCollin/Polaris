@@ -3,8 +3,42 @@ import { getSaleById, getSaleItems } from "@/db/sales";
 import { getPrinterSettings, PrinterSettings } from "@/db/settings";
 import { buildReceipt, ReceiptData } from "@/lib/escpos";
 
+export type PrinterHealth = "disabled" | "unset" | "missing" | "blocked" | "ready";
+
+export interface PrinterState {
+  ready: boolean;
+  message: string;
+  jobs: number;
+}
+
+export interface PrinterReport {
+  health: PrinterHealth;
+  label: string;
+  detail: string;
+}
+
 export async function listPrinters(): Promise<string[]> {
   return invoke<string[]>("list_printers");
+}
+
+export async function printerStatus(printer: string): Promise<PrinterState> {
+  return invoke<PrinterState>("printer_status", { printer });
+}
+
+export async function printerReport(settings?: PrinterSettings): Promise<PrinterReport> {
+  const config = settings ?? (await getPrinterSettings());
+  if (!config.enabled) return { health: "disabled", label: "Printer nonaktif", detail: "Cetak otomatis dimatikan di Pengaturan" };
+  if (!config.name) return { health: "unset", label: "Printer belum dipilih", detail: "Pilih printer di Pengaturan" };
+
+  try {
+    const state = await printerStatus(config.name);
+    if (state.ready) {
+      return { health: "ready", label: config.name, detail: state.jobs > 0 ? `${state.jobs} antrian` : "Siap" };
+    }
+    return { health: "blocked", label: config.name, detail: state.message };
+  } catch (e) {
+    return { health: "missing", label: config.name, detail: e instanceof Error ? e.message : String(e) };
+  }
 }
 
 export async function printRaw(printer: string, data: Uint8Array): Promise<void> {
@@ -18,9 +52,9 @@ export async function printReceipt(data: ReceiptData, settings?: PrinterSettings
   await printRaw(config.name, buildReceipt(data, config));
 }
 
-export async function printSale(saleId: number, metode?: string): Promise<void> {
+export async function printSale(saleId: number, metode?: string): Promise<"printed" | "disabled"> {
   const config = await getPrinterSettings();
-  if (!config.enabled) return;
+  if (!config.enabled) return "disabled";
 
   const sale = await getSaleById(saleId);
   if (!sale) throw new Error(`Penjualan ${saleId} tidak ditemukan`);
@@ -45,6 +79,7 @@ export async function printSale(saleId: number, metode?: string): Promise<void> 
     },
     config
   );
+  return "printed";
 }
 
 export async function printTest(settings: PrinterSettings): Promise<void> {

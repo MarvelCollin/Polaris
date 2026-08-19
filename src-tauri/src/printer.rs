@@ -21,6 +21,31 @@ mod win {
         attributes: u32,
     }
 
+    #[repr(C)]
+    struct PrinterInfo2 {
+        server_name: *const u16,
+        printer_name: *const u16,
+        share_name: *const u16,
+        port_name: *const u16,
+        driver_name: *const u16,
+        comment: *const u16,
+        location: *const u16,
+        devmode: *const c_void,
+        sep_file: *const u16,
+        print_processor: *const u16,
+        datatype: *const u16,
+        parameters: *const u16,
+        security_descriptor: *const c_void,
+        attributes: u32,
+        priority: u32,
+        default_priority: u32,
+        start_time: u32,
+        until_time: u32,
+        status: u32,
+        jobs: u32,
+        average_ppm: u32,
+    }
+
     #[link(name = "winspool")]
     extern "system" {
         fn OpenPrinterW(name: *const u16, handle: *mut Handle, defaults: *mut c_void) -> i32;
@@ -30,6 +55,7 @@ mod win {
         fn StartPagePrinter(handle: Handle) -> i32;
         fn EndPagePrinter(handle: Handle) -> i32;
         fn WritePrinter(handle: Handle, buf: *const c_void, count: u32, written: *mut u32) -> i32;
+        fn GetPrinterW(handle: Handle, level: u32, buf: *mut u8, size: u32, needed: *mut u32) -> i32;
         fn EnumPrintersW(
             flags: u32,
             name: *const u16,
@@ -99,9 +125,76 @@ mod win {
         Ok(items.iter().map(|i| unsafe { from_wide(i.printer_name) }).collect())
     }
 
+    const STATUS_FLAGS: [(u32, &str); 12] = [
+        (0x00000001, "dijeda"),
+        (0x00000002, "error"),
+        (0x00000008, "kertas macet"),
+        (0x00000010, "kertas habis"),
+        (0x00000040, "penutup terbuka"),
+        (0x00000080, "offline"),
+        (0x00000200, "tidak ada kertas"),
+        (0x00001000, "tidak tersedia"),
+        (0x00040000, "tinta habis"),
+        (0x00100000, "perlu tindakan operator"),
+        (0x00200000, "memori penuh"),
+        (0x00400000, "penutup printer terbuka"),
+    ];
+
+    const BLOCKING: u32 = 0x00000002 | 0x00000008 | 0x00000010 | 0x00000080 | 0x00000200 | 0x00001000 | 0x00100000;
+
+    pub fn describe(status: u32) -> String {
+        let parts: Vec<&str> = STATUS_FLAGS
+            .iter()
+            .filter(|(bit, _)| status & bit != 0)
+            .map(|(_, label)| *label)
+            .collect();
+        if parts.is_empty() {
+            "siap".into()
+        } else {
+            parts.join(", ")
+        }
+    }
+
+    pub fn is_blocked(status: u32) -> bool {
+        status & BLOCKING != 0
+    }
+
+    pub fn status(printer: &str) -> Result<(u32, u32), String> {
+        let name = wide(printer);
+        let mut handle: Handle = 0;
+        if unsafe { OpenPrinterW(name.as_ptr(), &mut handle, std::ptr::null_mut()) } == 0 {
+            return Err(fail(&format!("OpenPrinter '{printer}'")));
+        }
+
+        let mut needed = 0u32;
+        unsafe { GetPrinterW(handle, 2, std::ptr::null_mut(), 0, &mut needed) };
+        if needed == 0 {
+            let err = fail("GetPrinter");
+            unsafe { ClosePrinter(handle) };
+            return Err(err);
+        }
+
+        let mut buf = vec![0u64; (needed as usize + 7) / 8];
+        let ok = unsafe { GetPrinterW(handle, 2, buf.as_mut_ptr() as *mut u8, needed, &mut needed) };
+        let result = if ok == 0 {
+            Err(fail("GetPrinter"))
+        } else {
+            let info = unsafe { &*(buf.as_ptr() as *const PrinterInfo2) };
+            Ok((info.status, info.jobs))
+        };
+
+        unsafe { ClosePrinter(handle) };
+        result
+    }
+
     pub fn print_raw(printer: &str, data: &[u8]) -> Result<(), String> {
         if data.is_empty() {
             return Err("data kosong".into());
+        }
+
+        let (state, _) = status(printer)?;
+        if is_blocked(state) {
+            return Err(format!("Printer {printer}: {}", describe(state)));
         }
 
         let name = wide(printer);
@@ -162,6 +255,31 @@ pub fn list_printers() -> Result<Vec<String>, String> {
     }
     #[cfg(not(windows))]
     {
+        Err("printer hanya didukung di Windows".into())
+    }
+}
+
+#[derive(serde::Serialize)]
+pub struct PrinterState {
+    pub ready: bool,
+    pub message: String,
+    pub jobs: u32,
+}
+
+#[tauri::command]
+pub fn printer_status(printer: String) -> Result<PrinterState, String> {
+    #[cfg(windows)]
+    {
+        let (status, jobs) = win::status(&printer)?;
+        Ok(PrinterState {
+            ready: !win::is_blocked(status),
+            message: win::describe(status),
+            jobs,
+        })
+    }
+    #[cfg(not(windows))]
+    {
+        let _ = printer;
         Err("printer hanya didukung di Windows".into())
     }
 }

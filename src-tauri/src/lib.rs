@@ -44,6 +44,7 @@ pub fn run() {
             midtrans::midtrans_cancel,
             printer::list_printers,
             printer::print_raw,
+            printer::printer_status,
             turso::get_turso_config,
         ])
         .run(tauri::generate_context!())
