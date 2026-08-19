@@ -154,9 +154,14 @@ describe("fixed page height", () => {
     expect(lineCount(huge)).toBeGreaterThan(escp.pageLines);
   });
 
-  it("keeps the footer as the last printed line", () => {
-    const text = new TextDecoder().decode(buildReceipt(base, escp));
-    const lines = text.split("\n").filter((l) => l.trim().length && !l.includes("\f"));
+  it("keeps the form feed as the very last byte so auto tear off can fire", () => {
+    const bytes = buildReceipt(base, { ...escp, pageLines: 0 });
+    expect(bytes[bytes.length - 1]).toBe(0x0c);
+  });
+
+  it("prints the footer straight after the totals when padding is off", () => {
+    const text = new TextDecoder().decode(buildReceipt(base, { ...escp, pageLines: 0 }));
+    const lines = text.split(String.fromCharCode(10)).filter((l) => l.trim().length && !l.includes(String.fromCharCode(12)));
     expect(lines[lines.length - 1].trim()).toBe(settings.footer);
   });
 });

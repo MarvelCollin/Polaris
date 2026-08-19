@@ -47,7 +47,7 @@ export const DEFAULT_PRINTER_SETTINGS: PrinterSettings = {
   cut: true,
   tearFeed: 0,
   scale: 1,
-  pageLines: 66,
+  pageLines: 0,
   drawer: false,
   header: "POLARIS",
   footer: "Terima kasih",

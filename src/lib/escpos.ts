@@ -190,10 +190,11 @@ export function buildReceipt(data: ReceiptData, settings: PrinterSettings): Uint
   bytes.push(...scaleOff(settings));
 
   if (escp) {
-    const printed = 1 + body.length + 1;
-    const target = Math.max(printed, settings.pageLines - 1);
-    for (let i = 0; i < target - printed; i += 1) bytes.push(0x0a);
     bytes.push(...ascii(center(settings.footer, settings.width)), 0x0a);
+    if (settings.pageLines > 0) {
+      const printed = 1 + body.length + 1;
+      for (let i = printed; i < settings.pageLines - 1; i += 1) bytes.push(0x0a);
+    }
   } else {
     bytes.push(ESC, 0x61, 0x01);
     bytes.push(...ascii(settings.footer), 0x0a);

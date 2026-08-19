@@ -403,14 +403,14 @@ function PrinterSection() {
             <Input
               id="printer-page-lines"
               type="number"
-              min={10}
+              min={0}
               max={120}
               value={settings.pageLines}
               onChange={(e) => update({ pageLines: Number(e.target.value) || 0 })}
-              onBlur={() => update({ pageLines: Math.min(120, Math.max(10, settings.pageLines || 66)) })}
+              onBlur={() => update({ pageLines: Math.min(120, Math.max(0, settings.pageLines || 0)) })}
             />
             <p className="text-sm text-muted-foreground">
-              Struk diisi baris kosong sampai catatan bawah jatuh di baris terakhir lembar. 11 inci pada 6 baris per inci = 66 baris.
+              Isi 0 supaya form feed jadi data terakhir dan fitur Tear Off printer bekerja. Isi 66 hanya kalau printer tidak punya Tear Off dan kertas perlu didorong penuh.
             </p>
           </div>
         )}
