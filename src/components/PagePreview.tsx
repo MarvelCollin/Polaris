@@ -20,15 +20,26 @@ export default function PagePreview({ lines, settings, scale = 2.4 }: Props) {
   return (
     <div className="space-y-2">
       <div
-        className="relative overflow-hidden border bg-white text-black"
         style={{
+          position: "relative",
+          overflow: "hidden",
           width: `${paperMm * scale}px`,
           height: `${PAGE_HEIGHT_MM * scale}px`,
+          background: "#ffffff",
+          color: "#111111",
+          border: "1px solid #94a3b8",
+          boxShadow: "0 1px 3px rgba(0,0,0,0.3)",
         }}
       >
         <pre
-          className="absolute left-0 top-0 whitespace-pre font-mono"
           style={{
+            position: "absolute",
+            left: 0,
+            top: 0,
+            margin: 0,
+            whiteSpace: "pre",
+            fontFamily: "ui-monospace, Consolas, monospace",
+            color: "#111111",
             fontSize: `${CHAR_MM * scale * settings.scale / 0.6}px`,
             lineHeight: `${LINE_MM * scale}px`,
           }}
