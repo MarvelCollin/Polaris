@@ -154,6 +154,7 @@ export function buildReceipt(data: ReceiptData, settings: PrinterSettings): Uint
 
   if (escp) {
     bytes.push(0x0c);
+    for (let i = 0; i < settings.tearFeed; i += 1) bytes.push(0x0a);
   } else {
     bytes.push(0x0a, 0x0a, 0x0a);
     if (settings.cut) bytes.push(GS, 0x56, 0x42, 0x00);

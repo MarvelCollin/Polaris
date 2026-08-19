@@ -112,3 +112,17 @@ describe("escp dialect", () => {
     expect(bytes.join(",")).not.toContain("27,33,48");
   });
 });
+
+describe("tear off feed", () => {
+  const escp = { ...settings, dialect: "escp" as const, paper: 241, width: 80 };
+
+  it("adds no extra feed when the printer handles tear off", () => {
+    const bytes = Array.from(buildReceipt(base, { ...escp, tearFeed: 0 }));
+    expect(bytes[bytes.length - 1]).toBe(0x0c);
+  });
+
+  it("feeds the requested lines past the form feed", () => {
+    const bytes = Array.from(buildReceipt(base, { ...escp, tearFeed: 6 }));
+    expect(bytes.slice(-7)).toEqual([0x0c, 0x0a, 0x0a, 0x0a, 0x0a, 0x0a, 0x0a]);
+  });
+});

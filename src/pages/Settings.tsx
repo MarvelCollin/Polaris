@@ -347,6 +347,27 @@ function PrinterSection() {
           </p>
         </div>
 
+        {isContinuousForm(settings.paper) && (
+          <div className="space-y-2">
+            <Label>Maju ke posisi sobek</Label>
+            <div className="flex gap-2">
+              {[0, 3, 6, 9, 12].map((lines) => (
+                <Button
+                  key={lines}
+                  variant={settings.tearFeed === lines ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => update({ tearFeed: lines })}
+                >
+                  {lines}
+                </Button>
+              ))}
+            </div>
+            <p className="text-sm text-muted-foreground">
+              Baris tambahan setelah struk supaya perforasi lewat tear bar. Pakai 0 kalau printer sudah punya fitur Tear Off sendiri.
+            </p>
+          </div>
+        )}
+
         <div className="space-y-2">
           <Label htmlFor="printer-header">Judul struk</Label>
           <Input
