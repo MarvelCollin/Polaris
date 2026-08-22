@@ -1,11 +1,18 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+import { describe, it, expect, beforeAll, beforeEach, afterEach, vi } from "vitest";
 import { resetMock, mockDb } from "./setup";
+import { invoke } from "@tauri-apps/api/core";
+import { connectTurso, syncDb, SYNC_DELAY_MS, SYNC_MAX_DELAY_MS } from "@/database";
 import { getDashboardStats, getDailySales, getMonthlySalesVsPurchases } from "@/db/dashboard";
 import { createSale, createSaleReturn, addSalePayment } from "@/db/sales";
 import { createPurchase, createPurchaseReturn, addPurchasePayment } from "@/db/purchases";
 import { createProduct, updateProduct, deleteProduct } from "@/db/products";
 import { createCategory, updateCategory, deleteCategory } from "@/db/categories";
 import { createCustomer, addCustomerAddress, setCustomerPrice } from "@/db/customers";
+
+beforeAll(async () => {
+  vi.mocked(invoke).mockResolvedValue({ url: "libsql://polaris-test", token: "test-token" });
+  await connectTurso();
+});
 
 describe("stress: query count optimization", () => {
   beforeEach(() => {
@@ -682,5 +689,66 @@ describe("stress: address unlimited", () => {
     );
     await Promise.all(ops);
     expect(mockDb.execute).toHaveBeenCalledTimes(10);
+  });
+});
+
+describe("stress: sync scheduling", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    resetMock();
+    mockDb.sync.mockClear();
+  });
+
+  afterEach(() => {
+    vi.runOnlyPendingTimers();
+    vi.useRealTimers();
+  });
+
+  it("waits for the quiet gap before syncing a single write", () => {
+    syncDb();
+    vi.advanceTimersByTime(SYNC_DELAY_MS - 1);
+    expect(mockDb.sync).not.toHaveBeenCalled();
+    vi.advanceTimersByTime(1);
+    expect(mockDb.sync).toHaveBeenCalledTimes(1);
+  });
+
+  it("collapses a burst of writes into one sync", () => {
+    for (let i = 0; i < 20; i += 1) {
+      syncDb();
+      vi.advanceTimersByTime(100);
+    }
+    vi.advanceTimersByTime(SYNC_DELAY_MS);
+    expect(mockDb.sync).toHaveBeenCalledTimes(1);
+  });
+
+  it("still syncs during sustained writes instead of starving forever", () => {
+    for (let i = 0; i < 30; i += 1) {
+      syncDb();
+      vi.advanceTimersByTime(SYNC_DELAY_MS - 500);
+    }
+    expect(mockDb.sync.mock.calls.length).toBeGreaterThan(0);
+  });
+
+  it("never lets a write wait longer than the maximum delay", () => {
+    const start = Date.now();
+    let first = 0;
+    mockDb.sync.mockImplementation(async () => {
+      if (!first) first = Date.now();
+    });
+    for (let i = 0; i < 40; i += 1) {
+      syncDb();
+      vi.advanceTimersByTime(500);
+    }
+    expect(first).toBeGreaterThan(0);
+    expect(first - start).toBeLessThanOrEqual(SYNC_MAX_DELAY_MS);
+  });
+
+  it("starts a fresh window after a sync lands", () => {
+    syncDb();
+    vi.advanceTimersByTime(SYNC_DELAY_MS);
+    expect(mockDb.sync).toHaveBeenCalledTimes(1);
+    syncDb();
+    vi.advanceTimersByTime(SYNC_DELAY_MS);
+    expect(mockDb.sync).toHaveBeenCalledTimes(2);
   });
 });
