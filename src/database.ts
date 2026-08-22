@@ -43,7 +43,7 @@ async function openDb(): Promise<Database> {
       const replica = await Database.load({ path, syncUrl: config.url, authToken: config.token });
       tursoConnected = true;
       db = await tune(replica);
-      try { await replica.sync(); } catch (_) {}
+      void replica.sync().catch(() => {});
       return db;
     } catch (_) {}
   }
@@ -109,8 +109,13 @@ async function syncDbImmediate() {
   }
 }
 
+export const SCHEMA_VERSION = 1;
+
 export async function initDb() {
   const database = await getDb();
+
+  const [current] = await database.select<{ user_version: number }[]>("PRAGMA user_version");
+  if (current?.user_version === SCHEMA_VERSION) return;
 
   await database.batch([
     "CREATE TABLE IF NOT EXISTS kategori (id INTEGER PRIMARY KEY AUTOINCREMENT, nama TEXT NOT NULL UNIQUE, dibuat_pada INTEGER NOT NULL DEFAULT (strftime('%s', 'now')))",
@@ -179,6 +184,8 @@ export async function initDb() {
   if (!penjualanSet.has("diskon")) await database.execute("ALTER TABLE penjualan ADD COLUMN diskon REAL NOT NULL DEFAULT 0");
   if (!itemPenjualanSet.has("hpp")) await database.execute("ALTER TABLE item_penjualan ADD COLUMN hpp REAL NOT NULL DEFAULT 0");
   if (!penjualanSet.has("alamat_pengiriman")) await database.execute("ALTER TABLE penjualan ADD COLUMN alamat_pengiriman TEXT");
+
+  await database.execute(`PRAGMA user_version = ${SCHEMA_VERSION}`);
 }
 
 export async function resetTransactionData() {
