@@ -16,7 +16,6 @@ export interface PrinterSettings {
   tearFeed: number;
   scale: number;
   pageLines: number;
-  drawer: boolean;
   header: string;
   footer: string;
 }
@@ -111,7 +110,6 @@ export const DEFAULT_PRINTER_SETTINGS: PrinterSettings = {
   tearFeed: 0,
   scale: 1,
   pageLines: 0,
-  drawer: false,
   header: "POLARIS",
   footer: "Terima kasih",
 };

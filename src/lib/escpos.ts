@@ -187,8 +187,6 @@ export function buildReceipt(data: ReceiptData, settings: PrinterSettings): Uint
   const escp = settings.dialect === "escp";
   const bytes: number[] = preamble(settings);
 
-  if (settings.drawer) bytes.push(ESC, 0x70, 0x00, 0x19, 0xfa);
-
   const headerCap = escp ? settings.width : Math.floor(settings.width / 2);
   const title = fold(settings.header).slice(0, headerCap);
 

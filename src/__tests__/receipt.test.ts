@@ -148,10 +148,8 @@ describe("dot matrix bytes", () => {
     expect(bytes.slice(-7)).toEqual([0x0c, 0x0a, 0x0a, 0x0a, 0x0a, 0x0a, 0x0a]);
   });
 
-  it("emits the drawer kick only when enabled", () => {
-    const kick = "27,112,0,25,250";
-    expect(Array.from(buildReceipt(base, { ...dot, drawer: true })).join(",")).toContain(kick);
-    expect(Array.from(buildReceipt(base, { ...dot, drawer: false })).join(",")).not.toContain(kick);
+  it("never sends an escpos drawer kick to a printer with no drawer", () => {
+    expect(Array.from(buildReceipt(base, dot)).join(",")).not.toContain("27,112");
   });
 });
 
@@ -283,11 +281,11 @@ describe("forced profile upgrade", () => {
   });
 
   it("keeps the shop identity and printer choice while upgrading", () => {
-    const next = upgradePrinterSettings({ name: "Matrix Dot", enabled: true, header: "TOKO SENTARUM", drawer: true });
+    const next = upgradePrinterSettings({ name: "Matrix Dot", enabled: true, header: "TOKO SENTARUM", footer: "Sampai jumpa" });
     expect(next.name).toBe("Matrix Dot");
     expect(next.enabled).toBe(true);
     expect(next.header).toBe("TOKO SENTARUM");
-    expect(next.drawer).toBe(true);
+    expect(next.footer).toBe("Sampai jumpa");
   });
 
   it("leaves a config alone once it is already on the current profile", () => {

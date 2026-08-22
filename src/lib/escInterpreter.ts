@@ -207,7 +207,6 @@ export function interpret(bytes: Uint8Array, device: Device): Layout {
       if (cmd === 0x57) { wide = ((bytes[i] ?? 0) & 1) === 1; i += 1; continue; }
       if (cmd === 0x61) { align = bytes[i] ?? 0; i += 1; continue; }
       if (cmd === 0x64) { const n = bytes[i] ?? 0; i += 1; for (let k = 0; k < n; k += 1) flush(false); continue; }
-      if (cmd === 0x70) { i += 3; continue; }
       if (cmd === 0x43) {
         if (bytes[i] === 0x00) {
           pageMm = (bytes[i + 1] ?? 11) * 25.4;

@@ -492,8 +492,8 @@ function PrinterSection() {
           />
         </div>
 
-        <div className="flex gap-2">
-          {!isContinuousForm(settings.paper) && (
+        {!isContinuousForm(settings.paper) && (
+          <div className="flex gap-2">
             <Button
               variant={settings.cut ? "default" : "outline"}
               size="sm"
@@ -501,15 +501,8 @@ function PrinterSection() {
             >
               Potong kertas
             </Button>
-          )}
-          <Button
-            variant={settings.drawer ? "default" : "outline"}
-            size="sm"
-            onClick={() => update({ drawer: !settings.drawer })}
-          >
-            Buka laci kasir
-          </Button>
-        </div>
+          </div>
+        )}
 
         <div className="space-y-2">
           <Label>Pratinjau hasil cetak</Label>
