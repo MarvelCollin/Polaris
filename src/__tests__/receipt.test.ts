@@ -288,6 +288,31 @@ describe("forced profile upgrade", () => {
     expect(next.version).toBe(PRINTER_PROFILE_VERSION);
   });
 
+  it("moves a version two install off the pitch the printer ignores", () => {
+    const v2 = {
+      version: 2,
+      name: "Matrix Dot",
+      enabled: true,
+      header: "SAHABAT SENTARUM",
+      dialect: "escp" as const,
+      paper: 241,
+      printable: 203.2,
+      cpi: 10,
+      width: 80,
+    };
+    const next = upgradePrinterSettings(v2);
+    expect(next.version).toBe(PRINTER_PROFILE_VERSION);
+    expect(next.cpi).toBe(17.14);
+    expect(next.width).toBe(136);
+    expect(next.name).toBe("Matrix Dot");
+    expect(next.header).toBe("SAHABAT SENTARUM");
+  });
+
+  it("keeps the widest column count inside the carriage", () => {
+    const next = upgradePrinterSettings({ version: 2 });
+    expect(next.width).toBeLessThanOrEqual(maxColumns(next));
+    expect(maxColumns(next)).toBe(137);
+  });
   it("keeps the shop identity and printer choice while upgrading", () => {
     const next = upgradePrinterSettings({ name: "Matrix Dot", enabled: true, header: "TOKO SENTARUM", footer: "Sampai jumpa" });
     expect(next.name).toBe("Matrix Dot");
