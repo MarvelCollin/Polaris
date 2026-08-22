@@ -22,7 +22,7 @@ async function tune(database: Database): Promise<Database> {
   try { await database.execute("PRAGMA synchronous = NORMAL"); } catch (_) {}
   try { await database.execute("PRAGMA cache_size = -8000"); } catch (_) {}
   try { await database.execute("PRAGMA temp_store = MEMORY"); } catch (_) {}
-  await database.execute("PRAGMA foreign_keys = ON");
+  try { await database.execute("PRAGMA foreign_keys = ON"); } catch (_) {}
   return database;
 }
 
@@ -111,11 +111,33 @@ async function syncDbImmediate() {
 
 export const SCHEMA_VERSION = 1;
 
+const SCHEMA_KEY = "schema_version";
+
+async function readSchemaVersion(database: Database): Promise<number> {
+  try {
+    const rows = await database.select<{ value: string }[]>(
+      "SELECT value FROM settings WHERE key = $1",
+      [SCHEMA_KEY]
+    );
+    return Number(rows[0]?.value ?? 0);
+  } catch (_) {
+    return 0;
+  }
+}
+
+async function stampSchemaVersion(database: Database): Promise<void> {
+  try {
+    await database.execute("INSERT OR REPLACE INTO settings (key, value) VALUES ($1, $2)", [
+      SCHEMA_KEY,
+      String(SCHEMA_VERSION),
+    ]);
+  } catch (_) {}
+}
+
 export async function initDb() {
   const database = await getDb();
 
-  const [current] = await database.select<{ user_version: number }[]>("PRAGMA user_version");
-  if (current?.user_version === SCHEMA_VERSION) return;
+  if ((await readSchemaVersion(database)) === SCHEMA_VERSION) return;
 
   await database.batch([
     "CREATE TABLE IF NOT EXISTS kategori (id INTEGER PRIMARY KEY AUTOINCREMENT, nama TEXT NOT NULL UNIQUE, dibuat_pada INTEGER NOT NULL DEFAULT (strftime('%s', 'now')))",
@@ -185,7 +207,7 @@ export async function initDb() {
   if (!itemPenjualanSet.has("hpp")) await database.execute("ALTER TABLE item_penjualan ADD COLUMN hpp REAL NOT NULL DEFAULT 0");
   if (!penjualanSet.has("alamat_pengiriman")) await database.execute("ALTER TABLE penjualan ADD COLUMN alamat_pengiriman TEXT");
 
-  await database.execute(`PRAGMA user_version = ${SCHEMA_VERSION}`);
+  await stampSchemaVersion(database);
 }
 
 export async function resetTransactionData() {
