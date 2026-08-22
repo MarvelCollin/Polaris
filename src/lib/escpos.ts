@@ -21,9 +21,42 @@ export interface ReceiptData {
   metode?: string;
 }
 
+export const BOX = {
+  h: "─",
+  v: "│",
+  tl: "┌",
+  tr: "┐",
+  bl: "└",
+  br: "┘",
+  lt: "├",
+  rt: "┤",
+  tt: "┬",
+  bt: "┴",
+  x: "┼",
+};
+
+const CP437: Record<string, number> = {
+  [BOX.h]: 0xc4,
+  [BOX.v]: 0xb3,
+  [BOX.tl]: 0xda,
+  [BOX.tr]: 0xbf,
+  [BOX.bl]: 0xc0,
+  [BOX.br]: 0xd9,
+  [BOX.lt]: 0xc3,
+  [BOX.rt]: 0xb4,
+  [BOX.tt]: 0xc2,
+  [BOX.bt]: 0xc1,
+  [BOX.x]: 0xc5,
+};
+
 function ascii(text: string): number[] {
   const out: number[] = [];
   for (const char of text) {
+    const mapped = CP437[char];
+    if (mapped !== undefined) {
+      out.push(mapped);
+      continue;
+    }
     const code = char.charCodeAt(0);
     out.push(code >= 0x20 && code <= 0x7e ? code : 0x3f);
   }
@@ -33,6 +66,10 @@ function ascii(text: string): number[] {
 export function fold(text: string): string {
   let out = "";
   for (const char of text) {
+    if (CP437[char] !== undefined) {
+      out += char;
+      continue;
+    }
     const code = char.charCodeAt(0);
     out += code >= 0x20 && code <= 0x7e ? char : "?";
   }
@@ -126,7 +163,14 @@ function block(text: string, width: number): string {
 }
 
 function boxed(settings: PrinterSettings): boolean {
-  return settings.tableStyle === "kotak";
+  return settings.tableStyle === "kotak" || settings.tableStyle === "sambung";
+}
+
+function glyphs(settings: PrinterSettings) {
+  if (settings.tableStyle !== "sambung") {
+    return { h: "-", v: "|", tl: "+", tr: "+", bl: "+", br: "+", lt: "+", rt: "+", tt: "+", bt: "+", x: "+" };
+  }
+  return BOX;
 }
 
 function columns(settings: PrinterSettings) {
@@ -143,10 +187,16 @@ function labelSpan(settings: PrinterSettings): number {
   return settings.width - columns(settings).jumlah - (boxed(settings) ? 5 : 4);
 }
 
-function rule(settings: PrinterSettings): string {
+export type RulePosition = "top" | "middle" | "bottom";
+
+function rule(settings: PrinterSettings, position: RulePosition = "middle"): string {
   const w = columns(settings);
+  const g = glyphs(settings);
   if (!boxed(settings)) return "-".repeat(settings.width);
-  return "+" + [w.no, w.nama, w.qty, w.harga, w.jumlah].map((n) => "-".repeat(n + 2)).join("+") + "+";
+  const left = position === "top" ? g.tl : position === "bottom" ? g.bl : g.lt;
+  const right = position === "top" ? g.tr : position === "bottom" ? g.br : g.rt;
+  const join = position === "top" ? g.tt : position === "bottom" ? g.bt : g.x;
+  return left + [w.no, w.nama, w.qty, w.harga, w.jumlah].map((n) => g.h.repeat(n + 2)).join(join) + right;
 }
 
 function row(settings: PrinterSettings, a: string, b: string, c: string, d: string, e: string): string {
@@ -159,21 +209,24 @@ function row(settings: PrinterSettings, a: string, b: string, c: string, d: stri
     cell(e, w.jumlah, "r"),
   ];
   if (!boxed(settings)) return " " + cells.join("  ") + " ";
-  return "|" + cells.map((one) => " " + one + " ").join("|") + "|";
+  const g = glyphs(settings);
+  return g.v + cells.map((one) => " " + one + " ").join(g.v) + g.v;
 }
 
 function totalRule(settings: PrinterSettings): string {
   if (!boxed(settings)) return "=".repeat(settings.width);
-  return "+" + "-".repeat(labelSpan(settings)) + "+" + "-".repeat(columns(settings).jumlah + 2) + "+";
+  const g = glyphs(settings);
+  return g.bl + g.h.repeat(labelSpan(settings)) + g.bt + g.h.repeat(columns(settings).jumlah + 2) + g.br;
 }
 
 function summary(settings: PrinterSettings, label: string, value: string, aside: string): string {
   const w = columns(settings);
   const span = labelSpan(settings);
-  const left = cell(cell(aside, Math.max(0, span - label.length - 1)) + " " + label, span);
+  const left = cell(" " + cell(aside, Math.max(0, span - label.length - 2)) + " " + label, span);
   const amount = cell(value, w.jumlah, "r");
   if (!boxed(settings)) return " " + left + "  " + amount + " ";
-  return "|" + left + "| " + amount + " |";
+  const g = glyphs(settings);
+  return g.v + left + g.v + " " + amount + " " + g.v;
 }
 
 function spaced(text: string): string {
@@ -204,7 +257,7 @@ function invoiceLines(data: ReceiptData, settings: PrinterSettings): string[] {
   lines.push(pair(width, "No.", data.nomor, "Tanggal", `${date} ${time}`));
   lines.push(pair(width, "Pelanggan", fold(data.pelanggan || "Umum"), "Pembayaran", data.metode || "Tunai"));
   lines.push("");
-  lines.push(rule(settings));
+  lines.push(rule(settings, "top"));
   lines.push(row(settings, "No", "Nama Barang", "Qty", "Harga", "Jumlah"));
   lines.push(rule(settings));
 
@@ -290,7 +343,14 @@ export function pitchBytes(input: number): number[] {
 
 function preamble(settings: PrinterSettings): number[] {
   if (settings.dialect !== "escp") return [ESC, 0x40, ESC, 0x74, 0x00];
-  return [ESC, 0x40, ...pitchBytes(settings.cpi), ESC, 0x32, ESC, 0x43, 0x00, 0x0b];
+  return [
+    ESC, 0x40,
+    ...pitchBytes(settings.cpi),
+    ESC, 0x74, 0x01,
+    ESC, 0x36,
+    ESC, 0x32,
+    ESC, 0x43, 0x00, 0x0b,
+  ];
 }
 
 function scaleOn(settings: PrinterSettings): number[] {
@@ -340,6 +400,16 @@ export function buildRuler(settings: PrinterSettings): Uint8Array {
     bytes.push(...pitchBytes(settings.cpi));
     bytes.push(0x0a);
     bytes.push(...ascii(`Setelan sekarang ${PITCH_LABELS[resolvePitch(settings.cpi)]} ${settings.width} kolom`), 0x0a);
+    bytes.push(0x0a);
+    bytes.push(...ascii("C. UJI GARIS SAMBUNG"), 0x0a);
+    bytes.push(...ascii("Kalau kotak di bawah bergaris utuh, gaya Sambung bisa dipakai."), 0x0a);
+    bytes.push(...ascii("Kalau muncul huruf aneh, pakai gaya Kotak atau Garis."), 0x0a);
+    bytes.push(...ascii(BOX.tl + BOX.h.repeat(10) + BOX.tt + BOX.h.repeat(10) + BOX.tr), 0x0a);
+    bytes.push(...ascii(BOX.v + " ".repeat(10) + BOX.v + " ".repeat(10) + BOX.v), 0x0a);
+    bytes.push(...ascii(BOX.lt + BOX.h.repeat(10) + BOX.x + BOX.h.repeat(10) + BOX.rt), 0x0a);
+    bytes.push(...ascii(BOX.v + " ".repeat(10) + BOX.v + " ".repeat(10) + BOX.v), 0x0a);
+    bytes.push(...ascii(BOX.bl + BOX.h.repeat(10) + BOX.bt + BOX.h.repeat(10) + BOX.br), 0x0a);
+
     bytes.push(...ascii(rulerLine(settings.width)), 0x0a);
     bytes.push(0x0c);
   } else {

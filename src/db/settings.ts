@@ -3,7 +3,7 @@ import { columnsFor, Device } from "@/lib/escInterpreter";
 
 export type PrinterDialect = "escpos" | "escp";
 
-export type TableStyle = "kotak" | "garis";
+export type TableStyle = "kotak" | "garis" | "sambung";
 
 export interface PrinterSettings {
   version: number;

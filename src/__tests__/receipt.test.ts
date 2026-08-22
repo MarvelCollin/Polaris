@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { buildReceipt, buildRuler, receiptLines, twoCol, wrap, money, formatQty, pitchBytes, previewBytes, sampleReceipt, terbilang, WIDE_MIN } from "@/lib/escpos";
+import { buildReceipt, buildRuler, receiptLines, twoCol, wrap, money, formatQty, pitchBytes, previewBytes, sampleReceipt, terbilang, WIDE_MIN, BOX } from "@/lib/escpos";
 import { interpret, columnsFor, condensedCpi, Device } from "@/lib/escInterpreter";
 import { DEFAULT_PRINTER_SETTINGS, deviceFor, maxColumns, upgradePrinterSettings, PRINTER_PROFILE_VERSION, PrinterSettings } from "@/db/settings";
 import { SaleItem } from "@/types";
@@ -541,5 +541,66 @@ describe("table style differences", () => {
       expect(rows.length).toBeGreaterThan(1);
       for (const line of rows) expect(line).toHaveLength(s.width);
     }
+  });
+});
+describe("connected line style", () => {
+  const solid = { ...dot, tableStyle: "sambung" as const, header: "SAHABAT SENTARUM", pageLines: 0, footer: "" };
+
+  it("draws the table with real box characters not ascii art", () => {
+    const lines = receiptLines(sampleReceipt(base.tanggal), solid);
+    const table = lines.filter((l) => l.startsWith(BOX.tl) || l.startsWith(BOX.lt) || l.startsWith(BOX.v) || l.startsWith(BOX.bl));
+    expect(table.length).toBeGreaterThan(6);
+    for (const line of table) {
+      expect(line).not.toContain("+");
+      expect(line).not.toContain("|");
+    }
+  });
+
+  it("uses the right corner for the top of the table", () => {
+    const lines = receiptLines(sampleReceipt(base.tanggal), solid);
+    const top = lines.find((l) => l.startsWith(BOX.tl)) ?? "";
+    expect(top.endsWith(BOX.tr)).toBe(true);
+    expect(top).toContain(BOX.tt);
+  });
+
+  it("closes the table with bottom corners", () => {
+    const lines = receiptLines(sampleReceipt(base.tanggal), solid);
+    const bottom = lines.filter((l) => l.startsWith(BOX.bl)).pop() ?? "";
+    expect(bottom.endsWith(BOX.br)).toBe(true);
+  });
+
+  it("keeps every line exactly one paper width", () => {
+    const lines = receiptLines(sampleReceipt(base.tanggal), solid);
+    for (const line of lines.filter((l) => l.trim().length && !l.startsWith("="))) {
+      expect(line).toHaveLength(solid.width);
+    }
+  });
+
+  it("encodes the box characters as cp437 bytes the printer understands", () => {
+    const bytes = Array.from(buildReceipt(sampleReceipt(base.tanggal), solid));
+    expect(bytes).toContain(0xc4);
+    expect(bytes).toContain(0xb3);
+    expect(bytes).toContain(0xda);
+    expect(bytes).toContain(0xd9);
+    expect(bytes).not.toContain(0x3f);
+  });
+
+  it("selects the graphics character table before printing them", () => {
+    const bytes = Array.from(buildReceipt(sampleReceipt(base.tanggal), solid)).join(",");
+    expect(bytes).toContain("27,116,1");
+    expect(bytes).toContain("27,54");
+  });
+
+  it("leaves the ascii styles free of high bytes", () => {
+    for (const style of ["garis", "kotak"] as const) {
+      const bytes = Array.from(buildReceipt(sampleReceipt(base.tanggal), { ...solid, tableStyle: style }));
+      expect(bytes.every((b) => b <= 0x7e), style).toBe(true);
+    }
+  });
+
+  it("offers a box character probe on the diagnostic sheet", () => {
+    const bytes = Array.from(buildRuler(solid));
+    expect(bytes).toContain(0xda);
+    expect(bytes).toContain(0xc5);
   });
 });

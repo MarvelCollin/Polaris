@@ -479,7 +479,7 @@ function PrinterSection() {
           <div className="space-y-2">
             <Label>Gaya tabel nota</Label>
             <div className="flex gap-2">
-              {([["garis", "Garis"], ["kotak", "Kotak"]] as [TableStyle, string][]).map(([style, label]) => (
+              {([["garis", "Garis"], ["kotak", "Kotak"], ["sambung", "Sambung"]] as [TableStyle, string][]).map(([style, label]) => (
                 <Button
                   key={style}
                   variant={settings.tableStyle === style ? "default" : "outline"}
@@ -491,7 +491,7 @@ function PrinterSection() {
               ))}
             </div>
             <p className="text-sm text-muted-foreground">
-              Garis memakai garis mendatar saja sehingga lebih bersih dan hemat pita. Kotak memberi bingkai penuh pada tiap sel.
+              Garis memakai garis mendatar saja. Kotak memberi bingkai penuh dari tanda plus dan strip. Sambung memakai garis utuh, cek dulu lewat Cetak Diagnosa bagian C apakah printer sanggup.
             </p>
           </div>
         )}
