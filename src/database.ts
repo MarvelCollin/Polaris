@@ -46,17 +46,34 @@ export async function connectTurso(): Promise<void> {
   } catch (_) {}
 }
 
+export const SYNC_DELAY_MS = 2000;
+export const SYNC_MAX_DELAY_MS = 10000;
+
 let syncTimer: ReturnType<typeof setTimeout> | null = null;
+let syncDeadline = 0;
+
+function cancelSync() {
+  if (syncTimer) clearTimeout(syncTimer);
+  syncTimer = null;
+  syncDeadline = 0;
+}
+
+function runSync() {
+  syncTimer = null;
+  syncDeadline = 0;
+  db?.sync().catch(() => {});
+}
 
 export function syncDb() {
   if (!db || !tursoConnected) return;
+  const now = Date.now();
+  if (!syncDeadline) syncDeadline = now + SYNC_MAX_DELAY_MS;
   if (syncTimer) clearTimeout(syncTimer);
-  syncTimer = setTimeout(() => {
-    db?.sync().catch(() => {});
-  }, 2000);
+  syncTimer = setTimeout(runSync, Math.max(0, Math.min(SYNC_DELAY_MS, syncDeadline - now)));
 }
 
 async function syncDbImmediate() {
+  cancelSync();
   if (db && tursoConnected) {
     try { await db.sync(); } catch (_) {}
   }
