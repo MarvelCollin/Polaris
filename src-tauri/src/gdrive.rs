@@ -359,15 +359,24 @@ pub async fn gdrive_get_auto_backup_status(
     Ok(load_auto_config(&app_dir))
 }
 
+fn database_ready(app: &tauri::AppHandle) -> bool {
+    get_db_path(app).map(|p| p.exists()).unwrap_or(false)
+}
+
 pub async fn auto_backup_loop(app: tauri::AppHandle) {
     tokio::time::sleep(Duration::from_secs(10)).await;
 
-    if let Err(e) = try_auto_backup(&app).await {
-        eprintln!("Auto backup (startup): {}", e);
+    if database_ready(&app) {
+        if let Err(e) = try_auto_backup(&app).await {
+            eprintln!("Auto backup (startup): {}", e);
+        }
     }
 
     loop {
         tokio::time::sleep(Duration::from_secs(60)).await;
+        if !database_ready(&app) {
+            continue;
+        }
         if let Err(e) = try_auto_backup(&app).await {
             eprintln!("Auto backup: {}", e);
         }

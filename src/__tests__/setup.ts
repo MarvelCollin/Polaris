@@ -61,6 +61,10 @@ vi.mock("@tauri-apps/api/core", () => ({
   invoke: vi.fn(async () => null),
 }));
 
+vi.mock("@tauri-apps/api/path", () => ({
+  appDataDir: vi.fn(async () => "C:/Users/test/AppData/Roaming/com.marvelcollin.polaris/"),
+}));
+
 export { mockDb, rows, autoId };
 
 export function resetMock() {

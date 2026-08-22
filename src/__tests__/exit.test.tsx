@@ -41,3 +41,26 @@ describe("closing the app", () => {
     expect(capabilities.permissions).toContain("process:allow-restart");
   });
 });
+
+describe("database location", () => {
+  it("resolves an absolute path under the app data directory", async () => {
+    const { databasePath } = await import("@/database");
+    const path = await databasePath();
+    expect(path.startsWith("sqlite:")).toBe(true);
+    expect(path).toContain("AppData");
+    expect(path.endsWith("polaris.db")).toBe(true);
+  });
+
+  it("does not depend on the working directory", async () => {
+    const { databasePath } = await import("@/database");
+    expect(await databasePath()).toBe(await databasePath());
+    expect(await databasePath()).not.toBe("sqlite:polaris.db");
+  });
+
+  it("opens one handle no matter how many callers ask", async () => {
+    const { getDb } = await import("@/database");
+    const [a, b, c] = await Promise.all([getDb(), getDb(), getDb()]);
+    expect(a).toBe(b);
+    expect(b).toBe(c);
+  });
+});

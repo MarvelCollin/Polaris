@@ -17,8 +17,25 @@ pub fn run() {
         .plugin(tauri_plugin_process::init())
         .setup(|app| {
             if let Ok(app_dir) = app.path().app_data_dir() {
-                let restore_file = app_dir.join("polaris_restore.db");
+                std::fs::create_dir_all(&app_dir).ok();
+
                 let db_file = app_dir.join("polaris.db");
+                if !db_file.exists() {
+                    if let Ok(cwd) = std::env::current_dir() {
+                        let stray = cwd.join("polaris.db");
+                        if stray.exists() {
+                            std::fs::copy(&stray, &db_file).ok();
+                            for suffix in ["-shm", "-wal"] {
+                                let from = cwd.join(format!("polaris.db{}", suffix));
+                                if from.exists() {
+                                    std::fs::copy(&from, app_dir.join(format!("polaris.db{}", suffix))).ok();
+                                }
+                            }
+                        }
+                    }
+                }
+
+                let restore_file = app_dir.join("polaris_restore.db");
                 if restore_file.exists() {
                     std::fs::copy(&restore_file, &db_file).ok();
                     std::fs::remove_file(&restore_file).ok();

@@ -1,47 +1,77 @@
 import { Database } from "tauri-plugin-libsql-api";
 import { invoke } from "@tauri-apps/api/core";
+import { appDataDir } from "@tauri-apps/api/path";
 
 let db: Database | null = null;
+let dbPromise: Promise<Database> | null = null;
 let tursoConnected = false;
+let dbFile: string | null = null;
 
 interface TursoConfig {
   url: string;
   token: string;
 }
 
-export async function getDb(): Promise<Database> {
-  if (!db) {
-    db = await Database.load("sqlite:polaris.db");
+export async function databasePath(): Promise<string> {
+  if (!dbFile) dbFile = `sqlite:${await appDataDir()}polaris.db`;
+  return dbFile;
+}
 
-    try { await db.execute("PRAGMA journal_mode = WAL"); } catch (_) {}
-    try { await db.execute("PRAGMA synchronous = NORMAL"); } catch (_) {}
-    try { await db.execute("PRAGMA cache_size = -8000"); } catch (_) {}
-    try { await db.execute("PRAGMA temp_store = MEMORY"); } catch (_) {}
-    await db.execute("PRAGMA foreign_keys = ON");
+async function tune(database: Database): Promise<Database> {
+  try { await database.execute("PRAGMA journal_mode = WAL"); } catch (_) {}
+  try { await database.execute("PRAGMA synchronous = NORMAL"); } catch (_) {}
+  try { await database.execute("PRAGMA cache_size = -8000"); } catch (_) {}
+  try { await database.execute("PRAGMA temp_store = MEMORY"); } catch (_) {}
+  await database.execute("PRAGMA foreign_keys = ON");
+  return database;
+}
+
+async function tursoConfig(): Promise<TursoConfig | null> {
+  try {
+    return await invoke<TursoConfig | null>("get_turso_config");
+  } catch (_) {
+    return null;
   }
+}
+
+async function openDb(): Promise<Database> {
+  const path = await databasePath();
+  const config = await tursoConfig();
+
+  if (config) {
+    try {
+      const replica = await Database.load({ path, syncUrl: config.url, authToken: config.token });
+      tursoConnected = true;
+      db = await tune(replica);
+      try { await replica.sync(); } catch (_) {}
+      return db;
+    } catch (_) {}
+  }
+
+  db = await tune(await Database.load(path));
   return db;
+}
+
+export function getDb(): Promise<Database> {
+  if (!dbPromise) dbPromise = openDb();
+  return dbPromise;
 }
 
 export async function connectTurso(): Promise<void> {
   if (tursoConnected) return;
+  await getDb();
+  if (tursoConnected) return;
+
+  const config = await tursoConfig();
+  if (!config) return;
+
   try {
-    const config: TursoConfig | null = await invoke("get_turso_config");
-    if (!config) return;
-
-    const synced = await Database.load({
-      path: "sqlite:polaris.db",
-      syncUrl: config.url,
-      authToken: config.token,
-    });
-
-    try { await synced.execute("PRAGMA journal_mode = WAL"); } catch (_) {}
-    try { await synced.execute("PRAGMA synchronous = NORMAL"); } catch (_) {}
-    try { await synced.execute("PRAGMA cache_size = -8000"); } catch (_) {}
-    try { await synced.execute("PRAGMA temp_store = MEMORY"); } catch (_) {}
-    await synced.execute("PRAGMA foreign_keys = ON");
-
-    await synced.sync();
-    db = synced;
+    const path = await databasePath();
+    const replica = await Database.load({ path, syncUrl: config.url, authToken: config.token });
+    await tune(replica);
+    await replica.sync();
+    db = replica;
+    dbPromise = Promise.resolve(replica);
     tursoConnected = true;
   } catch (_) {}
 }
