@@ -1,30 +1,46 @@
+use std::collections::HashMap;
+
 fn main() {
-    if let Ok(contents) = std::fs::read_to_string("gdrive_secrets.toml") {
-        for line in contents.lines() {
-            let line = line.trim();
-            if let Some((key, value)) = line.split_once('=') {
-                let key = key.trim();
-                let value = value.trim().trim_matches('"');
-                match key {
-                    "midtrans_server_key" => println!("cargo:rustc-env=MIDTRANS_SERVER_KEY={}", value),
-                    "client_id" => println!("cargo:rustc-env=GDRIVE_CLIENT_ID={}", value),
-                    "client_secret" => println!("cargo:rustc-env=GDRIVE_CLIENT_SECRET={}", value),
-                    "refresh_token" => println!("cargo:rustc-env=GDRIVE_REFRESH_TOKEN={}", value),
-                    "turso_url" => println!("cargo:rustc-env=TURSO_URL={}", value),
-                    "turso_auth_token" => println!("cargo:rustc-env=TURSO_AUTH_TOKEN={}", value),
-                    _ => {}
+    let keys = [
+        ("midtrans_server_key", "MIDTRANS_SERVER_KEY"),
+        ("client_id", "GDRIVE_CLIENT_ID"),
+        ("client_secret", "GDRIVE_CLIENT_SECRET"),
+        ("refresh_token", "GDRIVE_REFRESH_TOKEN"),
+        ("turso_url", "TURSO_URL"),
+        ("turso_auth_token", "TURSO_AUTH_TOKEN"),
+        ("updater_token", "UPDATER_TOKEN"),
+    ];
+
+    let mut values: HashMap<&str, String> = HashMap::new();
+    for (_, env_name) in keys.iter() {
+        values.insert(env_name, String::new());
+    }
+
+    match std::fs::read_to_string("gdrive_secrets.toml") {
+        Ok(contents) => {
+            for line in contents.lines() {
+                let line = line.trim();
+                if line.starts_with('#') {
+                    continue;
+                }
+                if let Some((key, value)) = line.split_once('=') {
+                    let key = key.trim();
+                    let value = value.trim().trim_matches('"');
+                    if let Some((_, env_name)) = keys.iter().find(|(k, _)| *k == key) {
+                        values.insert(env_name, value.to_string());
+                    }
                 }
             }
+            println!("cargo:rerun-if-changed=gdrive_secrets.toml");
         }
-        println!("cargo:rerun-if-changed=gdrive_secrets.toml");
-    } else {
-        println!("cargo:rustc-env=MIDTRANS_SERVER_KEY=");
-        println!("cargo:rustc-env=GDRIVE_CLIENT_ID=");
-        println!("cargo:rustc-env=GDRIVE_CLIENT_SECRET=");
-        println!("cargo:rustc-env=GDRIVE_REFRESH_TOKEN=");
-        println!("cargo:rustc-env=TURSO_URL=");
-        println!("cargo:rustc-env=TURSO_AUTH_TOKEN=");
-        println!("cargo:warning=gdrive_secrets.toml not found, secrets disabled");
+        Err(_) => {
+            println!("cargo:warning=gdrive_secrets.toml not found, secrets disabled");
+        }
+    }
+
+    for (_, env_name) in keys.iter() {
+        let value = values.get(env_name).cloned().unwrap_or_default();
+        println!("cargo:rustc-env={}={}", env_name, value);
     }
 
     tauri_build::build()

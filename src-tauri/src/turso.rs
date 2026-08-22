@@ -19,3 +19,13 @@ pub fn get_turso_config() -> Option<TursoConfig> {
         token: TURSO_AUTH_TOKEN.to_string(),
     })
 }
+
+const UPDATER_TOKEN: &str = env!("UPDATER_TOKEN");
+
+#[tauri::command]
+pub fn get_updater_token() -> Option<String> {
+    if UPDATER_TOKEN.is_empty() {
+        return None;
+    }
+    Some(UPDATER_TOKEN.to_string())
+}

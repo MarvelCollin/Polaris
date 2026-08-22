@@ -63,6 +63,7 @@ pub fn run() {
             printer::print_raw,
             printer::printer_status,
             turso::get_turso_config,
+            turso::get_updater_token,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

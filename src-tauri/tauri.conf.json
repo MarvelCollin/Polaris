@@ -24,7 +24,9 @@
   },
   "bundle": {
     "active": true,
-    "targets": ["nsis"],
+    "targets": [
+      "nsis"
+    ],
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
@@ -38,7 +40,7 @@
     "updater": {
       "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDgwQjhBQjc3NkU0NjEwM0QKUldROUVFWnVkNnU0Z004MC8yakxWOTlhbDJQbHY2RmVvRXdaMW0wMTlNUnNHeFhWQSswWm5CMGoK",
       "endpoints": [
-        "https://github.com/MarvelCollin/Polaris/releases/latest/download/latest.json"
+        "https://api.github.com/repos/MarvelCollin/Polaris/contents/latest.json?ref=updater"
       ]
     }
   }

@@ -42,6 +42,7 @@ jobs:
           refresh_token = "${{ secrets.GDRIVE_REFRESH_TOKEN }}"
           turso_url = "${{ secrets.TURSO_URL }}"
           turso_auth_token = "${{ secrets.TURSO_AUTH_TOKEN }}"
+          updater_token = "${{ secrets.UPDATER_TOKEN }}"
           TOML
 
       - uses: tauri-apps/tauri-action@v0
@@ -55,3 +56,41 @@ jobs:
           releaseBody: "See the assets to download this version and install."
           releaseDraft: false
           prerelease: false
+
+      - name: Publish updater manifest
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          api="https://api.github.com/repos/${GITHUB_REPOSITORY}"
+          auth="Authorization: Bearer ${GH_TOKEN}"
+          release=$(curl -sSf -H "$auth" -H "Accept: application/vnd.github+json" "$api/releases/tags/${TAG}")
+          version="${TAG#v}"
+          setup_url=$(echo "$release" | jq -r '.assets[] | select(.name | endswith("x64-setup.nsis.zip")) | .url')
+          sig_url=$(echo "$release" | jq -r '.assets[] | select(.name | endswith("x64-setup.nsis.zip.sig")) | .url')
+          if [ -z "$setup_url" ] || [ "$setup_url" = "null" ]; then
+            echo "installer asset not found on ${TAG}"
+            exit 1
+          fi
+          if [ -z "$sig_url" ] || [ "$sig_url" = "null" ]; then
+            echo "signature asset not found on ${TAG}"
+            exit 1
+          fi
+          signature=$(curl -sSfL -H "$auth" -H "Accept: application/octet-stream" "$sig_url")
+          published=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+          jq -n --arg v "$version" --arg d "$published" --arg s "$signature" --arg u "$setup_url" '{
+            version: $v,
+            notes: "See the release page for details.",
+            pub_date: $d,
+            platforms: { "windows-x86_64": { signature: $s, url: $u } }
+          }' > "${RUNNER_TEMP}/latest.json"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git checkout --orphan updater-publish
+          git reset --hard
+          cp "${RUNNER_TEMP}/latest.json" latest.json
+          git add latest.json
+          git commit -m "chore: publish updater manifest for ${TAG}"
+          git push --force origin updater-publish:updater
