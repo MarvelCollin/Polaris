@@ -33,9 +33,9 @@ describe("paper preview ui", () => {
 
   it("marks both carriage limits and the sheet perforation", () => {
     const guides = [...markup().matchAll(/<div style="([^"]*(?:dotted|dashed)[^"]*)"/g)].map((m) => m[1]);
-    expect(guides.some((g) => g.includes("left:45.36") && g.includes("border-left"))).toBe(true);
+    expect(guides.some((g) => g.includes("left:43.36") && g.includes("border-left"))).toBe(true);
     expect(guides.some((g) => g.includes("left:533.04") && g.includes("border-right"))).toBe(true);
-    expect(guides.some((g) => g.includes("top:670.56") && g.includes("#d97706"))).toBe(true);
+    expect(guides.some((g) => g.includes("top:668.56") && g.includes("#d97706"))).toBe(true);
   });
 
   it("reports the geometry in the caption", () => {
@@ -49,5 +49,20 @@ describe("paper preview ui", () => {
     const text = markup({ ...DEFAULT_PRINTER_SETTINGS, width: 120 }).replace(/<[^>]*>/g, "");
     expect(text).toContain("melipat");
     expect(text).toContain("Turunkan jumlah kolom ke 80");
+  });
+});
+
+describe("roll paper preview", () => {
+  const roll = { ...DEFAULT_PRINTER_SETTINGS, dialect: "escpos" as const, paper: 76, printable: 64, width: 40, cut: true };
+
+  it("draws no page perforation on a continuous roll", () => {
+    const text = markup(roll).replace(/<[^>]*>/g, "");
+    expect(text).not.toContain("perforasi lembar");
+  });
+
+  it("sizes the sheet to the receipt rather than an eleven inch page", () => {
+    const sheet = markup(roll).match(/width:([\d.]+)px;height:([\d.]+)px/);
+    expect(Number(sheet?.[1]) / SCALE).toBeCloseTo(76, 1);
+    expect(Number(sheet?.[2]) / SCALE).toBeLessThan(279.4);
   });
 });

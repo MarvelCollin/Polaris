@@ -9,12 +9,10 @@ interface Props {
   now?: Date;
 }
 
-const GUIDES = [
-  { color: "#16a34a", label: "batas cetak printer" },
-  { color: "#2563eb", label: "akhir cetak" },
-  { color: "#dc2626", label: "posisi kertas berhenti" },
-  { color: "#d97706", label: "perforasi lembar" },
-];
+const CARRIAGE = { color: "#16a34a", label: "batas cetak printer" };
+const END = { color: "#2563eb", label: "akhir cetak" };
+const STOP = { color: "#dc2626", label: "posisi kertas berhenti" };
+const PERFORATION = { color: "#d97706", label: "perforasi lembar" };
 
 function endOf(lines: Line[]): number {
   const last = lines[lines.length - 1];
@@ -27,9 +25,12 @@ export default function PagePreview({ settings, scale = 2.4, now }: Props) {
     [settings, now]
   );
 
-  const sheetMm = Math.max(layout.pageMm, endOf(layout.pages[layout.pages.length - 1]?.lines ?? []) + 20);
+  const tail = endOf(layout.pages[layout.pages.length - 1]?.lines ?? []) + 20;
+  const sheetMm = layout.paged ? layout.pageMm : tail;
   const fits = maxColumns(settings);
   const stopOnLast = layout.stopMm - (layout.pages.length - 1) * layout.pageMm;
+  const showStop = stopOnLast > 0 && stopOnLast < sheetMm;
+  const guides = [CARRIAGE, END, ...(showStop ? [STOP] : []), ...(layout.paged ? [PERFORATION] : [])];
 
   return (
     <div className="space-y-3">
@@ -81,7 +82,7 @@ export default function PagePreview({ settings, scale = 2.4, now }: Props) {
                     position: "absolute",
                     top: 0,
                     bottom: 0,
-                    left: `${layout.originMm * scale}px`,
+                    left: `${layout.originMm * scale - 2}px`,
                     borderLeft: "2px dotted #16a34a",
                   }}
                 />
@@ -105,7 +106,7 @@ export default function PagePreview({ settings, scale = 2.4, now }: Props) {
                     }}
                   />
                 )}
-                {last && stopOnLast > 0 && stopOnLast < sheetMm && (
+                {last && showStop && (
                   <div
                     style={{
                       position: "absolute",
@@ -116,15 +117,17 @@ export default function PagePreview({ settings, scale = 2.4, now }: Props) {
                     }}
                   />
                 )}
-                <div
-                  style={{
-                    position: "absolute",
-                    left: 0,
-                    right: 0,
-                    top: `${layout.pageMm * scale}px`,
-                    borderTop: "2px dashed #d97706",
-                  }}
-                />
+                {layout.paged && (
+                  <div
+                    style={{
+                      position: "absolute",
+                      left: 0,
+                      right: 0,
+                      top: `${layout.pageMm * scale - 2}px`,
+                      borderTop: "2px dashed #d97706",
+                    }}
+                  />
+                )}
               </div>
               <p className="text-center text-xs text-muted-foreground">
                 Lembar {index + 1} dari {layout.pages.length}
@@ -152,7 +155,7 @@ export default function PagePreview({ settings, scale = 2.4, now }: Props) {
           </p>
         )}
         <div className="flex flex-wrap gap-4">
-          {GUIDES.map((item) => (
+          {guides.map((item) => (
             <span key={item.label} className="flex items-center gap-1">
               <span style={{ width: 16, height: 0, borderTop: `2px dashed ${item.color}` }} />
               {item.label}

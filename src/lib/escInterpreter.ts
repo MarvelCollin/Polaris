@@ -32,6 +32,7 @@ export interface Layout {
   printableMm: number;
   pageMm: number;
   originMm: number;
+  paged: boolean;
   stopMm: number;
   lineCount: number;
   wrapped: boolean;
@@ -275,6 +276,7 @@ export function interpret(bytes: Uint8Array, device: Device): Layout {
     printableMm: device.printableMm,
     originMm: device.originMm,
     pageMm,
+    paged: device.pageBreaks,
     stopMm,
     lineCount,
     wrapped,
