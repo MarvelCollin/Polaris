@@ -92,7 +92,124 @@ export function formatQty(value: number): string {
   return Number.isInteger(value) ? String(value) : String(Number(value.toFixed(2)));
 }
 
+const ONES = ["", "satu", "dua", "tiga", "empat", "lima", "enam", "tujuh", "delapan", "sembilan", "sepuluh", "sebelas"];
+
+function spell(n: number): string {
+  if (n < 12) return ONES[n];
+  if (n < 20) return `${spell(n - 10)} belas`;
+  if (n < 100) return `${spell(Math.floor(n / 10))} puluh ${spell(n % 10)}`.trim();
+  if (n < 200) return `seratus ${spell(n % 100)}`.trim();
+  if (n < 1000) return `${spell(Math.floor(n / 100))} ratus ${spell(n % 100)}`.trim();
+  if (n < 2000) return `seribu ${spell(n % 1000)}`.trim();
+  if (n < 1e6) return `${spell(Math.floor(n / 1000))} ribu ${spell(n % 1000)}`.trim();
+  if (n < 1e9) return `${spell(Math.floor(n / 1e6))} juta ${spell(n % 1e6)}`.trim();
+  return `${spell(Math.floor(n / 1e9))} miliar ${spell(n % 1e9)}`.trim();
+}
+
+export function terbilang(value: number): string {
+  const n = Math.round(Math.abs(value));
+  if (n === 0) return "nol rupiah";
+  return `${spell(n).replace(/\s+/g, " ")} rupiah`;
+}
+
+export const WIDE_MIN = 56;
+
+function cell(text: string, width: number, align: "l" | "r" = "l"): string {
+  const clipped = text.length > width ? text.slice(0, width) : text;
+  return align === "r" ? clipped.padStart(width) : clipped.padEnd(width);
+}
+
+function block(text: string, width: number): string {
+  const pad = Math.max(0, Math.floor((width - text.length) / 2));
+  return cell(" ".repeat(pad) + text, width);
+}
+
+function columns(width: number) {
+  const no = 3;
+  const qty = 6;
+  const harga = 12;
+  const jumlah = 13;
+  const nama = Math.max(12, width - (no + qty + harga + jumlah + 4));
+  return { no, nama, qty, harga, jumlah };
+}
+
+function row(width: number, a: string, b: string, c: string, d: string, e: string): string {
+  const w = columns(width);
+  return [
+    cell(a, w.no, "r"),
+    cell(b, w.nama),
+    cell(c, w.qty, "r"),
+    cell(d, w.harga, "r"),
+    cell(e, w.jumlah, "r"),
+  ].join(" ");
+}
+
+function field(label: string, value: string, width: number): string {
+  return cell(`${cell(label, 10)}: ${value}`, width);
+}
+
+function pair(width: number, a: string, b: string, c: string, d: string): string {
+  const half = Math.floor(width / 2);
+  return field(a, b, half) + field(c, d, width - half);
+}
+
+function summary(width: number, label: string, value: string): string {
+  const wide = 30;
+  return " ".repeat(Math.max(0, width - wide)) + cell(label, 12) + ": " + cell(value, Math.min(wide, width) - 14, "r");
+}
+
+function invoiceLines(data: ReceiptData, settings: PrinterSettings): string[] {
+  const width = settings.width;
+  const lines: string[] = [];
+  const stamp = data.tanggal;
+  const date = `${String(stamp.getDate()).padStart(2, "0")}/${String(stamp.getMonth() + 1).padStart(2, "0")}/${stamp.getFullYear()}`;
+  const time = `${String(stamp.getHours()).padStart(2, "0")}:${String(stamp.getMinutes()).padStart(2, "0")}`;
+
+  if (settings.address.trim()) lines.push(...wrap(fold(settings.address), width).map((l) => block(l, width)));
+  if (settings.phone.trim()) lines.push(block(fold(`Telp. ${settings.phone}`), width));
+  lines.push("=".repeat(width));
+  lines.push(block("NOTA PENJUALAN", width));
+  lines.push("");
+  lines.push(pair(width, "No.", data.nomor, "Tanggal", `${date} ${time}`));
+  lines.push(pair(width, "Pelanggan", fold(data.pelanggan || "Umum"), "Pembayaran", data.metode || "Tunai"));
+  lines.push("-".repeat(width));
+  lines.push(row(width, "No", "Nama Barang", "Qty", "Harga", "Jumlah"));
+  lines.push("-".repeat(width));
+
+  data.items.forEach((item, index) => {
+    const names = wrap(fold(item.nama_produk), columns(width).nama);
+    lines.push(row(width, String(index + 1), names[0], formatQty(item.jumlah), money(item.harga_satuan), money(item.subtotal)));
+    for (const extra of names.slice(1)) lines.push(row(width, "", extra, "", "", ""));
+  });
+
+  lines.push("-".repeat(width));
+  lines.push(summary(width, "Subtotal", money(data.subtotal)));
+  if (data.diskon > 0) lines.push(summary(width, "Diskon", "-" + money(data.diskon)));
+  lines.push(summary(width, "TOTAL", money(data.total)));
+  lines.push(summary(width, "Dibayar", money(data.dibayar)));
+  if (data.utang && data.utang > 0) {
+    lines.push(summary(width, "Sisa Utang", money(data.utang)));
+  } else {
+    lines.push(summary(width, "Kembali", money(data.kembalian)));
+  }
+  lines.push("=".repeat(width));
+  lines.push(...wrap(`Terbilang: ${terbilang(data.total)}`, width));
+  if (settings.footer.trim()) lines.push(...wrap(fold(settings.footer), width));
+  lines.push("");
+
+  const half = Math.floor(width / 2);
+  const mark = "(" + " ".repeat(Math.max(8, Math.min(20, half - 6))) + ")";
+  lines.push(block("Penerima,", half) + block("Hormat kami,", width - half));
+  lines.push("");
+  lines.push("");
+  lines.push(block(mark, half) + block(mark, width - half));
+
+  return lines;
+}
+
 export function receiptLines(data: ReceiptData, settings: PrinterSettings): string[] {
+  if (settings.width >= WIDE_MIN) return invoiceLines(data, settings);
+
   const width = settings.width;
   const rule = "-".repeat(width);
   const lines: string[] = [];
@@ -209,14 +326,15 @@ export function buildReceipt(data: ReceiptData, settings: PrinterSettings): Uint
   bytes.push(...scaleOff(settings));
 
   const note = fold(settings.footer).slice(0, settings.width);
+  const wide = settings.width >= WIDE_MIN;
 
   if (escp) {
-    bytes.push(...ascii(center(note, settings.width)), 0x0a);
+    if (!wide) bytes.push(...ascii(center(note, settings.width)), 0x0a);
     if (settings.pageLines > 0) {
-      const printed = 1 + body.length + 1;
+      const printed = 1 + body.length + (wide ? 0 : 1);
       for (let i = printed; i < settings.pageLines - 1; i += 1) bytes.push(0x0a);
     }
-  } else {
+  } else if (!wide) {
     bytes.push(ESC, 0x61, 0x01);
     bytes.push(...ascii(note), 0x0a);
     bytes.push(ESC, 0x61, 0x00);

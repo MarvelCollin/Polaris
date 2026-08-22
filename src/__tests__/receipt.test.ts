@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { buildReceipt, buildRuler, receiptLines, twoCol, wrap, money, formatQty, pitchBytes, previewBytes, sampleReceipt } from "@/lib/escpos";
+import { buildReceipt, buildRuler, receiptLines, twoCol, wrap, money, formatQty, pitchBytes, previewBytes, sampleReceipt, terbilang, WIDE_MIN } from "@/lib/escpos";
 import { interpret, columnsFor, condensedCpi, Device } from "@/lib/escInterpreter";
 import { DEFAULT_PRINTER_SETTINGS, deviceFor, maxColumns, upgradePrinterSettings, PRINTER_PROFILE_VERSION, PrinterSettings } from "@/db/settings";
 import { SaleItem } from "@/types";
@@ -168,7 +168,7 @@ describe("roll paper bytes", () => {
 describe("byte stream interpreter", () => {
   it("renders exactly the text the builder wrote", () => {
     const lines = render(buildReceipt(base, dot), deviceFor(dot));
-    expect(lines).toContain("INV-20260819-0001");
+    expect(lines.some((line) => line.includes("INV-20260819-0001"))).toBe(true);
     expect(lines.some((line) => line.trim() === "POLARIS")).toBe(true);
     expect(lines.some((line) => line.trim() === "Terima kasih")).toBe(true);
   });
@@ -300,5 +300,110 @@ describe("forced profile upgrade", () => {
     const layout = interpret(previewBytes(DEFAULT_PRINTER_SETTINGS, base.tanggal), deviceFor(DEFAULT_PRINTER_SETTINGS));
     expect(layout.widestMm).toBeCloseTo(203.2, 1);
     expect(layout.wrapped).toBe(false);
+    expect(layout.lineCount).toBeGreaterThan(20);
+  });
+});
+
+describe("formal invoice layout", () => {
+  const shop = { ...dot, header: "SAHABAT SENTARUM", address: "Jl. Lintas Selatan No. 12", phone: "0812 3456 7890" };
+
+  it("spells the total in indonesian", () => {
+    expect(terbilang(400000)).toBe("empat ratus ribu rupiah");
+    expect(terbilang(415000)).toBe("empat ratus lima belas ribu rupiah");
+    expect(terbilang(1500000)).toBe("satu juta lima ratus ribu rupiah");
+    expect(terbilang(1100)).toBe("seribu seratus rupiah");
+    expect(terbilang(0)).toBe("nol rupiah");
+  });
+
+  it("prints an item table with a header row", () => {
+    const lines = receiptLines(sampleReceipt(base.tanggal), shop);
+    const head = lines.find((l) => l.includes("Nama Barang"));
+    expect(head).toBeDefined();
+    expect(head).toContain("Qty");
+    expect(head).toContain("Harga");
+    expect(head).toContain("Jumlah");
+  });
+
+  it("numbers every item and keeps the money columns flush right", () => {
+    const lines = receiptLines(sampleReceipt(base.tanggal), shop);
+    const rows = lines.filter((l) => /^\s{2}\d /.test(l));
+    expect(rows).toHaveLength(3);
+    for (const line of rows) expect(line).toHaveLength(shop.width);
+    expect(rows[0].endsWith("204.000")).toBe(true);
+  });
+
+  it("aligns the totals to the same right edge as the table", () => {
+    const lines = receiptLines(sampleReceipt(base.tanggal), shop);
+    for (const label of ["Subtotal", "TOTAL", "Dibayar", "Kembali"]) {
+      const line = lines.find((l) => l.includes(`${label} `) && l.includes(":"));
+      expect(line).toHaveLength(shop.width);
+    }
+  });
+
+  it("carries the shop address and phone when they are filled", () => {
+    const text = receiptLines(sampleReceipt(base.tanggal), shop).join("\n");
+    expect(text).toContain("Jl. Lintas Selatan No. 12");
+    expect(text).toContain("Telp. 0812 3456 7890");
+    expect(text).toContain("NOTA PENJUALAN");
+  });
+
+  it("omits the address block when the fields are empty", () => {
+    const text = receiptLines(sampleReceipt(base.tanggal), dot).join("\n");
+    expect(text).not.toContain("Telp.");
+    expect(text).toContain("NOTA PENJUALAN");
+  });
+
+  it("closes with the amount in words and a signature block", () => {
+    const text = receiptLines(sampleReceipt(base.tanggal), shop).join("\n");
+    expect(text).toContain("Terbilang: empat ratus ribu rupiah");
+    expect(text).toContain("Penerima,");
+    expect(text).toContain("Hormat kami,");
+  });
+
+  it("falls back to the compact receipt on narrow roll paper", () => {
+    const text = receiptLines(sampleReceipt(base.tanggal), roll).join("\n");
+    expect(text).not.toContain("NOTA PENJUALAN");
+    expect(text).not.toContain("Hormat kami,");
+    expect(roll.width).toBeLessThan(WIDE_MIN);
+  });
+
+  it("keeps every invoice line inside the printable width", () => {
+    const layout = interpret(buildReceipt(sampleReceipt(base.tanggal), shop), deviceFor(shop));
+    expect(layout.wrapped).toBe(false);
+    expect(layout.widestMm).toBeLessThanOrEqual(shop.printable + 0.01);
+  });
+
+  it("shows sisa utang instead of kembali on credit", () => {
+    const text = receiptLines({ ...sampleReceipt(base.tanggal), dibayar: 100000, kembalian: 0, utang: 300000 }, shop).join("\n");
+    expect(text).toContain("Sisa Utang");
+    expect(text).not.toContain("Kembali ");
+  });
+});
+
+describe("invoice footer placement", () => {
+  const shop = { ...dot, header: "SAHABAT SENTARUM", footer: "Terima kasih atas kepercayaan Anda" };
+
+  it("puts the closing note above the signature block, never beside it", () => {
+    const lines = receiptLines(sampleReceipt(base.tanggal), shop);
+    const note = lines.findIndex((l) => l.includes("Terima kasih"));
+    const sign = lines.findIndex((l) => l.includes("Hormat kami,"));
+    expect(note).toBeGreaterThan(-1);
+    expect(note).toBeLessThan(sign);
+  });
+
+  it("prints the closing note exactly once", () => {
+    const text = new TextDecoder().decode(buildReceipt(sampleReceipt(base.tanggal), shop));
+    expect(text.split("Terima kasih").length - 1).toBe(1);
+  });
+
+  it("ends the invoice on the signature line", () => {
+    const lines = receiptLines(sampleReceipt(base.tanggal), shop);
+    expect(lines[lines.length - 1]).toContain("(");
+    expect(lines[lines.length - 1]).toContain(")");
+  });
+
+  it("still centres the note on narrow roll paper", () => {
+    const text = new TextDecoder().decode(buildReceipt(sampleReceipt(base.tanggal), { ...roll, footer: "Terima kasih" }));
+    expect(text).toContain("Terima kasih");
   });
 });

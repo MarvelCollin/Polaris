@@ -17,6 +17,8 @@ export interface PrinterSettings {
   scale: number;
   pageLines: number;
   header: string;
+  address: string;
+  phone: string;
   footer: string;
 }
 
@@ -111,6 +113,8 @@ export const DEFAULT_PRINTER_SETTINGS: PrinterSettings = {
   scale: 1,
   pageLines: 0,
   header: "POLARIS",
+  address: "",
+  phone: "",
   footer: "Terima kasih",
 };
 

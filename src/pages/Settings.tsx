@@ -475,11 +475,31 @@ function PrinterSection() {
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="printer-header">Judul struk</Label>
+          <Label htmlFor="printer-header">Nama toko</Label>
           <Input
             id="printer-header"
             value={settings.header}
             onChange={(e) => update({ header: e.target.value })}
+          />
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="printer-address">Alamat toko</Label>
+          <Input
+            id="printer-address"
+            value={settings.address}
+            onChange={(e) => update({ address: e.target.value })}
+            placeholder="Kosongkan kalau tidak perlu dicetak"
+          />
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="printer-phone">Nomor telepon</Label>
+          <Input
+            id="printer-phone"
+            value={settings.phone}
+            onChange={(e) => update({ phone: e.target.value })}
+            placeholder="Kosongkan kalau tidak perlu dicetak"
           />
         </div>
 
