@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { buildReceipt, buildRuler, receiptLines, twoCol, wrap, money, formatQty, pitchBytes, previewBytes, sampleReceipt } from "@/lib/escpos";
 import { interpret, columnsFor, condensedCpi, Device } from "@/lib/escInterpreter";
-import { DEFAULT_PRINTER_SETTINGS, deviceFor, maxColumns, PrinterSettings } from "@/db/settings";
+import { DEFAULT_PRINTER_SETTINGS, deviceFor, maxColumns, upgradePrinterSettings, PRINTER_PROFILE_VERSION, PrinterSettings } from "@/db/settings";
 import { SaleItem } from "@/types";
 
 const dot: PrinterSettings = { ...DEFAULT_PRINTER_SETTINGS, name: "TD630S", enabled: true };
@@ -257,5 +257,50 @@ describe("column budget", () => {
 
   it("halves the budget when double width is on", () => {
     expect(maxColumns({ ...dot, cpi: 10, scale: 2 })).toBe(40);
+  });
+});
+
+describe("forced profile upgrade", () => {
+  it("moves an old roll config onto the full width continuous form profile", () => {
+    const legacy = {
+      enabled: true,
+      name: "Matrix Dot",
+      dialect: "escpos" as const,
+      paper: 76,
+      width: 40,
+      cut: true,
+      header: "TOKO SENTARUM",
+      footer: "Terima kasih",
+    };
+    const next = upgradePrinterSettings(legacy);
+    expect(next.dialect).toBe("escp");
+    expect(next.paper).toBe(241);
+    expect(next.printable).toBe(203.2);
+    expect(next.cpi).toBe(10);
+    expect(next.width).toBe(80);
+    expect(next.cut).toBe(false);
+    expect(next.version).toBe(PRINTER_PROFILE_VERSION);
+  });
+
+  it("keeps the shop identity and printer choice while upgrading", () => {
+    const next = upgradePrinterSettings({ name: "Matrix Dot", enabled: true, header: "TOKO SENTARUM", drawer: true });
+    expect(next.name).toBe("Matrix Dot");
+    expect(next.enabled).toBe(true);
+    expect(next.header).toBe("TOKO SENTARUM");
+    expect(next.drawer).toBe(true);
+  });
+
+  it("leaves a config alone once it is already on the current profile", () => {
+    const tuned = { ...DEFAULT_PRINTER_SETTINGS, cpi: 15, width: 120, tearFeed: 4 };
+    const next = upgradePrinterSettings(tuned);
+    expect(next.cpi).toBe(15);
+    expect(next.width).toBe(120);
+    expect(next.tearFeed).toBe(4);
+  });
+
+  it("fills the printable area at the recommended profile", () => {
+    const layout = interpret(previewBytes(DEFAULT_PRINTER_SETTINGS, base.tanggal), deviceFor(DEFAULT_PRINTER_SETTINGS));
+    expect(layout.widestMm).toBeCloseTo(203.2, 1);
+    expect(layout.wrapped).toBe(false);
   });
 });

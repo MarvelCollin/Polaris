@@ -4,6 +4,7 @@ import { columnsFor, Device } from "@/lib/escInterpreter";
 export type PrinterDialect = "escpos" | "escp";
 
 export interface PrinterSettings {
+  version: number;
   enabled: boolean;
   name: string;
   dialect: PrinterDialect;
@@ -82,7 +83,22 @@ export function deviceFor(settings: PrinterSettings): Device {
   };
 }
 
+export const PRINTER_PROFILE_VERSION = 2;
+
+export const RECOMMENDED_GEOMETRY = {
+  dialect: "escp" as PrinterDialect,
+  paper: 241,
+  printable: 203.2,
+  cpi: 10,
+  width: 80,
+  cut: false,
+  tearFeed: 0,
+  scale: 1,
+  pageLines: 0,
+};
+
 export const DEFAULT_PRINTER_SETTINGS: PrinterSettings = {
+  version: PRINTER_PROFILE_VERSION,
   enabled: false,
   name: "",
   dialect: "escp",
@@ -116,17 +132,26 @@ export async function setSetting(key: string, value: string): Promise<void> {
   syncDb();
 }
 
+export function upgradePrinterSettings(saved: Partial<PrinterSettings>): PrinterSettings {
+  const merged = { ...DEFAULT_PRINTER_SETTINGS, ...saved };
+  if ((saved.version ?? 0) < PRINTER_PROFILE_VERSION) {
+    return { ...merged, ...RECOMMENDED_GEOMETRY, version: PRINTER_PROFILE_VERSION };
+  }
+  if (saved.dialect == null) merged.dialect = dialectForPaper(merged.paper);
+  if (saved.printable == null) merged.printable = printableForPaper(merged.paper);
+  if (saved.cpi == null) merged.cpi = merged.dialect === "escp" ? 10 : THERMAL_CPI;
+  if (saved.width == null) merged.width = columnsForPaper(merged.paper);
+  return merged;
+}
+
 export async function getPrinterSettings(): Promise<PrinterSettings> {
   const raw = await getSetting(PRINTER_KEY);
   if (!raw) return { ...DEFAULT_PRINTER_SETTINGS };
   try {
     const saved = JSON.parse(raw) as Partial<PrinterSettings>;
-    const merged = { ...DEFAULT_PRINTER_SETTINGS, ...saved };
-    if (saved.dialect == null) merged.dialect = dialectForPaper(merged.paper);
-    if (saved.printable == null) merged.printable = printableForPaper(merged.paper);
-    if (saved.cpi == null) merged.cpi = merged.dialect === "escp" ? 10 : THERMAL_CPI;
-    if (saved.width == null) merged.width = columnsForPaper(merged.paper);
-    return merged;
+    const upgraded = upgradePrinterSettings(saved);
+    if ((saved.version ?? 0) < PRINTER_PROFILE_VERSION) await savePrinterSettings(upgraded);
+    return upgraded;
   } catch {
     return { ...DEFAULT_PRINTER_SETTINGS };
   }
