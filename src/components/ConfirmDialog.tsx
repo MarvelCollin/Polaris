@@ -13,9 +13,10 @@ interface Props {
   onConfirm: () => void;
   title: string;
   message: string;
+  confirmLabel?: string;
 }
 
-export default function ConfirmDialog({ open, onClose, onConfirm, title, message }: Props) {
+export default function ConfirmDialog({ open, onClose, onConfirm, title, message, confirmLabel = "Hapus" }: Props) {
   return (
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
       <DialogContent>
@@ -25,7 +26,7 @@ export default function ConfirmDialog({ open, onClose, onConfirm, title, message
         <p className="text-sm text-muted-foreground">{message}</p>
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>Batal</Button>
-          <Button variant="destructive" onClick={() => { onConfirm(); onClose(); }}>Hapus</Button>
+          <Button variant="destructive" onClick={() => { onConfirm(); onClose(); }}>{confirmLabel}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

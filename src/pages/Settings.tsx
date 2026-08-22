@@ -8,12 +8,13 @@ import { listPrinters, printTest, printRuler, printerStatus, PrinterState } from
 import PagePreview from "@/components/PagePreview";
 import SearchableSelect from "@/components/SearchableSelect";
 import { resetTransactionData } from "@/database";
+import { closeApp } from "@/lib/app";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import ConfirmDialog from "@/components/ConfirmDialog";
-import { Moon, Sun, ArrowDownToLine, Trash2, Printer, RefreshCw } from "lucide-react";
+import { Moon, Sun, ArrowDownToLine, Trash2, Printer, RefreshCw, Power } from "lucide-react";
 
 const fontSizes: FontSize[] = ["small", "medium", "large"];
 
@@ -600,6 +601,38 @@ function ResetSection() {
   );
 }
 
+function ExitSection() {
+  const [confirm, setConfirm] = useState(false);
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Tutup Aplikasi</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <div className="flex items-center justify-between">
+          <p className="text-sm text-muted-foreground">
+            Menutup Polaris sepenuhnya. Pastikan transaksi yang sedang berjalan sudah tersimpan.
+          </p>
+          <Button variant="outline" size="sm" onClick={() => setConfirm(true)}>
+            <Power className="mr-2 size-4" />
+            Tutup
+          </Button>
+        </div>
+      </CardContent>
+
+      <ConfirmDialog
+        open={confirm}
+        onClose={() => setConfirm(false)}
+        onConfirm={() => closeApp()}
+        title="Tutup Aplikasi"
+        message="Polaris akan ditutup. Perubahan yang belum disimpan akan hilang."
+        confirmLabel="Tutup"
+      />
+    </Card>
+  );
+}
+
 export default function Settings() {
   return (
     <div className="space-y-6">
@@ -610,6 +643,7 @@ export default function Settings() {
       <PasswordSection />
       <PrinterSection />
       <ResetSection />
+      <ExitSection />
     </div>
   );
 }

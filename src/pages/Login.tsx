@@ -4,7 +4,8 @@ import { verifyPassword } from "@/db/auth";
 import { useTheme } from "@/hooks/useTheme";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Lock, Eye, EyeOff, Moon, Sun } from "lucide-react";
+import { closeApp } from "@/lib/app";
+import { Lock, Eye, EyeOff, Moon, Sun, Power } from "lucide-react";
 import Logo from "@/assets/Logo.png";
 
 export default function Login() {
@@ -77,6 +78,16 @@ export default function Login() {
 
           <Button type="submit" className="w-full" disabled={loading}>
             {loading ? "Memverifikasi..." : "Masuk"}
+          </Button>
+
+          <Button
+            type="button"
+            variant="outline"
+            className="w-full"
+            onClick={() => closeApp()}
+          >
+            <Power className="mr-2 size-4" />
+            Tutup Aplikasi
           </Button>
         </form>
       </div>
