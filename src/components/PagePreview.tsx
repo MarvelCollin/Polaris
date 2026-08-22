@@ -14,6 +14,56 @@ const END = { color: "#2563eb", label: "akhir cetak" };
 const STOP = { color: "#dc2626", label: "posisi kertas berhenti" };
 const PERFORATION = { color: "#d97706", label: "perforasi lembar" };
 
+const SEGMENTS: Record<string, { h?: [number, number]; v?: [number, number] }> = {
+  "─": { h: [0, 1] },
+  "│": { v: [0, 1] },
+  "┌": { h: [0.5, 1], v: [0.5, 1] },
+  "┐": { h: [0, 0.5], v: [0.5, 1] },
+  "└": { h: [0.5, 1], v: [0, 0.5] },
+  "┘": { h: [0, 0.5], v: [0, 0.5] },
+  "├": { h: [0.5, 1], v: [0, 1] },
+  "┤": { h: [0, 0.5], v: [0, 1] },
+  "┬": { h: [0, 1], v: [0.5, 1] },
+  "┴": { h: [0, 1], v: [0, 0.5] },
+  "┼": { h: [0, 1], v: [0, 1] },
+};
+
+const INK = "#111111";
+
+function BoxGlyph({ char, left, top, width, height }: { char: string; left: number; top: number; width: number; height: number }) {
+  const seg = SEGMENTS[char];
+  if (!seg) return null;
+  const stroke = Math.max(1, Math.round(height * 0.08));
+  return (
+    <>
+      {seg.h && (
+        <div
+          style={{
+            position: "absolute",
+            left: `${left + width * seg.h[0]}px`,
+            top: `${top + height / 2 - stroke / 2}px`,
+            width: `${width * (seg.h[1] - seg.h[0])}px`,
+            height: `${stroke}px`,
+            background: INK,
+          }}
+        />
+      )}
+      {seg.v && (
+        <div
+          style={{
+            position: "absolute",
+            left: `${left + width / 2 - stroke / 2}px`,
+            top: `${top + height * seg.v[0]}px`,
+            width: `${stroke}px`,
+            height: `${height * (seg.v[1] - seg.v[0])}px`,
+            background: INK,
+          }}
+        />
+      )}
+    </>
+  );
+}
+
 function endOf(lines: Line[]): number {
   const last = lines[lines.length - 1];
   return last ? last.yMm + last.heightMm : 0;
@@ -53,7 +103,16 @@ export default function PagePreview({ settings, scale = 2.4, now }: Props) {
                 {page.lines.map((line, row) =>
                   line.runs.map((run, part) =>
                     run.text.split("").map((char, cell) =>
-                      char === " " ? null : (
+                      char === " " ? null : SEGMENTS[char] ? (
+                        <BoxGlyph
+                          key={`${row}-${part}-${cell}`}
+                          char={char}
+                          left={(run.xMm + cell * run.charMm) * scale}
+                          top={line.yMm * scale}
+                          width={run.charMm * scale}
+                          height={line.heightMm * scale}
+                        />
+                      ) : (
                         <span
                           key={`${row}-${part}-${cell}`}
                           style={{

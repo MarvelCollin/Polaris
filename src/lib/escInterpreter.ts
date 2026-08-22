@@ -53,6 +53,24 @@ export interface Device {
   pageBreaks: boolean;
 }
 
+const CP437: Record<number, string> = {
+  0xb3: "│",
+  0xb4: "┤",
+  0xbf: "┐",
+  0xc0: "└",
+  0xc1: "┴",
+  0xc2: "┬",
+  0xc3: "├",
+  0xc4: "─",
+  0xc5: "┼",
+  0xd9: "┘",
+  0xda: "┌",
+};
+
+export function decodeByte(code: number): string {
+  return CP437[code] ?? String.fromCharCode(code);
+}
+
 export function condensedCpi(cpi: number): number {
   if (cpi === 10) return 120 / 7;
   if (cpi === 12) return 20;
@@ -171,9 +189,9 @@ export function interpret(bytes: Uint8Array, device: Device): Layout {
     }
     const last = runs[runs.length - 1];
     if (last && last.charMm === step && last.tall === tall) {
-      last.text += String.fromCharCode(code);
+      last.text += decodeByte(code);
     } else {
-      runs.push({ text: String.fromCharCode(code), xMm: x, charMm: step, tall });
+      runs.push({ text: decodeByte(code), xMm: x, charMm: step, tall });
     }
     x += step;
   }

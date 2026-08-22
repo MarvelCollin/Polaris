@@ -66,3 +66,30 @@ describe("roll paper preview", () => {
     expect(Number(sheet?.[2]) / SCALE).toBeLessThan(279.4);
   });
 });
+
+describe("connected line preview", () => {
+  const solid = { ...DEFAULT_PRINTER_SETTINGS, tableStyle: "sambung" as const };
+
+  it("decodes the printer box bytes back into line characters", () => {
+    const html = markup(solid);
+    expect(html).not.toContain("\u00c4");
+    expect(html).not.toContain("\u00b3");
+  });
+
+  it("draws the borders as solid rules rather than glyphs", () => {
+    const html = markup(solid);
+    const rules = [...html.matchAll(/background:#111111/g)];
+    expect(rules.length).toBeGreaterThan(40);
+  });
+
+  it("still renders ordinary text as characters", () => {
+    const text = markup(solid).replace(/<[^>]*>/g, "");
+    expect(text).toContain("NamaBarang");
+    expect(text).toContain("Jumlah");
+  });
+
+  it("leaves the ascii styles rendering as text", () => {
+    const html = markup({ ...DEFAULT_PRINTER_SETTINGS, tableStyle: "kotak" });
+    expect([...html.matchAll(/background:#111111/g)].length).toBe(0);
+  });
+});
