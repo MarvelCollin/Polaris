@@ -214,7 +214,13 @@ function invoiceLines(data: ReceiptData, settings: PrinterSettings): string[] {
   lines.push(totalRule(width));
   lines.push("");
   lines.push(...wrap(`Terbilang: ${terbilang(data.total)}`, width));
-  if (settings.footer.trim()) lines.push(...wrap(fold(settings.footer), width));
+
+  const note = settings.footer.trim() ? wrap(fold(settings.footer), width) : [];
+  if (settings.pageLines > 0) {
+    const target = settings.pageLines - 2 - note.length;
+    while (lines.length < target) lines.push("");
+  }
+  lines.push(...note);
 
   return lines;
 }
@@ -365,10 +371,12 @@ export function buildReceipt(data: ReceiptData, settings: PrinterSettings): Uint
   const wide = settings.width >= WIDE_MIN;
 
   if (escp) {
-    if (!wide) bytes.push(...ascii(center(note, settings.width)), 0x0a);
-    if (settings.pageLines > 0) {
-      const printed = 1 + body.length + (wide ? 0 : 1);
-      for (let i = printed; i < settings.pageLines - 1; i += 1) bytes.push(0x0a);
+    if (!wide) {
+      bytes.push(...ascii(center(note, settings.width)), 0x0a);
+      if (settings.pageLines > 0) {
+        const printed = 1 + body.length + 1;
+        for (let i = printed; i < settings.pageLines - 1; i += 1) bytes.push(0x0a);
+      }
     }
   } else if (!wide) {
     bytes.push(ESC, 0x61, 0x01);

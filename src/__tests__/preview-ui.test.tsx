@@ -41,7 +41,7 @@ describe("paper preview ui", () => {
   it("reports the geometry in the caption", () => {
     const text = markup().replace(/<[^>]*>/g, "");
     expect(text).toContain("Kertas 241 mm, area cetak 203 mm, muat 137 kolom");
-    expect(text).toContain("Teks terlebar 202 mm, 23 baris tercetak");
+    expect(text).toContain("Teks terlebar 202 mm, 65 baris tercetak");
     expect(text).toContain("Kertas berhenti 279 mm dari posisi awal");
   });
 

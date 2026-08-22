@@ -472,3 +472,46 @@ describe("invoice closing note", () => {
     expect(text).toContain("Terima kasih");
   });
 });
+
+describe("full page nota", () => {
+  const shop = { ...dot, header: "SAHABAT SENTARUM", footer: "Terima kasih atas kepercayaan Anda" };
+
+  it("drops the closing note onto the last line of the sheet", () => {
+    const lines = receiptLines(sampleReceipt(base.tanggal), shop);
+    expect(lines[lines.length - 1]).toBe("Terima kasih atas kepercayaan Anda");
+    expect(lines).toHaveLength(shop.pageLines - 2);
+  });
+
+  it("fills exactly one sheet so the form feed completes the page", () => {
+    const layout = interpret(buildReceipt(sampleReceipt(base.tanggal), shop), deviceFor(shop));
+    expect(layout.pages).toHaveLength(1);
+    expect(layout.lineCount).toBe(shop.pageLines - 1);
+    expect(layout.stopMm).toBeCloseTo(279.4, 1);
+  });
+
+  it("prints the note near the foot of the page not the middle", () => {
+    const layout = interpret(buildReceipt(sampleReceipt(base.tanggal), shop), deviceFor(shop));
+    const printed = layout.pages[0].lines.filter((l) => l.runs.length);
+    const last = printed[printed.length - 1];
+    expect(last.runs.map((r) => r.text).join("")).toContain("Terima kasih");
+    expect(last.yMm).toBeGreaterThan(layout.pageMm - 12);
+  });
+
+  it("keeps the form feed last so auto tear off still fires", () => {
+    const bytes = buildReceipt(sampleReceipt(base.tanggal), shop);
+    expect(bytes[bytes.length - 1]).toBe(0x0c);
+  });
+
+  it("never pads a nota that already overflows the sheet", () => {
+    const many = { ...sampleReceipt(base.tanggal) };
+    many.items = Array.from({ length: 80 }, () => item("Semen Tiga Roda 50kg", 1, 68000));
+    const lines = receiptLines(many, shop);
+    expect(lines.filter((l) => l === "")).toHaveLength(3);
+    expect(lines[lines.length - 1]).toBe("Terima kasih atas kepercayaan Anda");
+  });
+
+  it("leaves narrow roll paper unpadded", () => {
+    const lines = receiptLines(sampleReceipt(base.tanggal), { ...roll, pageLines: 66 });
+    expect(lines.length).toBeLessThan(30);
+  });
+});

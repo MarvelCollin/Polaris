@@ -85,7 +85,7 @@ export function deviceFor(settings: PrinterSettings): Device {
   };
 }
 
-export const PRINTER_PROFILE_VERSION = 3;
+export const PRINTER_PROFILE_VERSION = 4;
 
 export const RECOMMENDED_GEOMETRY = {
   dialect: "escp" as PrinterDialect,
@@ -96,7 +96,7 @@ export const RECOMMENDED_GEOMETRY = {
   cut: false,
   tearFeed: 0,
   scale: 1,
-  pageLines: 0,
+  pageLines: 66,
 };
 
 export const DEFAULT_PRINTER_SETTINGS: PrinterSettings = {
@@ -111,7 +111,7 @@ export const DEFAULT_PRINTER_SETTINGS: PrinterSettings = {
   cut: false,
   tearFeed: 0,
   scale: 1,
-  pageLines: 0,
+  pageLines: 66,
   header: "POLARIS",
   address: "",
   phone: "",
