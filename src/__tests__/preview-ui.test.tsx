@@ -22,13 +22,13 @@ describe("paper preview ui", () => {
 
   it("sizes each character cell to the selected pitch", () => {
     const cell = markup().match(/left:[\d.]+px;top:[\d.]+px;width:([\d.]+)px/);
-    expect(Number(cell?.[1]) / SCALE).toBeCloseTo(25.4 / 10, 2);
+    expect(Number(cell?.[1]) / SCALE).toBeCloseTo(25.4 / 17.142857, 2);
   });
 
   it("starts the text inside the tractor strip and fills the printable width", () => {
     const lefts = glyphLefts(markup());
     expect(Math.min(...lefts) / SCALE).toBeCloseTo(18.9, 1);
-    expect(Math.max(...lefts) / SCALE + 25.4 / 10).toBeCloseTo(222.1, 1);
+    expect(Math.max(...lefts) / SCALE + 25.4 / 17.142857).toBeCloseTo(220.4, 1);
   });
 
   it("marks both carriage limits and the sheet perforation", () => {
@@ -40,15 +40,15 @@ describe("paper preview ui", () => {
 
   it("reports the geometry in the caption", () => {
     const text = markup().replace(/<[^>]*>/g, "");
-    expect(text).toContain("Kertas 241 mm, area cetak 203 mm, muat 80 kolom");
-    expect(text).toContain("Teks terlebar 203 mm, 23 baris tercetak");
+    expect(text).toContain("Kertas 241 mm, area cetak 203 mm, muat 137 kolom");
+    expect(text).toContain("Teks terlebar 202 mm, 23 baris tercetak");
     expect(text).toContain("Kertas berhenti 279 mm dari posisi awal");
   });
 
   it("warns and rewraps when the columns do not fit the pitch", () => {
-    const text = markup({ ...DEFAULT_PRINTER_SETTINGS, width: 120 }).replace(/<[^>]*>/g, "");
+    const text = markup({ ...DEFAULT_PRINTER_SETTINGS, width: 160 }).replace(/<[^>]*>/g, "");
     expect(text).toContain("melipat");
-    expect(text).toContain("Turunkan jumlah kolom ke 80");
+    expect(text).toContain("Turunkan jumlah kolom ke 137");
   });
 });
 

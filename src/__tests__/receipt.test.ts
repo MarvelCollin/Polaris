@@ -119,10 +119,18 @@ describe("character pitch", () => {
     expect(bytes.slice(0, 5)).toEqual([0x1b, 0x40, 0x1b, 0x50, 0x0f]);
   });
 
-  it("gives the diagnostic sheet the same preamble as a receipt", () => {
-    const receipt = Array.from(buildReceipt(base, dot)).slice(0, 11);
-    const ruler = Array.from(buildRuler(dot)).slice(0, 11);
-    expect(ruler).toEqual(receipt);
+  it("sweeps every offered pitch on the diagnostic sheet", () => {
+    const ruler = Array.from(buildRuler(dot)).join(",");
+    for (const cpi of [10, 12, 15, 17.14, 20]) {
+      expect(ruler, String(cpi)).toContain(pitchBytes(cpi).join(","));
+    }
+  });
+
+  it("leaves the diagnostic sheet on the configured pitch", () => {
+    const bytes = Array.from(buildRuler({ ...dot, cpi: 15 }));
+    const last = bytes.lastIndexOf(0x67);
+    const other = Math.max(bytes.lastIndexOf(0x0f), bytes.lastIndexOf(0x4d));
+    expect(last).toBeGreaterThan(other);
   });
 });
 
@@ -274,8 +282,8 @@ describe("forced profile upgrade", () => {
     expect(next.dialect).toBe("escp");
     expect(next.paper).toBe(241);
     expect(next.printable).toBe(203.2);
-    expect(next.cpi).toBe(10);
-    expect(next.width).toBe(80);
+    expect(next.cpi).toBe(17.14);
+    expect(next.width).toBe(136);
     expect(next.cut).toBe(false);
     expect(next.version).toBe(PRINTER_PROFILE_VERSION);
   });
@@ -298,7 +306,8 @@ describe("forced profile upgrade", () => {
 
   it("fills the printable area at the recommended profile", () => {
     const layout = interpret(previewBytes(DEFAULT_PRINTER_SETTINGS, base.tanggal), deviceFor(DEFAULT_PRINTER_SETTINGS));
-    expect(layout.widestMm).toBeCloseTo(203.2, 1);
+    expect(layout.widestMm).toBeGreaterThan(198);
+    expect(layout.widestMm).toBeLessThanOrEqual(203.2);
     expect(layout.wrapped).toBe(false);
     expect(layout.lineCount).toBeGreaterThan(20);
   });
@@ -353,7 +362,7 @@ describe("formal invoice layout", () => {
 
   it("wraps a long product name inside the name cell", () => {
     const long = { ...sampleReceipt(base.tanggal) };
-    long.items = [item("Cat Tembok Dulux Weathershield Max Anti Lumut 20 Liter Putih Gading", 12, 1250000)];
+    long.items = [item(Array.from({ length: 30 }, (_, i) => `Panjang${i}`).join(" "), 12, 1250000)];
     const lines = receiptLines(long, shop);
     const wrapped = lines.filter((l) => /^\|\s+\| /.test(l));
     expect(wrapped.length).toBeGreaterThan(0);

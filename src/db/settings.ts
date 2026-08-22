@@ -85,14 +85,14 @@ export function deviceFor(settings: PrinterSettings): Device {
   };
 }
 
-export const PRINTER_PROFILE_VERSION = 2;
+export const PRINTER_PROFILE_VERSION = 3;
 
 export const RECOMMENDED_GEOMETRY = {
   dialect: "escp" as PrinterDialect,
   paper: 241,
   printable: 203.2,
-  cpi: 10,
-  width: 80,
+  cpi: 17.14,
+  width: 136,
   cut: false,
   tearFeed: 0,
   scale: 1,
@@ -106,8 +106,8 @@ export const DEFAULT_PRINTER_SETTINGS: PrinterSettings = {
   dialect: "escp",
   paper: 241,
   printable: 203.2,
-  cpi: 10,
-  width: 80,
+  cpi: 17.14,
+  width: 136,
   cut: false,
   tearFeed: 0,
   scale: 1,
