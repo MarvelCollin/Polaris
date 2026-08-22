@@ -3,7 +3,7 @@ import { useTheme } from "@/hooks/useTheme";
 import { useFontSize, FONT_SIZE_LABELS, type FontSize } from "@/hooks/useFontSize";
 import { useUpdate } from "@/hooks/useUpdate";
 import { changePassword } from "@/db/auth";
-import { getPrinterSettings, savePrinterSettings, DEFAULT_PRINTER_SETTINGS, PAPER_SIZES, PITCHES, PITCH_LABELS, columnsForPaper, dialectForPaper, printableForPaper, isContinuousForm, maxColumns, PrinterSettings } from "@/db/settings";
+import { getPrinterSettings, savePrinterSettings, DEFAULT_PRINTER_SETTINGS, PAPER_SIZES, PITCHES, PITCH_LABELS, columnsForPaper, dialectForPaper, printableForPaper, isContinuousForm, maxColumns, TableStyle, PrinterSettings } from "@/db/settings";
 import { listPrinters, printTest, printRuler, printerStatus, PrinterState } from "@/lib/printer";
 import PagePreview from "@/components/PagePreview";
 import SearchableSelect from "@/components/SearchableSelect";
@@ -475,6 +475,26 @@ function PrinterSection() {
           </p>
         </div>
 
+        {settings.dialect === "escp" && (
+          <div className="space-y-2">
+            <Label>Gaya tabel nota</Label>
+            <div className="flex gap-2">
+              {([["garis", "Garis"], ["kotak", "Kotak"]] as [TableStyle, string][]).map(([style, label]) => (
+                <Button
+                  key={style}
+                  variant={settings.tableStyle === style ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => update({ tableStyle: style })}
+                >
+                  {label}
+                </Button>
+              ))}
+            </div>
+            <p className="text-sm text-muted-foreground">
+              Garis memakai garis mendatar saja sehingga lebih bersih dan hemat pita. Kotak memberi bingkai penuh pada tiap sel.
+            </p>
+          </div>
+        )}
         <div className="space-y-2">
           <Label htmlFor="printer-header">Nama toko</Label>
           <Input

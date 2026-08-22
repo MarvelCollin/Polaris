@@ -3,6 +3,8 @@ import { columnsFor, Device } from "@/lib/escInterpreter";
 
 export type PrinterDialect = "escpos" | "escp";
 
+export type TableStyle = "kotak" | "garis";
+
 export interface PrinterSettings {
   version: number;
   enabled: boolean;
@@ -16,6 +18,7 @@ export interface PrinterSettings {
   tearFeed: number;
   scale: number;
   pageLines: number;
+  tableStyle: TableStyle;
   header: string;
   address: string;
   phone: string;
@@ -85,7 +88,7 @@ export function deviceFor(settings: PrinterSettings): Device {
   };
 }
 
-export const PRINTER_PROFILE_VERSION = 4;
+export const PRINTER_PROFILE_VERSION = 5;
 
 export const RECOMMENDED_GEOMETRY = {
   dialect: "escp" as PrinterDialect,
@@ -97,6 +100,7 @@ export const RECOMMENDED_GEOMETRY = {
   tearFeed: 0,
   scale: 1,
   pageLines: 66,
+  tableStyle: "garis" as TableStyle,
 };
 
 export const DEFAULT_PRINTER_SETTINGS: PrinterSettings = {
@@ -112,6 +116,7 @@ export const DEFAULT_PRINTER_SETTINGS: PrinterSettings = {
   tearFeed: 0,
   scale: 1,
   pageLines: 66,
+  tableStyle: "garis",
   header: "POLARIS",
   address: "",
   phone: "",

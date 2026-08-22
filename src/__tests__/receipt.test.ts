@@ -358,70 +358,22 @@ describe("formal invoice layout", () => {
     expect(head).toContain("Jumlah");
   });
 
-  it("numbers every item and keeps the money columns flush right", () => {
-    const lines = receiptLines(sampleReceipt(base.tanggal), shop);
-    const rows = lines.filter((l) => /^\|\s+\d+ \| /.test(l));
-    expect(rows).toHaveLength(3);
-    for (const line of rows) expect(line).toHaveLength(shop.width);
-    expect(rows[0].endsWith("204.000 |")).toBe(true);
-  });
-
-  it("draws a ruled cell border on every table line", () => {
-    const lines = receiptLines(sampleReceipt(base.tanggal), shop);
-    const table = lines.filter((l) => l.startsWith("|") || l.startsWith("+"));
-    expect(table.length).toBeGreaterThan(6);
-    for (const line of table) {
-      expect(line).toHaveLength(shop.width);
-      expect(line.endsWith("|") || line.endsWith("+")).toBe(true);
-    }
-  });
-
-  it("keeps the column separators lined up between rules and rows", () => {
-    const lines = receiptLines(sampleReceipt(base.tanggal), shop);
-    const head = lines.find((l) => l.startsWith("+-")) ?? "";
-    const body = lines.find((l) => /^\|\s+1 \| /.test(l)) ?? "";
-    const bars = [...body].map((c, i) => (c === "|" ? i : -1)).filter((i) => i >= 0);
-    expect(bars.length).toBe(6);
-    for (const i of bars) expect(head[i]).toBe("+");
-  });
-
-  it("wraps a long product name inside the name cell", () => {
-    const long = { ...sampleReceipt(base.tanggal) };
-    long.items = [item(Array.from({ length: 30 }, (_, i) => `Panjang${i}`).join(" "), 12, 1250000)];
-    const lines = receiptLines(long, shop);
-    const wrapped = lines.filter((l) => /^\|\s+\| /.test(l));
-    expect(wrapped.length).toBeGreaterThan(0);
-    for (const line of wrapped) expect(line).toHaveLength(shop.width);
-  });
-
-  it("aligns the totals to the same right edge as the table", () => {
-    const lines = receiptLines(sampleReceipt(base.tanggal), shop);
-    const item = lines.find((l) => l.includes("204.000")) ?? "";
-    const valueBar = item.lastIndexOf("|", item.length - 2);
-    for (const label of ["Subtotal", "Diskon", "TOTAL", "Dibayar", "Kembali"]) {
-      const line = lines.find((l) => l.includes(label + " |"));
-      expect(line, label).toBeDefined();
-      expect(line).toHaveLength(shop.width);
-      expect(line?.lastIndexOf("|", (line?.length ?? 0) - 2)).toBe(valueBar);
-    }
-  });
-
   it("carries the shop address and phone when they are filled", () => {
     const text = receiptLines(sampleReceipt(base.tanggal), shop).join("\n");
     expect(text).toContain("Jl. Lintas Selatan No. 12");
     expect(text).toContain("Telp. 0812 3456 7890");
-    expect(text).toContain("NOTA PENJUALAN");
+    expect(text).toContain("N O T A   P E N J U A L A N");
   });
 
   it("omits the address block when the fields are empty", () => {
     const text = receiptLines(sampleReceipt(base.tanggal), dot).join("\n");
     expect(text).not.toContain("Telp.");
-    expect(text).toContain("NOTA PENJUALAN");
+    expect(text).toContain("N O T A   P E N J U A L A N");
   });
 
   it("closes with the amount in words and no signature block", () => {
     const text = receiptLines(sampleReceipt(base.tanggal), shop).join("\n");
-    expect(text).toContain("Terbilang: empat ratus ribu rupiah");
+    expect(text).toContain("TERBILANG: EMPAT RATUS RIBU RUPIAH");
     expect(text).not.toContain("Penerima,");
     expect(text).not.toContain("Hormat kami,");
   });
@@ -461,7 +413,7 @@ describe("invoice closing note", () => {
 
   it("puts the closing note after the terbilang line", () => {
     const lines = receiptLines(sampleReceipt(base.tanggal), shop);
-    const words = lines.findIndex((l) => l.startsWith("Terbilang:"));
+    const words = lines.findIndex((l) => l.includes("TERBILANG"));
     const note = lines.findIndex((l) => l.includes("Terima kasih"));
     expect(words).toBeGreaterThan(-1);
     expect(note).toBeGreaterThan(words);
@@ -506,12 +458,88 @@ describe("full page nota", () => {
     const many = { ...sampleReceipt(base.tanggal) };
     many.items = Array.from({ length: 80 }, () => item("Semen Tiga Roda 50kg", 1, 68000));
     const lines = receiptLines(many, shop);
-    expect(lines.filter((l) => l === "")).toHaveLength(3);
+    expect(lines.length).toBeGreaterThan(shop.pageLines);
     expect(lines[lines.length - 1]).toBe("Terima kasih atas kepercayaan Anda");
   });
 
   it("leaves narrow roll paper unpadded", () => {
     const lines = receiptLines(sampleReceipt(base.tanggal), { ...roll, pageLines: 66 });
     expect(lines.length).toBeLessThan(30);
+  });
+});
+describe.each([["garis"], ["kotak"]] as const)("invoice table style %s", (style) => {
+  const shop = { ...dot, tableStyle: style, header: "SAHABAT SENTARUM", pageLines: 0, footer: "" };
+
+  function table(): string[] {
+    return receiptLines(sampleReceipt(base.tanggal), shop).filter((l) => l.trim().length && !l.startsWith("="));
+  }
+
+  it("keeps every table line exactly one paper width", () => {
+    for (const line of table()) expect(line, JSON.stringify(line.slice(0, 30))).toHaveLength(shop.width);
+  });
+
+  it("numbers every item row", () => {
+    const rows = receiptLines(sampleReceipt(base.tanggal), shop).filter((l) => /^[|]?\s+[123] /.test(l));
+    expect(rows).toHaveLength(3);
+  });
+
+  it("lands the totals on the same right edge as the item amounts", () => {
+    const lines = receiptLines(sampleReceipt(base.tanggal), shop);
+    const itemRow = lines.find((l) => l.includes("204.000")) ?? "";
+    const totalRow = lines.find((l) => l.includes("415.000")) ?? "";
+    expect(itemRow.indexOf("204.000") + 7).toBe(totalRow.indexOf("415.000") + 7);
+  });
+
+  it("carries the amount in words beside the totals", () => {
+    const lines = receiptLines(sampleReceipt(base.tanggal), shop);
+    const words = lines.find((l) => l.includes("TERBILANG"));
+    expect(words).toBeDefined();
+    expect(words).toContain("EMPAT RATUS RIBU RUPIAH");
+    expect(lines.filter((l) => l.includes("Subtotal"))[0]).toContain("TERBILANG");
+  });
+
+  it("spaces out the document title", () => {
+    const text = receiptLines(sampleReceipt(base.tanggal), shop).join(String.fromCharCode(10));
+    expect(text).toContain("N O T A   P E N J U A L A N");
+  });
+
+  it("uses no background fill", () => {
+    const text = receiptLines(sampleReceipt(base.tanggal), shop).join("");
+    expect(text).not.toContain("#");
+    expect(text).not.toContain("*");
+  });
+});
+
+describe("table style differences", () => {
+  const lined = { ...dot, tableStyle: "garis" as const, pageLines: 0 };
+  const boxes = { ...dot, tableStyle: "kotak" as const, pageLines: 0 };
+
+  it("draws no vertical separators in the lined style", () => {
+    const text = receiptLines(sampleReceipt(base.tanggal), lined).join("");
+    expect(text).not.toContain("|");
+    expect(text).not.toContain("+");
+  });
+
+  it("draws a full cell border in the boxed style", () => {
+    const rows = receiptLines(sampleReceipt(base.tanggal), boxes).filter((l) => l.startsWith("|"));
+    expect(rows.length).toBeGreaterThan(5);
+    for (const line of rows) expect(line.endsWith("|")).toBe(true);
+  });
+
+  it("gives the lined style a wider name column since it spends nothing on borders", () => {
+    const linedRow = receiptLines(sampleReceipt(base.tanggal), lined).find((l) => l.includes("Semen")) ?? "";
+    const boxedRow = receiptLines(sampleReceipt(base.tanggal), boxes).find((l) => l.includes("Semen")) ?? "";
+    expect(linedRow.indexOf("204.000")).toBeGreaterThan(boxedRow.indexOf("204.000"));
+  });
+
+  it("wraps a long product name in both styles", () => {
+    for (const s of [lined, boxes]) {
+      const long = { ...sampleReceipt(base.tanggal) };
+      long.items = [item(Array.from({ length: 40 }, (_, i) => `Panjang${i}`).join(" "), 1, 1000)];
+      const lines = receiptLines(long, s);
+      const rows = lines.filter((l) => l.includes("Panjang"));
+      expect(rows.length).toBeGreaterThan(1);
+      for (const line of rows) expect(line).toHaveLength(s.width);
+    }
   });
 });

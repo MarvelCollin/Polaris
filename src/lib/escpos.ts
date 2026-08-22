@@ -125,43 +125,60 @@ function block(text: string, width: number): string {
   return cell(" ".repeat(pad) + text, width);
 }
 
-function columns(width: number) {
+function boxed(settings: PrinterSettings): boolean {
+  return settings.tableStyle === "kotak";
+}
+
+function columns(settings: PrinterSettings) {
   const no = 3;
   const qty = 5;
   const harga = 11;
   const jumlah = 12;
-  const nama = Math.max(10, width - (no + qty + harga + jumlah + 16));
+  const pad = boxed(settings) ? 16 : 10;
+  const nama = Math.max(10, settings.width - (no + qty + harga + jumlah + pad));
   return { no, nama, qty, harga, jumlah };
 }
 
-function rule(width: number): string {
-  const w = columns(width);
+function labelSpan(settings: PrinterSettings): number {
+  return settings.width - columns(settings).jumlah - (boxed(settings) ? 5 : 4);
+}
+
+function rule(settings: PrinterSettings): string {
+  const w = columns(settings);
+  if (!boxed(settings)) return "-".repeat(settings.width);
   return "+" + [w.no, w.nama, w.qty, w.harga, w.jumlah].map((n) => "-".repeat(n + 2)).join("+") + "+";
 }
 
-function row(width: number, a: string, b: string, c: string, d: string, e: string): string {
-  const w = columns(width);
-  return (
-    "|" +
-    [
-      " " + cell(a, w.no, "r") + " ",
-      " " + cell(b, w.nama) + " ",
-      " " + cell(c, w.qty, "r") + " ",
-      " " + cell(d, w.harga, "r") + " ",
-      " " + cell(e, w.jumlah, "r") + " ",
-    ].join("|") +
-    "|"
-  );
+function row(settings: PrinterSettings, a: string, b: string, c: string, d: string, e: string): string {
+  const w = columns(settings);
+  const cells = [
+    cell(a, w.no, "r"),
+    cell(b, w.nama),
+    cell(c, w.qty, "r"),
+    cell(d, w.harga, "r"),
+    cell(e, w.jumlah, "r"),
+  ];
+  if (!boxed(settings)) return " " + cells.join("  ") + " ";
+  return "|" + cells.map((one) => " " + one + " ").join("|") + "|";
 }
 
-function mergedWidth(width: number): number {
-  return width - columns(width).jumlah - 5;
+function totalRule(settings: PrinterSettings): string {
+  if (!boxed(settings)) return "=".repeat(settings.width);
+  return "+" + "-".repeat(labelSpan(settings)) + "+" + "-".repeat(columns(settings).jumlah + 2) + "+";
 }
 
-function totalRule(width: number): string {
-  return "+" + "-".repeat(mergedWidth(width)) + "+" + "-".repeat(columns(width).jumlah + 2) + "+";
+function summary(settings: PrinterSettings, label: string, value: string, aside: string): string {
+  const w = columns(settings);
+  const span = labelSpan(settings);
+  const left = cell(cell(aside, Math.max(0, span - label.length - 1)) + " " + label, span);
+  const amount = cell(value, w.jumlah, "r");
+  if (!boxed(settings)) return " " + left + "  " + amount + " ";
+  return "|" + left + "| " + amount + " |";
 }
 
+function spaced(text: string): string {
+  return text.split("").join(" ");
+}
 function field(label: string, value: string, width: number): string {
   return cell(`${cell(label, 10)}: ${value}`, width);
 }
@@ -171,10 +188,6 @@ function pair(width: number, a: string, b: string, c: string, d: string): string
   return field(a, b, half) + field(c, d, width - half);
 }
 
-function summary(width: number, label: string, value: string): string {
-  const w = columns(width);
-  return "|" + cell(label + " ", mergedWidth(width), "r") + "| " + cell(value, w.jumlah, "r") + " |";
-}
 
 function invoiceLines(data: ReceiptData, settings: PrinterSettings): string[] {
   const width = settings.width;
@@ -186,34 +199,36 @@ function invoiceLines(data: ReceiptData, settings: PrinterSettings): string[] {
   if (settings.address.trim()) lines.push(...wrap(fold(settings.address), width).map((l) => block(l, width)));
   if (settings.phone.trim()) lines.push(block(fold(`Telp. ${settings.phone}`), width));
   lines.push("=".repeat(width));
-  lines.push(block("NOTA PENJUALAN", width));
+  lines.push(block(spaced("NOTA PENJUALAN"), width));
   lines.push("");
   lines.push(pair(width, "No.", data.nomor, "Tanggal", `${date} ${time}`));
   lines.push(pair(width, "Pelanggan", fold(data.pelanggan || "Umum"), "Pembayaran", data.metode || "Tunai"));
   lines.push("");
-  lines.push(rule(width));
-  lines.push(row(width, "No", "Nama Barang", "Qty", "Harga", "Jumlah"));
-  lines.push(rule(width));
+  lines.push(rule(settings));
+  lines.push(row(settings, "No", "Nama Barang", "Qty", "Harga", "Jumlah"));
+  lines.push(rule(settings));
 
   data.items.forEach((item, index) => {
-    const names = wrap(fold(item.nama_produk), columns(width).nama);
-    lines.push(row(width, String(index + 1), names[0], formatQty(item.jumlah), money(item.harga_satuan), money(item.subtotal)));
-    for (const extra of names.slice(1)) lines.push(row(width, "", extra, "", "", ""));
+    const names = wrap(fold(item.nama_produk), columns(settings).nama);
+    lines.push(row(settings, String(index + 1), names[0], formatQty(item.jumlah), money(item.harga_satuan), money(item.subtotal)));
+    for (const extra of names.slice(1)) lines.push(row(settings, "", extra, "", "", ""));
   });
 
-  lines.push(rule(width));
-  lines.push(summary(width, "Subtotal", money(data.subtotal)));
-  if (data.diskon > 0) lines.push(summary(width, "Diskon", "-" + money(data.diskon)));
-  lines.push(summary(width, "TOTAL", money(data.total)));
-  lines.push(summary(width, "Dibayar", money(data.dibayar)));
-  if (data.utang && data.utang > 0) {
-    lines.push(summary(width, "Sisa Utang", money(data.utang)));
-  } else {
-    lines.push(summary(width, "Kembali", money(data.kembalian)));
-  }
-  lines.push(totalRule(width));
-  lines.push("");
-  lines.push(...wrap(`Terbilang: ${terbilang(data.total)}`, width));
+  lines.push(rule(settings));
+
+  const words = wrap(`TERBILANG: ${terbilang(data.total).toUpperCase()}`, labelSpan(settings) - 14);
+  const totals: [string, string][] = [["Subtotal", money(data.subtotal)]];
+  if (data.diskon > 0) totals.push(["Diskon", "-" + money(data.diskon)]);
+  totals.push(["TOTAL", money(data.total)]);
+  totals.push(["Dibayar", money(data.dibayar)]);
+  totals.push(data.utang && data.utang > 0 ? ["Sisa Utang", money(data.utang)] : ["Kembali", money(data.kembalian)]);
+
+  totals.forEach(([label, value], index) => {
+    lines.push(summary(settings, label, value, words[index] ?? ""));
+  });
+  for (const extra of words.slice(totals.length)) lines.push(summary(settings, "", "", extra));
+
+  lines.push(totalRule(settings));
 
   const note = settings.footer.trim() ? wrap(fold(settings.footer), width) : [];
   if (settings.pageLines > 0) {
@@ -224,6 +239,7 @@ function invoiceLines(data: ReceiptData, settings: PrinterSettings): string[] {
 
   return lines;
 }
+
 
 export function receiptLines(data: ReceiptData, settings: PrinterSettings): string[] {
   if (settings.width >= WIDE_MIN) return invoiceLines(data, settings);
