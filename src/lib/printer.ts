@@ -1,7 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { getSaleById, getSaleItems } from "@/db/sales";
 import { getPrinterSettings, PrinterSettings } from "@/db/settings";
-import { buildReceipt, buildRuler, ReceiptData } from "@/lib/escpos";
+import { buildReceipt, buildRuler, sampleReceipt, ReceiptData } from "@/lib/escpos";
 
 export type PrinterHealth = "disabled" | "unset" | "missing" | "blocked" | "ready";
 
@@ -84,25 +84,7 @@ export async function printSale(saleId: number, metode?: string): Promise<"print
 
 export async function printTest(settings: PrinterSettings): Promise<void> {
   if (!settings.name) throw new Error("Printer belum dipilih");
-
-  await printRaw(
-    settings.name,
-    buildReceipt(
-      {
-        nomor: "TEST-0001",
-        tanggal: new Date(),
-        items: [
-          { id: 1, penjualan_id: 0, produk_id: 1, nama_produk: "Tes Cetak Struk", jumlah: 2, harga_satuan: 15000, subtotal: 30000 },
-        ],
-        subtotal: 30000,
-        diskon: 0,
-        total: 30000,
-        dibayar: 50000,
-        kembalian: 20000,
-      },
-      settings
-    )
-  );
+  await printRaw(settings.name, buildReceipt(sampleReceipt(), settings));
 }
 
 export async function printRuler(settings: PrinterSettings): Promise<void> {

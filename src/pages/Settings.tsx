@@ -3,9 +3,8 @@ import { useTheme } from "@/hooks/useTheme";
 import { useFontSize, FONT_SIZE_LABELS, type FontSize } from "@/hooks/useFontSize";
 import { useUpdate } from "@/hooks/useUpdate";
 import { changePassword } from "@/db/auth";
-import { getPrinterSettings, savePrinterSettings, DEFAULT_PRINTER_SETTINGS, PAPER_SIZES, columnsForPaper, dialectForPaper, isContinuousForm, PrinterSettings } from "@/db/settings";
+import { getPrinterSettings, savePrinterSettings, DEFAULT_PRINTER_SETTINGS, PAPER_SIZES, PITCHES, PITCH_LABELS, columnsForPaper, dialectForPaper, printableForPaper, isContinuousForm, maxColumns, PrinterSettings } from "@/db/settings";
 import { listPrinters, printTest, printRuler, printerStatus, PrinterState } from "@/lib/printer";
-import { previewText } from "@/lib/escpos";
 import PagePreview from "@/components/PagePreview";
 import SearchableSelect from "@/components/SearchableSelect";
 import { resetTransactionData } from "@/database";
@@ -324,15 +323,39 @@ function PrinterSection() {
                 key={paper}
                 variant={settings.paper === paper ? "default" : "outline"}
                 size="sm"
-                onClick={() => update({ paper, width: columnsForPaper(paper), dialect: dialectForPaper(paper) })}
+                onClick={() =>
+                  update({
+                    paper,
+                    printable: printableForPaper(paper),
+                    width: columnsForPaper(paper),
+                    dialect: dialectForPaper(paper),
+                  })
+                }
               >
                 {paper} mm
               </Button>
             ))}
           </div>
           <p className="text-sm text-muted-foreground">
-            Muat {settings.width} karakter per baris
-            {isContinuousForm(settings.paper) ? " (kertas continuous form, akhiri dengan form feed)" : ""}
+            Lebar kertas yang benar benar dipasang di printer
+            {isContinuousForm(settings.paper) ? ", continuous form dengan lubang traktor" : ""}
+          </p>
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="printer-printable">Area cetak</Label>
+          <Input
+            id="printer-printable"
+            type="number"
+            min={20}
+            max={settings.paper}
+            step={0.1}
+            value={settings.printable}
+            onChange={(e) => update({ printable: Number(e.target.value) || 0 })}
+            onBlur={() => update({ printable: Math.min(settings.paper, Math.max(20, settings.printable || 48)) })}
+          />
+          <p className="text-sm text-muted-foreground">
+            Lebar milimeter yang bisa dijangkau kepala cetak. Pada continuous form ini lebih sempit dari kertas karena jalur lubang traktor tidak tercetak.
           </p>
         </div>
 
@@ -377,19 +400,40 @@ function PrinterSection() {
           </p>
         </div>
 
+        {settings.dialect === "escp" && (
+          <div className="space-y-2">
+            <Label>Kerapatan huruf</Label>
+            <div className="flex flex-wrap gap-2">
+              {PITCHES.map((cpi) => (
+                <Button
+                  key={cpi}
+                  variant={settings.cpi === cpi ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => update({ cpi })}
+                >
+                  {PITCH_LABELS[cpi]}
+                </Button>
+              ))}
+            </div>
+            <p className="text-sm text-muted-foreground">
+              Dikirim ke printer setiap kali cetak, jadi hasilnya tidak lagi ikut setelan panel printer
+            </p>
+          </div>
+        )}
+
         <div className="space-y-2">
           <Label htmlFor="printer-columns">Jumlah kolom</Label>
           <Input
             id="printer-columns"
             type="number"
             min={16}
-            max={136}
+            max={maxColumns(settings)}
             value={settings.width}
             onChange={(e) => update({ width: Number(e.target.value) || 0 })}
-            onBlur={() => update({ width: Math.min(136, Math.max(16, settings.width || 40)) })}
+            onBlur={() => update({ width: Math.min(maxColumns(settings), Math.max(16, settings.width || 40)) })}
           />
           <p className="text-sm text-muted-foreground">
-            Diisi otomatis dari ukuran kertas, ubah manual kalau hasil cetak belum pas
+            Area cetak {settings.printable.toFixed(0)} mm pada kerapatan ini muat {maxColumns(settings)} kolom
           </p>
         </div>
 
@@ -468,16 +512,9 @@ function PrinterSection() {
         </div>
 
         <div className="space-y-2">
-          <Label>Pratinjau struk</Label>
-          <pre className="overflow-x-auto rounded-md border bg-muted/40 p-3 font-mono text-xs leading-tight">
-            {previewText(settings)}
-          </pre>
-        </div>
-
-        <div className="space-y-2">
-          <Label>Pratinjau ukuran kertas asli</Label>
+          <Label>Pratinjau hasil cetak</Label>
           <div className="overflow-auto">
-            <PagePreview lines={previewText(settings).split("\n")} settings={settings} />
+            <PagePreview settings={settings} />
           </div>
         </div>
 
