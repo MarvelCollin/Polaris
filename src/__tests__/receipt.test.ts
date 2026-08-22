@@ -38,7 +38,7 @@ function render(bytes: Uint8Array, device: Device): string[] {
     for (const line of page.lines) {
       let text = "";
       for (const run of line.runs) {
-        const col = Math.round(run.xMm / run.charMm);
+        const col = Math.round((run.xMm - layout.originMm) / run.charMm);
         text = text.padEnd(col, " ") + run.text;
       }
       out.push(text.trimEnd());

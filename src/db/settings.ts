@@ -72,6 +72,7 @@ export function deviceFor(settings: PrinterSettings): Device {
   return {
     paperMm: settings.paper,
     printableMm: settings.printable,
+    originMm: Math.max(0, (settings.paper - settings.printable) / 2),
     cpi: dot ? resolvePitch(settings.cpi) : THERMAL_CPI,
     condensed: false,
     lineMm: dot ? 25.4 / 6 : 3.75,

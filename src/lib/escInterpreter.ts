@@ -31,6 +31,7 @@ export interface Layout {
   paperMm: number;
   printableMm: number;
   pageMm: number;
+  originMm: number;
   stopMm: number;
   lineCount: number;
   wrapped: boolean;
@@ -40,6 +41,7 @@ export interface Layout {
 export interface Device {
   paperMm: number;
   printableMm: number;
+  originMm: number;
   cpi: number;
   condensed: boolean;
   lineMm: number;
@@ -126,8 +128,9 @@ export function interpret(bytes: Uint8Array, device: Device): Layout {
           : device.printableMm - x
         : 0;
 
+    const shift = device.originMm + offset;
     lines.push({
-      runs: offset ? runs.map((run) => ({ ...run, xMm: run.xMm + offset })) : runs,
+      runs: shift ? runs.map((run) => ({ ...run, xMm: run.xMm + shift })) : runs,
       yMm: pageY,
       heightMm: height,
       widthMm: x,
@@ -270,6 +273,7 @@ export function interpret(bytes: Uint8Array, device: Device): Layout {
     pages,
     paperMm: device.paperMm,
     printableMm: device.printableMm,
+    originMm: device.originMm,
     pageMm,
     stopMm,
     lineCount,

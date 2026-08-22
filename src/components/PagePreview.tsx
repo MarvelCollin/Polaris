@@ -81,7 +81,16 @@ export default function PagePreview({ settings, scale = 2.4, now }: Props) {
                     position: "absolute",
                     top: 0,
                     bottom: 0,
-                    left: `${layout.printableMm * scale}px`,
+                    left: `${layout.originMm * scale}px`,
+                    borderLeft: "2px dotted #16a34a",
+                  }}
+                />
+                <div
+                  style={{
+                    position: "absolute",
+                    top: 0,
+                    bottom: 0,
+                    left: `${(layout.originMm + layout.printableMm) * scale}px`,
                     borderRight: "2px dotted #16a34a",
                   }}
                 />
