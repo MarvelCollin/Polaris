@@ -1,5 +1,6 @@
 import { SaleItem } from "@/types";
-import { PrinterSettings, resolvePitch } from "@/db/settings";
+import { PrinterSettings, resolvePitch, PITCHES, PITCH_LABELS } from "@/db/settings";
+import { columnsFor } from "@/lib/escInterpreter";
 
 const ESC = 0x1b;
 const GS = 0x1d;
@@ -291,25 +292,49 @@ export function rulerLine(width: number): string {
 }
 
 export function buildRuler(settings: PrinterSettings): Uint8Array {
-  const bytes: number[] = preamble(settings);
+  const escp = settings.dialect === "escp";
+  const bytes: number[] = escp ? [ESC, 0x40, ESC, 0x32, ESC, 0x43, 0x00, 0x0b] : [ESC, 0x40, ESC, 0x74, 0x00];
 
-  for (const cols of [40, 60, 80, 100, 120, 136]) {
-    bytes.push(...ascii(`== ${cols} kolom ==`), 0x0a);
-    bytes.push(...ascii(rulerLine(cols)), 0x0a);
+  if (escp) {
+    bytes.push(...ascii("A. SATU PANJANG, LIMA KERAPATAN"), 0x0a);
+    bytes.push(...ascii("Kalau printer menurut, garis makin pendek tiap baris."), 0x0a);
     bytes.push(0x0a);
-  }
-
-  bytes.push(...ascii("baris mana yang mulai melipat?"), 0x0a);
-
-  if (settings.dialect === "escp") {
+    for (const cpi of PITCHES) {
+      bytes.push(...pitchBytes(cpi));
+      bytes.push(...ascii(`${PITCH_LABELS[cpi]} 60 kolom`), 0x0a);
+      bytes.push(...ascii(rulerLine(60)), 0x0a);
+    }
+    bytes.push(...pitchBytes(settings.cpi));
+    bytes.push(0x0a);
+    bytes.push(...ascii("B. BATAS KOLOM TIAP KERAPATAN"), 0x0a);
+    bytes.push(...ascii("Cari baris paling lebar yang belum melipat."), 0x0a);
+    bytes.push(0x0a);
+    for (const cpi of PITCHES) {
+      const cols = columnsFor(settings.printable, cpi);
+      bytes.push(...pitchBytes(cpi));
+      bytes.push(...ascii(`${PITCH_LABELS[cpi]} pas ${cols} kolom`), 0x0a);
+      bytes.push(...ascii(rulerLine(cols)), 0x0a);
+    }
+    bytes.push(...pitchBytes(settings.cpi));
+    bytes.push(0x0a);
+    bytes.push(...ascii(`Setelan sekarang ${PITCH_LABELS[resolvePitch(settings.cpi)]} ${settings.width} kolom`), 0x0a);
+    bytes.push(...ascii(rulerLine(settings.width)), 0x0a);
     bytes.push(0x0c);
   } else {
+    for (const cols of [32, 40, 48, 56]) {
+      bytes.push(...ascii(`== ${cols} kolom ==`), 0x0a);
+      bytes.push(...ascii(rulerLine(cols)), 0x0a);
+      bytes.push(0x0a);
+    }
+    bytes.push(...ascii("baris mana yang mulai melipat?"), 0x0a);
     bytes.push(0x0a, 0x0a, 0x0a);
   }
+
   for (let i = 0; i < settings.tearFeed; i += 1) bytes.push(0x0a);
 
   return new Uint8Array(bytes);
 }
+
 
 export function buildReceipt(data: ReceiptData, settings: PrinterSettings): Uint8Array {
   const escp = settings.dialect === "escp";
