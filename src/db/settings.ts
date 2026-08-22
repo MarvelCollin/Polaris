@@ -1,4 +1,5 @@
 import { getDb, syncDb } from "@/database";
+import { columnsFor, Device } from "@/lib/escInterpreter";
 
 export type PrinterDialect = "escpos" | "escp";
 
@@ -7,6 +8,8 @@ export interface PrinterSettings {
   name: string;
   dialect: PrinterDialect;
   paper: number;
+  printable: number;
+  cpi: number;
   width: number;
   cut: boolean;
   tearFeed: number;
@@ -17,34 +20,77 @@ export interface PrinterSettings {
   footer: string;
 }
 
-export const PAPER_SIZES = [58, 76, 80, 241];
+export const PAPER_SIZES = [58, 76, 80, 210, 241];
 
-export const PAPER_COLUMNS: Record<number, number> = { 58: 32, 76: 40, 80: 48, 241: 120 };
+export const PRINTABLE_MM: Record<number, number> = { 58: 48, 76: 64, 80: 72, 210: 190, 241: 203.2 };
 
-export function columnsForPaper(paper: number): number {
-  return PAPER_COLUMNS[paper] ?? 40;
+export const PITCHES = [10, 12, 15, 17.14, 20];
+
+export const PITCH_LABELS: Record<number, string> = {
+  10: "10 CPI",
+  12: "12 CPI",
+  15: "15 CPI",
+  17.14: "17 CPI padat",
+  20: "20 CPI padat",
+};
+
+export const THERMAL_CPI = 25.4 / 1.5;
+
+export function resolvePitch(cpi: number): number {
+  let best = PITCHES[0];
+  for (const value of PITCHES) {
+    if (Math.abs(value - cpi) < Math.abs(best - cpi)) best = value;
+  }
+  return best;
+}
+
+export function printableForPaper(paper: number): number {
+  return PRINTABLE_MM[paper] ?? paper - 12;
 }
 
 export function isContinuousForm(paper: number): boolean {
   return paper >= 200;
 }
 
-export function paperForColumns(width: number): number {
-  const match = PAPER_SIZES.find((paper) => PAPER_COLUMNS[paper] === width);
-  return match ?? 76;
-}
-
 export function dialectForPaper(paper: number): PrinterDialect {
   return isContinuousForm(paper) ? "escp" : "escpos";
+}
+
+export function maxColumns(settings: PrinterSettings): number {
+  const cpi = settings.dialect === "escp" ? resolvePitch(settings.cpi) : THERMAL_CPI;
+  return Math.floor(columnsFor(settings.printable, cpi) / (settings.scale > 1 ? 2 : 1));
+}
+
+export function columnsForPaper(paper: number): number {
+  const dot = isContinuousForm(paper);
+  return columnsFor(printableForPaper(paper), dot ? 10 : THERMAL_CPI);
+}
+
+export function deviceFor(settings: PrinterSettings): Device {
+  const dot = settings.dialect === "escp";
+  return {
+    paperMm: settings.paper,
+    printableMm: settings.printable,
+    cpi: dot ? resolvePitch(settings.cpi) : THERMAL_CPI,
+    condensed: false,
+    lineMm: dot ? 25.4 / 6 : 3.75,
+    pageMm: dot ? 279.4 : 25.4 / 6,
+    justify: !dot,
+    master: !dot,
+    escposSize: !dot,
+    pageBreaks: dot,
+  };
 }
 
 export const DEFAULT_PRINTER_SETTINGS: PrinterSettings = {
   enabled: false,
   name: "",
-  dialect: "escpos",
-  paper: 76,
-  width: 40,
-  cut: true,
+  dialect: "escp",
+  paper: 241,
+  printable: 203.2,
+  cpi: 10,
+  width: 80,
+  cut: false,
   tearFeed: 0,
   scale: 1,
   pageLines: 0,
@@ -76,8 +122,9 @@ export async function getPrinterSettings(): Promise<PrinterSettings> {
   try {
     const saved = JSON.parse(raw) as Partial<PrinterSettings>;
     const merged = { ...DEFAULT_PRINTER_SETTINGS, ...saved };
-    if (saved.paper == null && saved.width != null) merged.paper = paperForColumns(saved.width);
     if (saved.dialect == null) merged.dialect = dialectForPaper(merged.paper);
+    if (saved.printable == null) merged.printable = printableForPaper(merged.paper);
+    if (saved.cpi == null) merged.cpi = merged.dialect === "escp" ? 10 : THERMAL_CPI;
     if (saved.width == null) merged.width = columnsForPaper(merged.paper);
     return merged;
   } catch {

@@ -1,8 +1,9 @@
 import { SaleItem } from "@/types";
-import { PrinterSettings } from "@/db/settings";
+import { PrinterSettings, resolvePitch } from "@/db/settings";
 
 const ESC = 0x1b;
 const GS = 0x1d;
+const SI = 0x0f;
 const DC2 = 0x12;
 
 export interface ReceiptData {
@@ -24,6 +25,15 @@ function ascii(text: string): number[] {
   for (const char of text) {
     const code = char.charCodeAt(0);
     out.push(code >= 0x20 && code <= 0x7e ? code : 0x3f);
+  }
+  return out;
+}
+
+export function fold(text: string): string {
+  let out = "";
+  for (const char of text) {
+    const code = char.charCodeAt(0);
+    out += code >= 0x20 && code <= 0x7e ? char : "?";
   }
   return out;
 }
@@ -93,11 +103,11 @@ export function receiptLines(data: ReceiptData, settings: PrinterSettings): stri
 
   lines.push(data.nomor);
   lines.push(twoCol(date, time, width));
-  if (data.pelanggan) lines.push(...wrap(`Pelanggan: ${data.pelanggan}`, width));
+  if (data.pelanggan) lines.push(...wrap(fold(`Pelanggan: ${data.pelanggan}`), width));
   lines.push(rule);
 
   for (const item of data.items) {
-    lines.push(...wrap(item.nama_produk, width));
+    lines.push(...wrap(fold(item.nama_produk), width));
     const qty = `${formatQty(item.jumlah)} x ${money(item.harga_satuan)}`;
     lines.push(twoCol("  " + qty, money(item.subtotal), width));
   }
@@ -116,6 +126,20 @@ export function receiptLines(data: ReceiptData, settings: PrinterSettings): stri
   lines.push(rule);
 
   return lines;
+}
+
+export function pitchBytes(input: number): number[] {
+  const cpi = resolvePitch(input);
+  if (cpi === 12) return [DC2, ESC, 0x4d];
+  if (cpi === 15) return [DC2, ESC, 0x67];
+  if (cpi === 17.14) return [ESC, 0x50, SI];
+  if (cpi === 20) return [ESC, 0x4d, SI];
+  return [DC2, ESC, 0x50];
+}
+
+function preamble(settings: PrinterSettings): number[] {
+  if (settings.dialect !== "escp") return [ESC, 0x40, ESC, 0x74, 0x00];
+  return [ESC, 0x40, ...pitchBytes(settings.cpi), ESC, 0x32, ESC, 0x43, 0x00, 0x0b];
 }
 
 function scaleOn(settings: PrinterSettings): number[] {
@@ -139,9 +163,9 @@ export function rulerLine(width: number): string {
 }
 
 export function buildRuler(settings: PrinterSettings): Uint8Array {
-  const bytes: number[] = [ESC, 0x40];
+  const bytes: number[] = preamble(settings);
 
-  for (const cols of [80, 100, 120, 136]) {
+  for (const cols of [40, 60, 80, 100, 120, 136]) {
     bytes.push(...ascii(`== ${cols} kolom ==`), 0x0a);
     bytes.push(...ascii(rulerLine(cols)), 0x0a);
     bytes.push(0x0a);
@@ -161,22 +185,19 @@ export function buildRuler(settings: PrinterSettings): Uint8Array {
 
 export function buildReceipt(data: ReceiptData, settings: PrinterSettings): Uint8Array {
   const escp = settings.dialect === "escp";
-  const bytes: number[] = escp
-    ? [ESC, 0x40, DC2, ESC, 0x50, ESC, 0x32, ESC, 0x43, 0x00, 0x0b]
-    : [ESC, 0x40, ESC, 0x74, 0x00];
+  const bytes: number[] = preamble(settings);
 
   if (settings.drawer) bytes.push(ESC, 0x70, 0x00, 0x19, 0xfa);
 
-  const headerCap = Math.floor(settings.width / 2);
-  const header = ascii(settings.header.slice(0, headerCap));
+  const headerCap = escp ? settings.width : Math.floor(settings.width / 2);
+  const title = fold(settings.header).slice(0, headerCap);
 
   if (escp) {
-    bytes.push(...ascii(center(settings.header.slice(0, headerCap), Math.floor(settings.width / 2))));
-    bytes.push(0x0a);
+    bytes.push(...ascii(center(title, settings.width)), 0x0a);
   } else {
     bytes.push(ESC, 0x61, 0x01);
     bytes.push(ESC, 0x21, 0x30);
-    bytes.push(...header, 0x0a);
+    bytes.push(...ascii(title), 0x0a);
     bytes.push(ESC, 0x21, 0x00);
     bytes.push(ESC, 0x61, 0x00);
   }
@@ -189,15 +210,17 @@ export function buildReceipt(data: ReceiptData, settings: PrinterSettings): Uint
   }
   bytes.push(...scaleOff(settings));
 
+  const note = fold(settings.footer).slice(0, settings.width);
+
   if (escp) {
-    bytes.push(...ascii(center(settings.footer, settings.width)), 0x0a);
+    bytes.push(...ascii(center(note, settings.width)), 0x0a);
     if (settings.pageLines > 0) {
       const printed = 1 + body.length + 1;
       for (let i = printed; i < settings.pageLines - 1; i += 1) bytes.push(0x0a);
     }
   } else {
     bytes.push(ESC, 0x61, 0x01);
-    bytes.push(...ascii(settings.footer), 0x0a);
+    bytes.push(...ascii(note), 0x0a);
     bytes.push(ESC, 0x61, 0x00);
   }
 
@@ -219,8 +242,8 @@ const SAMPLE_ITEMS: SaleItem[] = [
   { id: 3, penjualan_id: 0, produk_id: 3, nama_produk: "Paku Beton 5cm", jumlah: 1.5, harga_satuan: 24000, subtotal: 36000 },
 ];
 
-export function previewText(settings: PrinterSettings, now: Date = new Date()): string {
-  const data: ReceiptData = {
+export function sampleReceipt(now: Date = new Date()): ReceiptData {
+  return {
     nomor: "INV-20260101-0001",
     tanggal: now,
     items: SAMPLE_ITEMS,
@@ -232,16 +255,8 @@ export function previewText(settings: PrinterSettings, now: Date = new Date()): 
     pelanggan: "Pak Budi Santoso",
     metode: "Tunai",
   };
+}
 
-  const lines = [
-    center(settings.header.slice(0, Math.floor(settings.width / 2)), settings.width),
-    ...receiptLines(data, settings),
-    center(settings.footer, settings.width),
-  ];
-
-  if (settings.dialect === "escp" && settings.pageLines > 0) {
-    while (lines.length < settings.pageLines - 1) lines.push("");
-  }
-
-  return lines.join("\n");
+export function previewBytes(settings: PrinterSettings, now: Date = new Date()): Uint8Array {
+  return buildReceipt(sampleReceipt(now), settings);
 }
