@@ -126,22 +126,39 @@ function block(text: string, width: number): string {
 
 function columns(width: number) {
   const no = 3;
-  const qty = 6;
-  const harga = 12;
-  const jumlah = 13;
-  const nama = Math.max(12, width - (no + qty + harga + jumlah + 4));
+  const qty = 5;
+  const harga = 11;
+  const jumlah = 12;
+  const nama = Math.max(10, width - (no + qty + harga + jumlah + 16));
   return { no, nama, qty, harga, jumlah };
+}
+
+function rule(width: number): string {
+  const w = columns(width);
+  return "+" + [w.no, w.nama, w.qty, w.harga, w.jumlah].map((n) => "-".repeat(n + 2)).join("+") + "+";
 }
 
 function row(width: number, a: string, b: string, c: string, d: string, e: string): string {
   const w = columns(width);
-  return [
-    cell(a, w.no, "r"),
-    cell(b, w.nama),
-    cell(c, w.qty, "r"),
-    cell(d, w.harga, "r"),
-    cell(e, w.jumlah, "r"),
-  ].join(" ");
+  return (
+    "|" +
+    [
+      " " + cell(a, w.no, "r") + " ",
+      " " + cell(b, w.nama) + " ",
+      " " + cell(c, w.qty, "r") + " ",
+      " " + cell(d, w.harga, "r") + " ",
+      " " + cell(e, w.jumlah, "r") + " ",
+    ].join("|") +
+    "|"
+  );
+}
+
+function mergedWidth(width: number): number {
+  return width - columns(width).jumlah - 5;
+}
+
+function totalRule(width: number): string {
+  return "+" + "-".repeat(mergedWidth(width)) + "+" + "-".repeat(columns(width).jumlah + 2) + "+";
 }
 
 function field(label: string, value: string, width: number): string {
@@ -154,8 +171,8 @@ function pair(width: number, a: string, b: string, c: string, d: string): string
 }
 
 function summary(width: number, label: string, value: string): string {
-  const wide = 30;
-  return " ".repeat(Math.max(0, width - wide)) + cell(label, 12) + ": " + cell(value, Math.min(wide, width) - 14, "r");
+  const w = columns(width);
+  return "|" + cell(label + " ", mergedWidth(width), "r") + "| " + cell(value, w.jumlah, "r") + " |";
 }
 
 function invoiceLines(data: ReceiptData, settings: PrinterSettings): string[] {
@@ -172,9 +189,10 @@ function invoiceLines(data: ReceiptData, settings: PrinterSettings): string[] {
   lines.push("");
   lines.push(pair(width, "No.", data.nomor, "Tanggal", `${date} ${time}`));
   lines.push(pair(width, "Pelanggan", fold(data.pelanggan || "Umum"), "Pembayaran", data.metode || "Tunai"));
-  lines.push("-".repeat(width));
+  lines.push("");
+  lines.push(rule(width));
   lines.push(row(width, "No", "Nama Barang", "Qty", "Harga", "Jumlah"));
-  lines.push("-".repeat(width));
+  lines.push(rule(width));
 
   data.items.forEach((item, index) => {
     const names = wrap(fold(item.nama_produk), columns(width).nama);
@@ -182,7 +200,7 @@ function invoiceLines(data: ReceiptData, settings: PrinterSettings): string[] {
     for (const extra of names.slice(1)) lines.push(row(width, "", extra, "", "", ""));
   });
 
-  lines.push("-".repeat(width));
+  lines.push(rule(width));
   lines.push(summary(width, "Subtotal", money(data.subtotal)));
   if (data.diskon > 0) lines.push(summary(width, "Diskon", "-" + money(data.diskon)));
   lines.push(summary(width, "TOTAL", money(data.total)));
@@ -192,17 +210,10 @@ function invoiceLines(data: ReceiptData, settings: PrinterSettings): string[] {
   } else {
     lines.push(summary(width, "Kembali", money(data.kembalian)));
   }
-  lines.push("=".repeat(width));
+  lines.push(totalRule(width));
+  lines.push("");
   lines.push(...wrap(`Terbilang: ${terbilang(data.total)}`, width));
   if (settings.footer.trim()) lines.push(...wrap(fold(settings.footer), width));
-  lines.push("");
-
-  const half = Math.floor(width / 2);
-  const mark = "(" + " ".repeat(Math.max(8, Math.min(20, half - 6))) + ")";
-  lines.push(block("Penerima,", half) + block("Hormat kami,", width - half));
-  lines.push("");
-  lines.push("");
-  lines.push(block(mark, half) + block(mark, width - half));
 
   return lines;
 }

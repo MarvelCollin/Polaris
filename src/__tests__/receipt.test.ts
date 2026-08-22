@@ -326,17 +326,49 @@ describe("formal invoice layout", () => {
 
   it("numbers every item and keeps the money columns flush right", () => {
     const lines = receiptLines(sampleReceipt(base.tanggal), shop);
-    const rows = lines.filter((l) => /^\s{2}\d /.test(l));
+    const rows = lines.filter((l) => /^\|\s+\d+ \| /.test(l));
     expect(rows).toHaveLength(3);
     for (const line of rows) expect(line).toHaveLength(shop.width);
-    expect(rows[0].endsWith("204.000")).toBe(true);
+    expect(rows[0].endsWith("204.000 |")).toBe(true);
+  });
+
+  it("draws a ruled cell border on every table line", () => {
+    const lines = receiptLines(sampleReceipt(base.tanggal), shop);
+    const table = lines.filter((l) => l.startsWith("|") || l.startsWith("+"));
+    expect(table.length).toBeGreaterThan(6);
+    for (const line of table) {
+      expect(line).toHaveLength(shop.width);
+      expect(line.endsWith("|") || line.endsWith("+")).toBe(true);
+    }
+  });
+
+  it("keeps the column separators lined up between rules and rows", () => {
+    const lines = receiptLines(sampleReceipt(base.tanggal), shop);
+    const head = lines.find((l) => l.startsWith("+-")) ?? "";
+    const body = lines.find((l) => /^\|\s+1 \| /.test(l)) ?? "";
+    const bars = [...body].map((c, i) => (c === "|" ? i : -1)).filter((i) => i >= 0);
+    expect(bars.length).toBe(6);
+    for (const i of bars) expect(head[i]).toBe("+");
+  });
+
+  it("wraps a long product name inside the name cell", () => {
+    const long = { ...sampleReceipt(base.tanggal) };
+    long.items = [item("Cat Tembok Dulux Weathershield Max Anti Lumut 20 Liter Putih Gading", 12, 1250000)];
+    const lines = receiptLines(long, shop);
+    const wrapped = lines.filter((l) => /^\|\s+\| /.test(l));
+    expect(wrapped.length).toBeGreaterThan(0);
+    for (const line of wrapped) expect(line).toHaveLength(shop.width);
   });
 
   it("aligns the totals to the same right edge as the table", () => {
     const lines = receiptLines(sampleReceipt(base.tanggal), shop);
-    for (const label of ["Subtotal", "TOTAL", "Dibayar", "Kembali"]) {
-      const line = lines.find((l) => l.includes(`${label} `) && l.includes(":"));
+    const item = lines.find((l) => l.includes("204.000")) ?? "";
+    const valueBar = item.lastIndexOf("|", item.length - 2);
+    for (const label of ["Subtotal", "Diskon", "TOTAL", "Dibayar", "Kembali"]) {
+      const line = lines.find((l) => l.includes(label + " |"));
+      expect(line, label).toBeDefined();
       expect(line).toHaveLength(shop.width);
+      expect(line?.lastIndexOf("|", (line?.length ?? 0) - 2)).toBe(valueBar);
     }
   });
 
@@ -353,11 +385,11 @@ describe("formal invoice layout", () => {
     expect(text).toContain("NOTA PENJUALAN");
   });
 
-  it("closes with the amount in words and a signature block", () => {
+  it("closes with the amount in words and no signature block", () => {
     const text = receiptLines(sampleReceipt(base.tanggal), shop).join("\n");
     expect(text).toContain("Terbilang: empat ratus ribu rupiah");
-    expect(text).toContain("Penerima,");
-    expect(text).toContain("Hormat kami,");
+    expect(text).not.toContain("Penerima,");
+    expect(text).not.toContain("Hormat kami,");
   });
 
   it("falls back to the compact receipt on narrow roll paper", () => {
@@ -380,15 +412,12 @@ describe("formal invoice layout", () => {
   });
 });
 
-describe("invoice footer placement", () => {
+describe("invoice closing note", () => {
   const shop = { ...dot, header: "SAHABAT SENTARUM", footer: "Terima kasih atas kepercayaan Anda" };
 
-  it("puts the closing note above the signature block, never beside it", () => {
+  it("ends the invoice with the closing note", () => {
     const lines = receiptLines(sampleReceipt(base.tanggal), shop);
-    const note = lines.findIndex((l) => l.includes("Terima kasih"));
-    const sign = lines.findIndex((l) => l.includes("Hormat kami,"));
-    expect(note).toBeGreaterThan(-1);
-    expect(note).toBeLessThan(sign);
+    expect(lines[lines.length - 1]).toBe("Terima kasih atas kepercayaan Anda");
   });
 
   it("prints the closing note exactly once", () => {
@@ -396,10 +425,12 @@ describe("invoice footer placement", () => {
     expect(text.split("Terima kasih").length - 1).toBe(1);
   });
 
-  it("ends the invoice on the signature line", () => {
+  it("puts the closing note after the terbilang line", () => {
     const lines = receiptLines(sampleReceipt(base.tanggal), shop);
-    expect(lines[lines.length - 1]).toContain("(");
-    expect(lines[lines.length - 1]).toContain(")");
+    const words = lines.findIndex((l) => l.startsWith("Terbilang:"));
+    const note = lines.findIndex((l) => l.includes("Terima kasih"));
+    expect(words).toBeGreaterThan(-1);
+    expect(note).toBeGreaterThan(words);
   });
 
   it("still centres the note on narrow roll paper", () => {
