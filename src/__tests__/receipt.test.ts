@@ -401,9 +401,19 @@ describe("formal invoice layout", () => {
 describe("invoice closing note", () => {
   const shop = { ...dot, header: "SAHABAT SENTARUM", footer: "Terima kasih atas kepercayaan Anda" };
 
-  it("ends the invoice with the closing note", () => {
+  it("puts the closing note directly under the table", () => {
     const lines = receiptLines(sampleReceipt(base.tanggal), shop);
-    expect(lines[lines.length - 1]).toBe("Terima kasih atas kepercayaan Anda");
+    const rule = lines.map((l, i) => (l.startsWith("=") ? i : -1)).filter((i) => i >= 0).pop() ?? -1;
+    const note = lines.findIndex((l) => l.includes("Terima kasih"));
+    expect(rule).toBeGreaterThan(-1);
+    expect(note).toBe(rule + 2);
+  });
+
+  it("centres the closing note", () => {
+    const lines = receiptLines(sampleReceipt(base.tanggal), shop);
+    const note = lines.find((l) => l.includes("Terima kasih")) ?? "";
+    const indent = note.length - note.trimStart().length;
+    expect(indent).toBe(Math.floor((shop.width - shop.footer.length) / 2));
   });
 
   it("prints the closing note exactly once", () => {
@@ -428,9 +438,11 @@ describe("invoice closing note", () => {
 describe("full page nota", () => {
   const shop = { ...dot, header: "SAHABAT SENTARUM", footer: "Terima kasih atas kepercayaan Anda" };
 
-  it("drops the closing note onto the last line of the sheet", () => {
+  it("keeps the closing note near the table not the page foot", () => {
     const lines = receiptLines(sampleReceipt(base.tanggal), shop);
-    expect(lines[lines.length - 1]).toBe("Terima kasih atas kepercayaan Anda");
+    const note = lines.findIndex((l) => l.includes("Terima kasih"));
+    expect(note).toBeGreaterThan(-1);
+    expect(note).toBeLessThan(30);
     expect(lines).toHaveLength(shop.pageLines - 2);
   });
 
@@ -441,12 +453,12 @@ describe("full page nota", () => {
     expect(layout.stopMm).toBeCloseTo(279.4, 1);
   });
 
-  it("prints the note near the foot of the page not the middle", () => {
+  it("prints the note in the upper part of the sheet", () => {
     const layout = interpret(buildReceipt(sampleReceipt(base.tanggal), shop), deviceFor(shop));
     const printed = layout.pages[0].lines.filter((l) => l.runs.length);
     const last = printed[printed.length - 1];
     expect(last.runs.map((r) => r.text).join("")).toContain("Terima kasih");
-    expect(last.yMm).toBeGreaterThan(layout.pageMm - 12);
+    expect(last.yMm).toBeLessThan(layout.pageMm / 2);
   });
 
   it("keeps the form feed last so auto tear off still fires", () => {
@@ -459,7 +471,7 @@ describe("full page nota", () => {
     many.items = Array.from({ length: 80 }, () => item("Semen Tiga Roda 50kg", 1, 68000));
     const lines = receiptLines(many, shop);
     expect(lines.length).toBeGreaterThan(shop.pageLines);
-    expect(lines[lines.length - 1]).toBe("Terima kasih atas kepercayaan Anda");
+    expect(lines.some((l) => l.includes("Terima kasih atas kepercayaan Anda"))).toBe(true);
   });
 
   it("leaves narrow roll paper unpadded", () => {

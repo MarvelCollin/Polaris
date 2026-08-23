@@ -283,12 +283,13 @@ function invoiceLines(data: ReceiptData, settings: PrinterSettings): string[] {
 
   lines.push(totalRule(settings));
 
-  const note = settings.footer.trim() ? wrap(fold(settings.footer), width) : [];
-  if (settings.pageLines > 0) {
-    const target = settings.pageLines - 2 - note.length;
-    while (lines.length < target) lines.push("");
+  if (settings.footer.trim()) {
+    lines.push("");
+    lines.push(...wrap(fold(settings.footer), width).map((l) => block(l, width)));
   }
-  lines.push(...note);
+  if (settings.pageLines > 0) {
+    while (lines.length < settings.pageLines - 2) lines.push("");
+  }
 
   return lines;
 }
