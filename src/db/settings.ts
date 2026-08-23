@@ -88,17 +88,17 @@ export function deviceFor(settings: PrinterSettings): Device {
   };
 }
 
-export const PRINTER_PROFILE_VERSION = 5;
+export const PRINTER_PROFILE_VERSION = 6;
 
 export const RECOMMENDED_GEOMETRY = {
   dialect: "escp" as PrinterDialect,
   paper: 241,
   printable: 203.2,
   cpi: 17.14,
-  width: 136,
+  scale: 2,
+  width: 68,
   cut: false,
   tearFeed: 0,
-  scale: 1,
   pageLines: 66,
   tableStyle: "garis" as TableStyle,
 };
@@ -107,19 +107,10 @@ export const DEFAULT_PRINTER_SETTINGS: PrinterSettings = {
   version: PRINTER_PROFILE_VERSION,
   enabled: false,
   name: "",
-  dialect: "escp",
-  paper: 241,
-  printable: 203.2,
-  cpi: 17.14,
-  width: 136,
-  cut: false,
-  tearFeed: 0,
-  scale: 1,
-  pageLines: 66,
-  tableStyle: "garis",
-  header: "POLARIS",
-  address: "",
-  phone: "",
+  ...RECOMMENDED_GEOMETRY,
+  header: "Tangki Sahabat Sentarum",
+  address: "Jl. Danau Sentarum No.123F (samping Gg. Ilham), Pontianak Kota, Kalimantan Barat.",
+  phone: "0812-5613-3288",
   footer: "Terima kasih",
 };
 

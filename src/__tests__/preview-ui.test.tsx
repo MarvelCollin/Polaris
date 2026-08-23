@@ -22,13 +22,13 @@ describe("paper preview ui", () => {
 
   it("sizes each character cell to the selected pitch", () => {
     const cell = markup().match(/left:[\d.]+px;top:[\d.]+px;width:([\d.]+)px/);
-    expect(Number(cell?.[1]) / SCALE).toBeCloseTo(25.4 / 17.142857, 2);
+    expect(Number(cell?.[1]) / SCALE).toBeCloseTo((25.4 / 17.142857) * 2, 2);
   });
 
   it("starts the text inside the tractor strip and fills the printable width", () => {
     const lefts = glyphLefts(markup());
     expect(Math.min(...lefts) / SCALE).toBeCloseTo(18.9, 1);
-    expect(Math.max(...lefts) / SCALE + 25.4 / 17.142857).toBeCloseTo(220.4, 1);
+    expect(Math.max(...lefts) / SCALE + (25.4 / 17.142857) * 2).toBeCloseTo(220.4, 1);
   });
 
   it("marks both carriage limits and the sheet perforation", () => {
@@ -40,20 +40,20 @@ describe("paper preview ui", () => {
 
   it("reports the geometry in the caption", () => {
     const text = markup().replace(/<[^>]*>/g, "");
-    expect(text).toContain("Kertas 241 mm, area cetak 203 mm, muat 137 kolom");
+    expect(text).toContain("Kertas 241 mm, area cetak 203 mm, muat 68 kolom");
     expect(text).toContain("Teks terlebar 202 mm, 65 baris tercetak");
     expect(text).toContain("Kertas berhenti 279 mm dari posisi awal");
   });
 
   it("warns and rewraps when the columns do not fit the pitch", () => {
-    const text = markup({ ...DEFAULT_PRINTER_SETTINGS, width: 160 }).replace(/<[^>]*>/g, "");
+    const text = markup({ ...DEFAULT_PRINTER_SETTINGS, width: 100 }).replace(/<[^>]*>/g, "");
     expect(text).toContain("melipat");
-    expect(text).toContain("Turunkan jumlah kolom ke 137");
+    expect(text).toContain("Turunkan jumlah kolom ke 68");
   });
 });
 
 describe("roll paper preview", () => {
-  const roll = { ...DEFAULT_PRINTER_SETTINGS, dialect: "escpos" as const, paper: 76, printable: 64, width: 40, cut: true };
+  const roll = { ...DEFAULT_PRINTER_SETTINGS, dialect: "escpos" as const, paper: 76, printable: 64, width: 40, scale: 1, pageLines: 0, cut: true };
 
   it("draws no page perforation on a continuous roll", () => {
     const text = markup(roll).replace(/<[^>]*>/g, "");

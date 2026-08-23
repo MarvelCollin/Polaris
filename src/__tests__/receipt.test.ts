@@ -4,7 +4,7 @@ import { interpret, columnsFor, condensedCpi, Device } from "@/lib/escInterprete
 import { DEFAULT_PRINTER_SETTINGS, deviceFor, maxColumns, upgradePrinterSettings, PRINTER_PROFILE_VERSION, PrinterSettings } from "@/db/settings";
 import { SaleItem } from "@/types";
 
-const dot: PrinterSettings = { ...DEFAULT_PRINTER_SETTINGS, name: "TD630S", enabled: true };
+const dot: PrinterSettings = { ...DEFAULT_PRINTER_SETTINGS, name: "TD630S", enabled: true, header: "POLARIS", address: "", phone: "" };
 const roll: PrinterSettings = {
   ...DEFAULT_PRINTER_SETTINGS,
   name: "Thermal",
@@ -13,7 +13,12 @@ const roll: PrinterSettings = {
   paper: 76,
   printable: 64,
   width: 40,
+  scale: 1,
+  pageLines: 0,
   cut: true,
+  header: "POLARIS",
+  address: "",
+  phone: "",
 };
 
 function item(nama: string, jumlah: number, harga: number): SaleItem {
@@ -189,14 +194,14 @@ describe("byte stream interpreter", () => {
   });
 
   it("wraps at the printable width instead of hiding the overflow", () => {
-    const narrow = { ...dot, width: 120, cpi: 10 };
+    const narrow = { ...dot, width: 120, cpi: 10, scale: 1 };
     const layout = interpret(buildReceipt(base, narrow), deviceFor(narrow));
     expect(layout.wrapped).toBe(true);
     expect(layout.widestMm).toBeLessThanOrEqual(narrow.printable + 0.01);
   });
 
   it("does not wrap once the pitch matches the column count", () => {
-    const wide = { ...dot, width: 120, cpi: 15 };
+    const wide = { ...dot, width: 120, cpi: 15, scale: 1 };
     const layout = interpret(buildReceipt(base, wide), deviceFor(wide));
     expect(layout.wrapped).toBe(false);
   });
@@ -257,8 +262,8 @@ describe("fixed page height", () => {
 
 describe("column budget", () => {
   it("offers only the columns the carriage can reach", () => {
-    expect(maxColumns({ ...dot, cpi: 10 })).toBe(80);
-    expect(maxColumns({ ...dot, cpi: 15 })).toBe(120);
+    expect(maxColumns({ ...dot, cpi: 10, scale: 1 })).toBe(80);
+    expect(maxColumns({ ...dot, cpi: 15, scale: 1 })).toBe(120);
   });
 
   it("halves the budget when double width is on", () => {
@@ -283,7 +288,7 @@ describe("forced profile upgrade", () => {
     expect(next.paper).toBe(241);
     expect(next.printable).toBe(203.2);
     expect(next.cpi).toBe(17.14);
-    expect(next.width).toBe(136);
+    expect(next.width).toBe(68);
     expect(next.cut).toBe(false);
     expect(next.version).toBe(PRINTER_PROFILE_VERSION);
   });
@@ -303,7 +308,7 @@ describe("forced profile upgrade", () => {
     const next = upgradePrinterSettings(v2);
     expect(next.version).toBe(PRINTER_PROFILE_VERSION);
     expect(next.cpi).toBe(17.14);
-    expect(next.width).toBe(136);
+    expect(next.width).toBe(68);
     expect(next.name).toBe("Matrix Dot");
     expect(next.header).toBe("SAHABAT SENTARUM");
   });
@@ -311,7 +316,7 @@ describe("forced profile upgrade", () => {
   it("keeps the widest column count inside the carriage", () => {
     const next = upgradePrinterSettings({ version: 2 });
     expect(next.width).toBeLessThanOrEqual(maxColumns(next));
-    expect(maxColumns(next)).toBe(137);
+    expect(maxColumns(next)).toBe(68);
   });
   it("keeps the shop identity and printer choice while upgrading", () => {
     const next = upgradePrinterSettings({ name: "Matrix Dot", enabled: true, header: "TOKO SENTARUM", footer: "Sampai jumpa" });

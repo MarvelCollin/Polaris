@@ -437,6 +437,7 @@ export function buildReceipt(data: ReceiptData, settings: PrinterSettings): Uint
   const title = fold(settings.header).slice(0, headerCap);
 
   if (escp) {
+    bytes.push(...scaleOn(settings));
     bytes.push(...ascii(center(title, settings.width)), 0x0a);
   } else {
     bytes.push(ESC, 0x61, 0x01);
@@ -448,7 +449,7 @@ export function buildReceipt(data: ReceiptData, settings: PrinterSettings): Uint
 
   const body = receiptLines(data, settings);
 
-  bytes.push(...scaleOn(settings));
+  if (!escp) bytes.push(...scaleOn(settings));
   for (const line of body) {
     bytes.push(...ascii(line), 0x0a);
   }
