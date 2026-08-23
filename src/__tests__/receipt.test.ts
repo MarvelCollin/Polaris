@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { buildReceipt, buildRuler, receiptLines, twoCol, wrap, money, formatQty, pitchBytes, previewBytes, sampleReceipt, terbilang, WIDE_MIN, BOX } from "@/lib/escpos";
+import { buildReceipt, buildRuler, receiptLines, twoCol, wrap, money, formatQty, pitchBytes, previewBytes, sampleReceipt, terbilang, WIDE_MIN, BOX, LINE_MM, LINE_SPACING_216 } from "@/lib/escpos";
 import { interpret, columnsFor, condensedCpi, Device } from "@/lib/escInterpreter";
 import { DEFAULT_PRINTER_SETTINGS, deviceFor, maxColumns, upgradePrinterSettings, PRINTER_PROFILE_VERSION, PrinterSettings } from "@/db/settings";
 import { SaleItem } from "@/types";
@@ -214,7 +214,7 @@ describe("byte stream interpreter", () => {
   it("counts the tear off feed beyond the page boundary", () => {
     const fed = { ...dot, tearFeed: 6 };
     const layout = interpret(buildReceipt(base, fed), deviceFor(fed));
-    expect(layout.stopMm).toBeCloseTo(279.4 + 6 * (25.4 / 6), 1);
+    expect(layout.stopMm).toBeCloseTo(279.4 + 6 * LINE_MM, 1);
   });
 
   it("reproduces the stray character a printer emits when it ignores master select", () => {
@@ -619,5 +619,29 @@ describe("connected line style", () => {
     const bytes = Array.from(buildRuler(solid));
     expect(bytes).toContain(0xda);
     expect(bytes).toContain(0xc5);
+  });
+});
+
+describe("line spacing", () => {
+  it("sets a roomier line pitch than the six per inch default", () => {
+    expect(LINE_SPACING_216).toBeGreaterThan(36);
+    expect(LINE_MM).toBeGreaterThan(25.4 / 6);
+  });
+
+  it("sends the spacing command instead of the fixed one sixth inch command", () => {
+    const bytes = Array.from(buildReceipt(sampleReceipt(base.tanggal), dot)).join(",");
+    expect(bytes).toContain(`27,51,${LINE_SPACING_216}`);
+    expect(bytes).not.toContain("27,50");
+  });
+
+  it("still fits one sheet at the wider pitch", () => {
+    const layout = interpret(previewBytes(DEFAULT_PRINTER_SETTINGS, base.tanggal), deviceFor(DEFAULT_PRINTER_SETTINGS));
+    expect(layout.pages).toHaveLength(1);
+    expect(layout.wrapped).toBe(false);
+  });
+
+  it("keeps the padded page inside eleven inches", () => {
+    const layout = interpret(previewBytes(DEFAULT_PRINTER_SETTINGS, base.tanggal), deviceFor(DEFAULT_PRINTER_SETTINGS));
+    expect(layout.lineCount * LINE_MM).toBeLessThanOrEqual(279.4);
   });
 });

@@ -88,7 +88,7 @@ export function deviceFor(settings: PrinterSettings): Device {
   };
 }
 
-export const PRINTER_PROFILE_VERSION = 6;
+export const PRINTER_PROFILE_VERSION = 7;
 
 export const RECOMMENDED_GEOMETRY = {
   dialect: "escp" as PrinterDialect,
@@ -99,7 +99,7 @@ export const RECOMMENDED_GEOMETRY = {
   width: 68,
   cut: false,
   tearFeed: 0,
-  pageLines: 66,
+  pageLines: 52,
   tableStyle: "garis" as TableStyle,
 };
 

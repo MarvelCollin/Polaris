@@ -342,6 +342,10 @@ export function pitchBytes(input: number): number[] {
   return [DC2, ESC, 0x50];
 }
 
+export const LINE_SPACING_216 = 45;
+
+export const LINE_MM = (LINE_SPACING_216 * 25.4) / 216;
+
 function preamble(settings: PrinterSettings): number[] {
   if (settings.dialect !== "escp") return [ESC, 0x40, ESC, 0x74, 0x00];
   return [
@@ -349,7 +353,7 @@ function preamble(settings: PrinterSettings): number[] {
     ...pitchBytes(settings.cpi),
     ESC, 0x74, 0x01,
     ESC, 0x36,
-    ESC, 0x32,
+    ESC, 0x33, LINE_SPACING_216,
     ESC, 0x43, 0x00, 0x0b,
   ];
 }
