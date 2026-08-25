@@ -388,7 +388,7 @@ export function buildRuler(settings: PrinterSettings): Uint8Array {
     bytes.push(0x0a);
     for (const cpi of PITCHES) {
       bytes.push(...pitchBytes(cpi));
-      bytes.push(...ascii(`${PITCH_LABELS[cpi]} 60 kolom`), 0x0a);
+      bytes.push(...ascii(`${PITCH_LABELS[cpi]} 60 kolom = ${Math.round((60 / cpi) * 25.4)} mm`), 0x0a);
       bytes.push(...ascii(rulerLine(60)), 0x0a);
     }
     bytes.push(...pitchBytes(settings.cpi));
@@ -399,7 +399,7 @@ export function buildRuler(settings: PrinterSettings): Uint8Array {
     for (const cpi of PITCHES) {
       const cols = columnsFor(settings.printable, cpi);
       bytes.push(...pitchBytes(cpi));
-      bytes.push(...ascii(`${PITCH_LABELS[cpi]} pas ${cols} kolom`), 0x0a);
+      bytes.push(...ascii(`${PITCH_LABELS[cpi]} pas ${cols} kolom = ${Math.round((cols / cpi) * 25.4)} mm`), 0x0a);
       bytes.push(...ascii(rulerLine(cols)), 0x0a);
     }
     bytes.push(...pitchBytes(settings.cpi));
