@@ -22,33 +22,33 @@ describe("paper preview ui", () => {
 
   it("sizes each character cell to the selected pitch", () => {
     const cell = markup().match(/left:[\d.]+px;top:[\d.]+px;width:([\d.]+)px/);
-    expect(Number(cell?.[1]) / SCALE).toBeCloseTo(25.4 / 20, 2);
+    expect(Number(cell?.[1]) / SCALE).toBeCloseTo(25.4 / (120 / 7), 2);
   });
 
   it("starts the text inside the tractor strip and fills the printable width", () => {
     const lefts = glyphLefts(markup());
-    expect(Math.min(...lefts) / SCALE).toBeCloseTo(16.35, 1);
-    expect(Math.max(...lefts) / SCALE + 25.4 / 20).toBeCloseTo(219.55, 1);
+    expect(Math.min(...lefts) / SCALE).toBeCloseTo(18.9, 1);
+    expect(Math.max(...lefts) / SCALE + 25.4 / (120 / 7)).toBeCloseTo(220.4, 1);
   });
 
   it("marks both carriage limits and the sheet perforation", () => {
     const guides = [...markup().matchAll(/<div style="([^"]*(?:dotted|dashed)[^"]*)"/g)].map((m) => m[1]);
-    expect(guides.some((g) => g.includes("left:37.23") && g.includes("border-left"))).toBe(true);
-    expect(guides.some((g) => g.includes("left:539.16") && g.includes("border-right"))).toBe(true);
+    expect(guides.some((g) => g.includes("left:43.36") && g.includes("border-left"))).toBe(true);
+    expect(guides.some((g) => g.includes("left:533.04") && g.includes("border-right"))).toBe(true);
     expect(guides.some((g) => g.includes("top:668.56") && g.includes("#d97706"))).toBe(true);
   });
 
   it("reports the geometry in the caption", () => {
     const text = markup().replace(/<[^>]*>/g, "");
-    expect(text).toContain("Kertas 241 mm, area cetak 208 mm, muat 164 kolom");
-    expect(text).toContain("Teks terlebar 203 mm, 51 baris tercetak");
+    expect(text).toContain("Kertas 241 mm, area cetak 203 mm, muat 137 kolom");
+    expect(text).toContain("Teks terlebar 202 mm, 51 baris tercetak");
     expect(text).toContain("Kertas berhenti 279 mm dari posisi awal");
   });
 
   it("warns and rewraps when the columns do not fit the pitch", () => {
     const text = markup({ ...DEFAULT_PRINTER_SETTINGS, width: 200 }).replace(/<[^>]*>/g, "");
     expect(text).toContain("melipat");
-    expect(text).toContain("Turunkan jumlah kolom ke 164");
+    expect(text).toContain("Turunkan jumlah kolom ke 137");
   });
 });
 
