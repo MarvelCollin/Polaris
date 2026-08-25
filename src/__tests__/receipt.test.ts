@@ -262,12 +262,12 @@ describe("fixed page height", () => {
 
 describe("column budget", () => {
   it("offers only the columns the carriage can reach", () => {
-    expect(maxColumns({ ...dot, cpi: 10, scale: 1 })).toBe(80);
-    expect(maxColumns({ ...dot, cpi: 15, scale: 1 })).toBe(120);
+    expect(maxColumns({ ...dot, cpi: 10, scale: 1 })).toBe(82);
+    expect(maxColumns({ ...dot, cpi: 15, scale: 1 })).toBe(123);
   });
 
   it("halves the budget when double width is on", () => {
-    expect(maxColumns({ ...dot, cpi: 10, scale: 2 })).toBe(40);
+    expect(maxColumns({ ...dot, cpi: 10, scale: 2 })).toBe(41);
   });
 });
 
@@ -286,9 +286,9 @@ describe("forced profile upgrade", () => {
     const next = upgradePrinterSettings(legacy);
     expect(next.dialect).toBe("escp");
     expect(next.paper).toBe(241);
-    expect(next.printable).toBe(203.2);
-    expect(next.cpi).toBe(15);
-    expect(next.width).toBe(120);
+    expect(next.printable).toBe(208.3);
+    expect(next.cpi).toBe(10);
+    expect(next.width).toBe(82);
     expect(next.cut).toBe(false);
     expect(next.version).toBe(PRINTER_PROFILE_VERSION);
   });
@@ -307,8 +307,8 @@ describe("forced profile upgrade", () => {
     };
     const next = upgradePrinterSettings(v2);
     expect(next.version).toBe(PRINTER_PROFILE_VERSION);
-    expect(next.cpi).toBe(15);
-    expect(next.width).toBe(120);
+    expect(next.cpi).toBe(10);
+    expect(next.width).toBe(82);
     expect(next.name).toBe("Matrix Dot");
     expect(next.header).toBe("SAHABAT SENTARUM");
   });
@@ -316,7 +316,7 @@ describe("forced profile upgrade", () => {
   it("keeps the widest column count inside the carriage", () => {
     const next = upgradePrinterSettings({ version: 2 });
     expect(next.width).toBeLessThanOrEqual(maxColumns(next));
-    expect(maxColumns(next)).toBe(120);
+    expect(maxColumns(next)).toBe(82);
   });
   it("keeps the shop identity and printer choice while upgrading", () => {
     const next = upgradePrinterSettings({ name: "Matrix Dot", enabled: true, header: "TOKO SENTARUM", footer: "Sampai jumpa" });
@@ -343,8 +343,8 @@ describe("forced profile upgrade", () => {
 
   it("fills the printable area at the recommended profile", () => {
     const layout = interpret(previewBytes(DEFAULT_PRINTER_SETTINGS, base.tanggal), deviceFor(DEFAULT_PRINTER_SETTINGS));
-    expect(layout.widestMm).toBeGreaterThan(198);
-    expect(layout.widestMm).toBeLessThanOrEqual(203.2);
+    expect(layout.widestMm).toBeGreaterThan(203);
+    expect(layout.widestMm).toBeLessThanOrEqual(208.3);
     expect(layout.wrapped).toBe(false);
     expect(layout.lineCount).toBeGreaterThan(20);
   });
