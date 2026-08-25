@@ -141,9 +141,20 @@ function PasswordSection() {
 }
 
 function UpdateSection() {
-  const { status, version, install, reopen, dismissed } = useUpdate();
+  const { status, version, current, error, install, refresh, dismissed, reopen, checkedAt } = useUpdate();
+  const busy = status === "checking" || status === "downloading" || status === "installing";
 
-  if (status !== "available") return null;
+  const detail = () => {
+    if (status === "checking") return "Memeriksa pembaruan...";
+    if (status === "downloading" || status === "installing") return "Sedang memasang pembaruan...";
+    if (status === "available") return `Versi ${version} tersedia`;
+    if (status === "error") return `Gagal memeriksa: ${error ?? "tidak diketahui"}`;
+    if (checkedAt) {
+      const time = `${String(checkedAt.getHours()).padStart(2, "0")}:${String(checkedAt.getMinutes()).padStart(2, "0")}`;
+      return `Sudah versi terbaru, dicek ${time}`;
+    }
+    return "Belum diperiksa";
+  };
 
   return (
     <Card>
@@ -151,15 +162,24 @@ function UpdateSection() {
         <CardTitle>Pembaruan Aplikasi</CardTitle>
       </CardHeader>
       <CardContent>
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between gap-4">
           <div>
-            <p className="text-sm font-medium">Versi {version} tersedia</p>
-            <p className="text-sm text-muted-foreground">Update untuk mendapatkan fitur terbaru</p>
+            <p className="text-sm font-medium">Versi terpasang {current ?? "-"}</p>
+            <p className={`text-sm ${status === "error" ? "text-destructive" : "text-muted-foreground"}`}>
+              {detail()}
+            </p>
           </div>
-          <Button size="sm" onClick={dismissed ? reopen : install}>
-            <ArrowDownToLine className="mr-2 size-4" />
-            {dismissed ? "Lihat Update" : "Update Sekarang"}
-          </Button>
+          {status === "available" ? (
+            <Button size="sm" onClick={dismissed ? reopen : install} disabled={busy}>
+              <ArrowDownToLine className="mr-2 size-4" />
+              {dismissed ? "Lihat Update" : "Update Sekarang"}
+            </Button>
+          ) : (
+            <Button variant="outline" size="sm" onClick={refresh} disabled={busy}>
+              <RefreshCw className={`mr-2 size-4 ${status === "checking" ? "animate-spin" : ""}`} />
+              Cek Pembaruan
+            </Button>
+          )}
         </div>
       </CardContent>
     </Card>

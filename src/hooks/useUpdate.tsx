@@ -2,17 +2,21 @@ import { createContext, useContext, useState, useEffect, type ReactNode } from "
 import { check, type Update } from "@tauri-apps/plugin-updater";
 import { relaunch } from "@tauri-apps/plugin-process";
 import { invoke } from "@tauri-apps/api/core";
+import { getVersion } from "@tauri-apps/api/app";
 
 export type UpdateStatus = "idle" | "checking" | "available" | "downloading" | "installing" | "error";
 
 interface UpdateState {
   status: UpdateStatus;
   version: string | null;
+  current: string | null;
   error: string | null;
   progress: string;
   dismissed: boolean;
+  checkedAt: Date | null;
   dismiss: () => void;
   reopen: () => void;
+  refresh: () => Promise<void>;
   install: () => Promise<void>;
 }
 
@@ -73,23 +77,34 @@ export function UpdateProvider({ children }: { children: ReactNode }) {
   const [error, setError] = useState<string | null>(null);
   const [progress, setProgress] = useState("");
   const [dismissed, setDismissed] = useState(false);
+  const [current, setCurrent] = useState<string | null>(null);
+  const [checkedAt, setCheckedAt] = useState<Date | null>(null);
+
+  const refresh = async () => {
+    setStatus("checking");
+    setError(null);
+    try {
+      const found = await checkForUpdate();
+      if (found) {
+        setUpdate(found);
+        setVersion(found.version);
+        setStatus("available");
+        setDismissed(false);
+      } else {
+        setUpdate(null);
+        setVersion(null);
+        setStatus("idle");
+      }
+      setCheckedAt(new Date());
+    } catch (err) {
+      setError(String(err));
+      setStatus("error");
+    }
+  };
 
   useEffect(() => {
-    setStatus("checking");
-    checkForUpdate()
-      .then((u) => {
-        if (u) {
-          setUpdate(u);
-          setVersion(u.version);
-          setStatus("available");
-        } else {
-          setStatus("idle");
-        }
-      })
-      .catch((err) => {
-        setError(String(err));
-        setStatus("error");
-      });
+    getVersion().then(setCurrent).catch(() => setCurrent(null));
+    refresh();
   }, []);
 
   const install = async () => {
@@ -112,11 +127,14 @@ export function UpdateProvider({ children }: { children: ReactNode }) {
       value={{
         status,
         version,
+        current,
         error,
         progress,
         dismissed,
+        checkedAt,
         dismiss: () => setDismissed(true),
         reopen: () => setDismissed(false),
+        refresh,
         install,
       }}
     >
