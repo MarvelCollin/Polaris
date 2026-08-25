@@ -16,10 +16,17 @@ jobs:
 
       - uses: dtolnay/rust-toolchain@stable
 
-      - uses: Swatinem/rust-cache@v2
+      - uses: actions/cache@v4
         with:
-          workspaces: src-tauri
-          cache-on-failure: true
+          path: |
+            ~/.cargo/bin
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+            src-tauri/target
+          key: rust-release-${{ runner.os }}-${{ hashFiles('src-tauri/Cargo.lock') }}
+          restore-keys: |
+            rust-release-${{ runner.os }}-
 
       - uses: pnpm/action-setup@v4
         with:
