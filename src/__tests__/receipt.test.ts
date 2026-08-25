@@ -287,8 +287,8 @@ describe("forced profile upgrade", () => {
     expect(next.dialect).toBe("escp");
     expect(next.paper).toBe(241);
     expect(next.printable).toBe(203.2);
-    expect(next.cpi).toBe(17.14);
-    expect(next.width).toBe(68);
+    expect(next.cpi).toBe(15);
+    expect(next.width).toBe(120);
     expect(next.cut).toBe(false);
     expect(next.version).toBe(PRINTER_PROFILE_VERSION);
   });
@@ -307,8 +307,8 @@ describe("forced profile upgrade", () => {
     };
     const next = upgradePrinterSettings(v2);
     expect(next.version).toBe(PRINTER_PROFILE_VERSION);
-    expect(next.cpi).toBe(17.14);
-    expect(next.width).toBe(68);
+    expect(next.cpi).toBe(15);
+    expect(next.width).toBe(120);
     expect(next.name).toBe("Matrix Dot");
     expect(next.header).toBe("SAHABAT SENTARUM");
   });
@@ -316,7 +316,7 @@ describe("forced profile upgrade", () => {
   it("keeps the widest column count inside the carriage", () => {
     const next = upgradePrinterSettings({ version: 2 });
     expect(next.width).toBeLessThanOrEqual(maxColumns(next));
-    expect(maxColumns(next)).toBe(68);
+    expect(maxColumns(next)).toBe(120);
   });
   it("keeps the shop identity and printer choice while upgrading", () => {
     const next = upgradePrinterSettings({ name: "Matrix Dot", enabled: true, header: "TOKO SENTARUM", footer: "Sampai jumpa" });
