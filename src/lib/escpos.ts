@@ -360,7 +360,7 @@ function preamble(settings: PrinterSettings): number[] {
     ESC, 0x74, 0x01,
     ESC, 0x36,
     ESC, 0x33, LINE_SPACING_216,
-    ESC, 0x43, 0x00, 0x0b,
+    ESC, 0x4f,
   ];
 }
 
@@ -386,7 +386,7 @@ export function rulerLine(width: number): string {
 
 export function buildRuler(settings: PrinterSettings): Uint8Array {
   const escp = settings.dialect === "escp";
-  const bytes: number[] = escp ? [ESC, 0x40, ESC, 0x32, ESC, 0x43, 0x00, 0x0b] : [ESC, 0x40, ESC, 0x74, 0x00];
+  const bytes: number[] = escp ? [ESC, 0x40, ESC, 0x32, ESC, 0x4f] : [ESC, 0x40, ESC, 0x74, 0x00];
 
   if (escp) {
     bytes.push(...ascii("A. SATU PANJANG, LIMA KERAPATAN"), 0x0a);
