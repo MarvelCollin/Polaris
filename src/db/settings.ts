@@ -106,7 +106,7 @@ export const RECOMMENDED_GEOMETRY = {
   indent: 1,
   cut: false,
   tearFeed: 0,
-  pageLines: 52,
+  pageLines: 26,
   tableStyle: "garis" as TableStyle,
 };
 
