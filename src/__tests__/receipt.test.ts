@@ -13,6 +13,7 @@ const roll: PrinterSettings = {
   paper: 76,
   printable: 64,
   width: 40,
+  indent: 0,
   scale: 1,
   pageLines: 0,
   cut: true,
@@ -190,7 +191,7 @@ describe("byte stream interpreter", () => {
     const lines = render(buildReceipt(base, dot), deviceFor(dot));
     const title = lines.find((line) => line.includes("POLARIS")) ?? "";
     const indent = title.length - title.trimStart().length;
-    expect(indent).toBe(Math.floor((dot.width - "POLARIS".length) / 2));
+    expect(indent).toBe(dot.indent + Math.floor((dot.width - "POLARIS".length) / 2));
   });
 
   it("wraps at the printable width instead of hiding the overflow", () => {
@@ -201,7 +202,7 @@ describe("byte stream interpreter", () => {
   });
 
   it("does not wrap once the pitch matches the column count", () => {
-    const wide = { ...dot, width: 120, cpi: 15, scale: 1 };
+    const wide = { ...dot, width: 120, indent: 0, cpi: 15, scale: 1 };
     const layout = interpret(buildReceipt(base, wide), deviceFor(wide));
     expect(layout.wrapped).toBe(false);
   });
@@ -287,8 +288,9 @@ describe("forced profile upgrade", () => {
     expect(next.dialect).toBe("escp");
     expect(next.paper).toBe(241);
     expect(next.printable).toBe(203.2);
-    expect(next.cpi).toBe(17.14);
-    expect(next.width).toBe(136);
+    expect(next.cpi).toBe(18);
+    expect(next.width).toBe(142);
+    expect(next.indent).toBe(1);
     expect(next.cut).toBe(false);
     expect(next.version).toBe(PRINTER_PROFILE_VERSION);
   });
@@ -307,16 +309,16 @@ describe("forced profile upgrade", () => {
     };
     const next = upgradePrinterSettings(v2);
     expect(next.version).toBe(PRINTER_PROFILE_VERSION);
-    expect(next.cpi).toBe(17.14);
-    expect(next.width).toBe(136);
+    expect(next.cpi).toBe(18);
+    expect(next.width).toBe(142);
     expect(next.name).toBe("Matrix Dot");
     expect(next.header).toBe("SAHABAT SENTARUM");
   });
 
   it("keeps the widest column count inside the carriage", () => {
     const next = upgradePrinterSettings({ version: 2 });
-    expect(next.width).toBeLessThanOrEqual(maxColumns(next));
-    expect(maxColumns(next)).toBe(137);
+    expect(next.indent + next.width).toBeLessThanOrEqual(maxColumns(next));
+    expect(maxColumns(next)).toBe(144);
   });
   it("keeps the shop identity and printer choice while upgrading", () => {
     const next = upgradePrinterSettings({ name: "Matrix Dot", enabled: true, header: "TOKO SENTARUM", footer: "Sampai jumpa" });
@@ -465,7 +467,7 @@ describe("full page nota", () => {
     expect(layout.stopMm).toBeCloseTo(279.4, 1);
   });
 
-  it("prints the note in the upper part of the sheet", () => {
+  it("keeps the whole nota inside the top half of the sheet", () => {
     const layout = interpret(buildReceipt(sampleReceipt(base.tanggal), shop), deviceFor(shop));
     const printed = layout.pages[0].lines.filter((l) => l.runs.length);
     const last = printed[printed.length - 1];

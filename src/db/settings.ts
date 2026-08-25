@@ -14,6 +14,7 @@ export interface PrinterSettings {
   printable: number;
   cpi: number;
   width: number;
+  indent: number;
   cut: boolean;
   tearFeed: number;
   scale: number;
@@ -36,8 +37,13 @@ export const PITCH_LABELS: Record<number, string> = {
   12: "12 CPI",
   15: "15 CPI",
   17.14: "17 CPI padat",
+  18: "18 CPI bawaan",
   20: "20 CPI padat",
 };
+
+export function pitchLabel(cpi: number): string {
+  return PITCH_LABELS[cpi] ?? `${cpi} CPI`;
+}
 
 export const THERMAL_CPI = 25.4 / 1.5;
 
@@ -62,7 +68,7 @@ export function dialectForPaper(paper: number): PrinterDialect {
 }
 
 export function maxColumns(settings: PrinterSettings): number {
-  const cpi = settings.dialect === "escp" ? resolvePitch(settings.cpi) : THERMAL_CPI;
+  const cpi = settings.dialect === "escp" ? settings.cpi : THERMAL_CPI;
   return Math.floor(columnsFor(settings.printable, cpi) / (settings.scale > 1 ? 2 : 1));
 }
 
@@ -77,7 +83,7 @@ export function deviceFor(settings: PrinterSettings): Device {
     paperMm: settings.paper,
     printableMm: settings.printable,
     originMm: Math.max(0, (settings.paper - settings.printable) / 2),
-    cpi: dot ? resolvePitch(settings.cpi) : THERMAL_CPI,
+    cpi: dot ? settings.cpi : THERMAL_CPI,
     condensed: false,
     lineMm: dot ? 25.4 / 6 : 3.75,
     pageMm: dot ? 279.4 : 25.4 / 6,
@@ -88,15 +94,16 @@ export function deviceFor(settings: PrinterSettings): Device {
   };
 }
 
-export const PRINTER_PROFILE_VERSION = 11;
+export const PRINTER_PROFILE_VERSION = 12;
 
 export const RECOMMENDED_GEOMETRY = {
   dialect: "escp" as PrinterDialect,
   paper: 241,
   printable: 203.2,
-  cpi: 17.14,
+  cpi: 18,
   scale: 1,
-  width: 136,
+  width: 142,
+  indent: 1,
   cut: false,
   tearFeed: 0,
   pageLines: 52,

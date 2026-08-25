@@ -1,5 +1,5 @@
 import { SaleItem } from "@/types";
-import { PrinterSettings, resolvePitch, PITCHES, PITCH_LABELS } from "@/db/settings";
+import { PrinterSettings, resolvePitch, PITCHES, PITCH_LABELS, pitchLabel } from "@/db/settings";
 import { columnsFor } from "@/lib/escInterpreter";
 
 const ESC = 0x1b;
@@ -335,6 +335,7 @@ export function receiptLines(data: ReceiptData, settings: PrinterSettings): stri
 
 export function pitchBytes(input: number): number[] {
   const cpi = resolvePitch(input);
+  if (Math.abs(cpi - input) > 0.01) return [];
   if (cpi === 12) return [DC2, ESC, 0x4d];
   if (cpi === 15) return [DC2, ESC, 0x67];
   if (cpi === 17.14) return [ESC, 0x50, SI];
@@ -345,6 +346,11 @@ export function pitchBytes(input: number): number[] {
 export const LINE_SPACING_216 = 45;
 
 export const LINE_MM = (LINE_SPACING_216 * 25.4) / 216;
+
+function restorePitch(settings: PrinterSettings): number[] {
+  const set = pitchBytes(settings.cpi);
+  return set.length ? set : [ESC, 0x40];
+}
 
 function preamble(settings: PrinterSettings): number[] {
   if (settings.dialect !== "escp") return [ESC, 0x40, ESC, 0x74, 0x00];
@@ -391,7 +397,7 @@ export function buildRuler(settings: PrinterSettings): Uint8Array {
       bytes.push(...ascii(`${PITCH_LABELS[cpi]} 60 kolom = ${Math.round((60 / cpi) * 25.4)} mm`), 0x0a);
       bytes.push(...ascii(rulerLine(60)), 0x0a);
     }
-    bytes.push(...pitchBytes(settings.cpi));
+    bytes.push(...restorePitch(settings));
     bytes.push(0x0a);
     bytes.push(...ascii("B. BATAS KOLOM TIAP KERAPATAN"), 0x0a);
     bytes.push(...ascii("Cari baris paling lebar yang belum melipat."), 0x0a);
@@ -402,9 +408,9 @@ export function buildRuler(settings: PrinterSettings): Uint8Array {
       bytes.push(...ascii(`${PITCH_LABELS[cpi]} pas ${cols} kolom = ${Math.round((cols / cpi) * 25.4)} mm`), 0x0a);
       bytes.push(...ascii(rulerLine(cols)), 0x0a);
     }
-    bytes.push(...pitchBytes(settings.cpi));
+    bytes.push(...restorePitch(settings));
     bytes.push(0x0a);
-    bytes.push(...ascii(`Setelan sekarang ${PITCH_LABELS[resolvePitch(settings.cpi)]} ${settings.width} kolom`), 0x0a);
+    bytes.push(...ascii(`Setelan sekarang ${pitchLabel(settings.cpi)} ${settings.width} kolom mulai kolom ${settings.indent + 1}`), 0x0a);
     bytes.push(0x0a);
     bytes.push(...ascii("C. UJI GARIS SAMBUNG"), 0x0a);
     bytes.push(...ascii("Kalau kotak di bawah bergaris utuh, gaya Sambung bisa dipakai."), 0x0a);
@@ -437,12 +443,13 @@ export function buildReceipt(data: ReceiptData, settings: PrinterSettings): Uint
   const escp = settings.dialect === "escp";
   const bytes: number[] = preamble(settings);
 
+  const lead = escp ? " ".repeat(Math.max(0, settings.indent ?? 0)) : "";
   const headerCap = escp ? settings.width : Math.floor(settings.width / 2);
   const title = fold(settings.header).slice(0, headerCap);
 
   if (escp) {
     bytes.push(...scaleOn(settings));
-    bytes.push(...ascii(center(title, settings.width)), 0x0a);
+    bytes.push(...ascii(lead + center(title, settings.width)), 0x0a);
   } else {
     bytes.push(ESC, 0x61, 0x01);
     bytes.push(ESC, 0x21, 0x30);
@@ -455,7 +462,7 @@ export function buildReceipt(data: ReceiptData, settings: PrinterSettings): Uint
 
   if (!escp) bytes.push(...scaleOn(settings));
   for (const line of body) {
-    bytes.push(...ascii(line), 0x0a);
+    bytes.push(...ascii(line.trim() ? lead + line : line), 0x0a);
   }
   bytes.push(...scaleOff(settings));
 
@@ -464,7 +471,7 @@ export function buildReceipt(data: ReceiptData, settings: PrinterSettings): Uint
 
   if (escp) {
     if (!wide) {
-      bytes.push(...ascii(center(note, settings.width)), 0x0a);
+      bytes.push(...ascii(lead + center(note, settings.width)), 0x0a);
       if (settings.pageLines > 0) {
         const printed = 1 + body.length + 1;
         for (let i = printed; i < settings.pageLines - 1; i += 1) bytes.push(0x0a);
