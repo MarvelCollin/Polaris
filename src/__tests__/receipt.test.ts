@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { buildReceipt, buildRuler, receiptLines, twoCol, wrap, money, formatQty, pitchBytes, previewBytes, sampleReceipt, terbilang, WIDE_MIN, BOX, LINE_MM, LINE_SPACING_216 } from "@/lib/escpos";
+import { buildReceipt, buildRuler, receiptLines, twoCol, wrap, money, formatQty, pitchBytes, previewBytes, sampleReceipt, terbilang, WIDE_MIN, BOX, LINE_MM, LINE_SPACING_216, buildPositionTest, PROBE_LINES, PROBE_TAIL } from "@/lib/escpos";
 import { interpret, columnsFor, condensedCpi, Device } from "@/lib/escInterpreter";
 import { DEFAULT_PRINTER_SETTINGS, RECOMMENDED_GEOMETRY, deviceFor, maxColumns, upgradePrinterSettings, PRINTER_PROFILE_VERSION, PrinterSettings } from "@/db/settings";
 import { SaleItem } from "@/types";
@@ -257,6 +257,36 @@ describe("fixed page height", () => {
 
   it("keeps the form feed as the very last byte so auto tear off can fire", () => {
     const bytes = buildReceipt(base, { ...dot, pageLines: 0 });
+    expect(bytes[bytes.length - 1]).toBe(0x0c);
+  });
+});
+
+describe("position probe sheet", () => {
+  function lines(settings: PrinterSettings): string[] {
+    return new TextDecoder().decode(buildPositionTest(settings)).split(String.fromCharCode(10));
+  }
+
+  it("numbers both ends of every line so a photo shows the margins", () => {
+    const printed = lines(dot).filter((l) => l.startsWith(" 010") || l.startsWith(" 080"));
+    expect(printed).toHaveLength(2);
+    for (const line of printed) {
+      expect(line.trimStart().startsWith(line.trimEnd().slice(-3))).toBe(true);
+      expect(line).toHaveLength(dot.indent + dot.width);
+    }
+  });
+
+  it("walks past one sheet so the perforation falls on a known number", () => {
+    expect(PROBE_LINES * (25.4 / 6)).toBeGreaterThan(279.4);
+  });
+
+  it("repeats a short block after each form feed to expose drift", () => {
+    const text = lines(dot);
+    expect(text.some((l) => l.includes("F01"))).toBe(true);
+    expect(text.some((l) => l.includes(`G0${PROBE_TAIL}`))).toBe(true);
+  });
+
+  it("keeps the form feed as the very last byte", () => {
+    const bytes = buildPositionTest(dot);
     expect(bytes[bytes.length - 1]).toBe(0x0c);
   });
 });

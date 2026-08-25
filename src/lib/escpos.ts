@@ -384,6 +384,35 @@ export function rulerLine(width: number): string {
   return out;
 }
 
+export const PROBE_LINES = 80;
+
+export const PROBE_TAIL = 8;
+
+function markerLine(width: number, label: string, index: number): string {
+  const fill = index % 10 === 0 ? "=" : index % 5 === 0 ? "-" : ".";
+  const span = Math.max(1, width - label.length * 2 - 2);
+  return label + " " + fill.repeat(span) + " " + label;
+}
+
+export function buildPositionTest(settings: PrinterSettings): Uint8Array {
+  const bytes: number[] = preamble(settings);
+  const lead = settings.dialect === "escp" ? " ".repeat(Math.max(0, settings.indent ?? 0)) : "";
+  const say = (text: string) => bytes.push(...ascii(lead + text), 0x0a);
+
+  for (let i = 1; i <= PROBE_LINES; i += 1) say(markerLine(settings.width, String(i).padStart(3, "0"), i));
+  bytes.push(0x0c);
+
+  for (let i = 1; i <= PROBE_TAIL; i += 1) say(markerLine(settings.width, "F" + String(i).padStart(2, "0"), i));
+  bytes.push(0x0c);
+
+  for (let i = 1; i <= PROBE_TAIL; i += 1) say(markerLine(settings.width, "G" + String(i).padStart(2, "0"), i));
+  say(rulerLine(settings.width));
+  say(`UJI POSISI ${settings.width} kolom mulai kolom ${settings.indent + 1}`);
+  bytes.push(0x0c);
+
+  return new Uint8Array(bytes);
+}
+
 export function buildRuler(settings: PrinterSettings): Uint8Array {
   const escp = settings.dialect === "escp";
   const bytes: number[] = escp ? [ESC, 0x40, ESC, 0x32, ESC, 0x4f] : [ESC, 0x40, ESC, 0x74, 0x00];

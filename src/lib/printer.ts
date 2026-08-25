@@ -1,7 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { getSaleById, getSaleItems } from "@/db/sales";
 import { getPrinterSettings, PrinterSettings } from "@/db/settings";
-import { buildReceipt, buildRuler, sampleReceipt, ReceiptData } from "@/lib/escpos";
+import { buildReceipt, buildRuler, buildPositionTest, sampleReceipt, ReceiptData } from "@/lib/escpos";
 
 export type PrinterHealth = "disabled" | "unset" | "missing" | "blocked" | "ready";
 
@@ -90,4 +90,9 @@ export async function printTest(settings: PrinterSettings): Promise<void> {
 export async function printRuler(settings: PrinterSettings): Promise<void> {
   if (!settings.name) throw new Error("Printer belum dipilih");
   await printRaw(settings.name, buildRuler(settings));
+}
+
+export async function printPositionTest(settings: PrinterSettings): Promise<void> {
+  if (!settings.name) throw new Error("Printer belum dipilih");
+  await printRaw(settings.name, buildPositionTest(settings));
 }

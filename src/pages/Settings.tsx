@@ -4,7 +4,7 @@ import { useFontSize, FONT_SIZE_LABELS, type FontSize } from "@/hooks/useFontSiz
 import { useUpdate } from "@/hooks/useUpdate";
 import { changePassword } from "@/db/auth";
 import { getPrinterSettings, savePrinterSettings, DEFAULT_PRINTER_SETTINGS, PrinterSettings } from "@/db/settings";
-import { listPrinters, printTest, printRuler, printerStatus, PrinterState } from "@/lib/printer";
+import { listPrinters, printTest, printRuler, printPositionTest, printerStatus, PrinterState } from "@/lib/printer";
 import PagePreview from "@/components/PagePreview";
 import SearchableSelect from "@/components/SearchableSelect";
 import { resetTransactionData } from "@/database";
@@ -265,6 +265,19 @@ function PrinterSection() {
     setBusy(false);
   }
 
+  async function handlePosition() {
+    setBusy(true);
+    setError("");
+    setStatus("");
+    try {
+      await printPositionTest(settings);
+      setStatus("Lembar uji posisi terkirim, foto ketiga lembarnya");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    }
+    setBusy(false);
+  }
+
   async function handleTest() {
     setBusy(true);
     setError("");
@@ -380,6 +393,9 @@ function PrinterSection() {
           </Button>
           <Button variant="outline" onClick={handleRuler} disabled={busy || !settings.name}>
             Cetak Diagnosa
+          </Button>
+          <Button variant="outline" onClick={handlePosition} disabled={busy || !settings.name}>
+            Cetak Uji Posisi
           </Button>
 
           {dirty && <span className="text-sm text-amber-600 dark:text-amber-400">Belum disimpan</span>}
