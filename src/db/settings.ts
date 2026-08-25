@@ -132,15 +132,17 @@ export async function setSetting(key: string, value: string): Promise<void> {
 }
 
 export function upgradePrinterSettings(saved: Partial<PrinterSettings>): PrinterSettings {
-  const merged = { ...DEFAULT_PRINTER_SETTINGS, ...saved };
-  if ((saved.version ?? 0) < PRINTER_PROFILE_VERSION) {
-    return { ...merged, ...RECOMMENDED_GEOMETRY, version: PRINTER_PROFILE_VERSION };
-  }
-  if (saved.dialect == null) merged.dialect = dialectForPaper(merged.paper);
-  if (saved.printable == null) merged.printable = printableForPaper(merged.paper);
-  if (saved.cpi == null) merged.cpi = merged.dialect === "escp" ? 10 : THERMAL_CPI;
-  if (saved.width == null) merged.width = columnsForPaper(merged.paper);
-  return merged;
+  return {
+    ...DEFAULT_PRINTER_SETTINGS,
+    enabled: saved.enabled ?? DEFAULT_PRINTER_SETTINGS.enabled,
+    name: saved.name ?? DEFAULT_PRINTER_SETTINGS.name,
+    header: saved.header?.trim() || DEFAULT_PRINTER_SETTINGS.header,
+    address: saved.address?.trim() || DEFAULT_PRINTER_SETTINGS.address,
+    phone: saved.phone?.trim() || DEFAULT_PRINTER_SETTINGS.phone,
+    footer: saved.footer?.trim() || DEFAULT_PRINTER_SETTINGS.footer,
+    ...RECOMMENDED_GEOMETRY,
+    version: PRINTER_PROFILE_VERSION,
+  };
 }
 
 export async function getPrinterSettings(): Promise<PrinterSettings> {
@@ -157,5 +159,16 @@ export async function getPrinterSettings(): Promise<PrinterSettings> {
 }
 
 export async function savePrinterSettings(settings: PrinterSettings): Promise<void> {
-  await setSetting(PRINTER_KEY, JSON.stringify(settings));
+  await setSetting(
+    PRINTER_KEY,
+    JSON.stringify({
+      version: PRINTER_PROFILE_VERSION,
+      enabled: settings.enabled,
+      name: settings.name,
+      header: settings.header,
+      address: settings.address,
+      phone: settings.phone,
+      footer: settings.footer,
+    })
+  );
 }

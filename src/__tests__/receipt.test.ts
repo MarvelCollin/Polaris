@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { buildReceipt, buildRuler, receiptLines, twoCol, wrap, money, formatQty, pitchBytes, previewBytes, sampleReceipt, terbilang, WIDE_MIN, BOX, LINE_MM, LINE_SPACING_216 } from "@/lib/escpos";
 import { interpret, columnsFor, condensedCpi, Device } from "@/lib/escInterpreter";
-import { DEFAULT_PRINTER_SETTINGS, deviceFor, maxColumns, upgradePrinterSettings, PRINTER_PROFILE_VERSION, PrinterSettings } from "@/db/settings";
+import { DEFAULT_PRINTER_SETTINGS, RECOMMENDED_GEOMETRY, deviceFor, maxColumns, upgradePrinterSettings, PRINTER_PROFILE_VERSION, PrinterSettings } from "@/db/settings";
 import { SaleItem } from "@/types";
 
 const dot: PrinterSettings = { ...DEFAULT_PRINTER_SETTINGS, name: "TD630S", enabled: true, header: "POLARIS", address: "", phone: "" };
@@ -326,12 +326,19 @@ describe("forced profile upgrade", () => {
     expect(next.footer).toBe("Sampai jumpa");
   });
 
-  it("leaves a config alone once it is already on the current profile", () => {
-    const tuned = { ...DEFAULT_PRINTER_SETTINGS, cpi: 15, width: 120, tearFeed: 4 };
+  it("pins the layout back even when a stored row carries other geometry", () => {
+    const tuned = { ...DEFAULT_PRINTER_SETTINGS, cpi: 15, width: 120, tearFeed: 4, paper: 76 };
     const next = upgradePrinterSettings(tuned);
-    expect(next.cpi).toBe(15);
-    expect(next.width).toBe(120);
-    expect(next.tearFeed).toBe(4);
+    expect(next.cpi).toBe(RECOMMENDED_GEOMETRY.cpi);
+    expect(next.width).toBe(RECOMMENDED_GEOMETRY.width);
+    expect(next.tearFeed).toBe(RECOMMENDED_GEOMETRY.tearFeed);
+    expect(next.paper).toBe(241);
+  });
+
+  it("falls back to the shop identity in code when the stored row is blank", () => {
+    const next = upgradePrinterSettings({ version: PRINTER_PROFILE_VERSION, address: "", phone: "  " });
+    expect(next.address).toBe(DEFAULT_PRINTER_SETTINGS.address);
+    expect(next.phone).toBe(DEFAULT_PRINTER_SETTINGS.phone);
   });
 
   it("fills the printable area at the recommended profile", () => {
