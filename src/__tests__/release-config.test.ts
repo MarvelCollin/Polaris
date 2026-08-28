@@ -5,6 +5,7 @@ import tauriConf from "../../src-tauri/tauri.conf.json";
 
 const root = path.resolve(__dirname, "../..");
 const read = (p: string) => readFileSync(path.join(root, p), "utf8");
+const toLines = (text: string) => text.split("\n").map((l) => l.trim()).filter(Boolean);
 
 const DIST_REPO = "MarvelCollin/Polaris-dist";
 const SECRET_KEYS = [
@@ -61,8 +62,9 @@ describe("secrets never reach the public repo", () => {
   });
 
   it("leaves no value in the example file", () => {
-    const example = read("src-tauri/gdrive_secrets.example.toml");
-    for (const line of example.split("\n").filter(Boolean)) {
+    const lines = toLines(read("src-tauri/gdrive_secrets.example.toml"));
+    expect(lines).toHaveLength(SECRET_KEYS.length);
+    for (const line of lines) {
       expect(line).toMatch(/^\w+ = ""$/);
     }
   });
