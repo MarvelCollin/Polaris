@@ -40,7 +40,7 @@
     "updater": {
       "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDgwQjhBQjc3NkU0NjEwM0QKUldROUVFWnVkNnU0Z004MC8yakxWOTlhbDJQbHY2RmVvRXdaMW0wMTlNUnNHeFhWQSswWm5CMGoK",
       "endpoints": [
-        "https://api.github.com/repos/MarvelCollin/Polaris/contents/latest.json?ref=updater"
+        "https://api.github.com/repos/MarvelCollin/Polaris-dist/contents/latest.json?ref=updater"
       ]
     }
   }

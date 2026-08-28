@@ -1,4 +1,4 @@
-const REPO = process.env.REPO ?? "MarvelCollin/Polaris";
+const REPO = process.env.REPO ?? "MarvelCollin/Polaris-dist";
 const BRANCH = process.env.BRANCH ?? "updater";
 const TOKEN = process.env.GITHUB_TOKEN ?? "";
 const ENDPOINT = `https://api.github.com/repos/${REPO}/contents/latest.json?ref=${BRANCH}`;
