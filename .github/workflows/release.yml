@@ -5,6 +5,9 @@ on:
     tags:
       - "v*"
 
+env:
+  DIST_REPO: MarvelCollin/Polaris-dist
+
 jobs:
   release:
     permissions:
@@ -39,6 +42,8 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
+      - run: pnpm test
+
       - name: Write secrets
         shell: bash
         run: |
@@ -54,24 +59,35 @@ jobs:
 
       - uses: tauri-apps/tauri-action@v0
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-        with:
-          tagName: v__VERSION__
-          releaseName: "Polaris v__VERSION__"
-          releaseBody: "See the assets to download this version and install."
-          releaseDraft: false
-          prerelease: false
+
+      - name: Publish installers to the dist repo
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.DIST_TOKEN }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          if gh release view "$TAG" --repo "$DIST_REPO" >/dev/null 2>&1; then
+            gh release delete "$TAG" --repo "$DIST_REPO" --yes --cleanup-tag
+          fi
+          gh release create "$TAG" \
+            --repo "$DIST_REPO" \
+            --target main \
+            --title "Polaris $TAG" \
+            --notes "See the assets to download this version and install." \
+            src-tauri/target/release/bundle/nsis/*
 
       - name: Publish updater manifest
         shell: bash
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.DIST_TOKEN }}
+          LEGACY_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG: ${{ github.ref_name }}
         run: |
           set -euo pipefail
-          api="https://api.github.com/repos/${GITHUB_REPOSITORY}"
+          api="https://api.github.com/repos/${DIST_REPO}"
           auth="Authorization: Bearer ${GH_TOKEN}"
           release=$(curl -sSf -H "$auth" -H "Accept: application/vnd.github+json" "$api/releases/tags/${TAG}")
           version="${TAG#v}"
@@ -93,11 +109,23 @@ jobs:
             pub_date: $d,
             platforms: { "windows-x86_64": { signature: $s, url: $u } }
           }' > "${RUNNER_TEMP}/latest.json"
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git checkout --orphan updater-publish
-          git reset --hard
-          cp "${RUNNER_TEMP}/latest.json" latest.json
-          git add latest.json
-          git commit -m "chore: publish updater manifest for ${TAG}"
-          git push --force origin updater-publish:updater
+
+          publish_manifest() {
+            local repo="$1"
+            local token="$2"
+            local dir="${RUNNER_TEMP}/manifest-$(echo "$repo" | tr '/' '-')"
+            rm -rf "$dir"
+            mkdir -p "$dir"
+            cd "$dir"
+            git init -q -b updater
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            cp "${RUNNER_TEMP}/latest.json" latest.json
+            git add latest.json
+            git commit -q -m "chore: publish updater manifest for ${TAG}"
+            git push -q --force "https://x-access-token:${token}@github.com/${repo}.git" updater:updater
+            cd "${RUNNER_TEMP}"
+          }
+
+          publish_manifest "$DIST_REPO" "$GH_TOKEN"
+          publish_manifest "$GITHUB_REPOSITORY" "$LEGACY_TOKEN"
