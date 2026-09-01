@@ -178,9 +178,11 @@ function columns(settings: PrinterSettings) {
   const qty = 5;
   const harga = 11;
   const jumlah = 12;
-  const pad = boxed(settings) ? 16 : 10;
-  const nama = Math.max(10, settings.width - (no + qty + harga + jumlah + pad));
-  return { no, nama, qty, harga, jumlah };
+  const pad = boxed(settings) ? 19 : 12;
+  const rest = settings.width - (no + qty + harga + jumlah + pad);
+  const kode = Math.min(10, Math.max(7, rest - 20));
+  const nama = Math.max(10, rest - kode);
+  return { no, kode, nama, qty, harga, jumlah };
 }
 
 function labelSpan(settings: PrinterSettings): number {
@@ -196,17 +198,18 @@ function rule(settings: PrinterSettings, position: RulePosition = "middle"): str
   const left = position === "top" ? g.tl : position === "bottom" ? g.bl : g.lt;
   const right = position === "top" ? g.tr : position === "bottom" ? g.br : g.rt;
   const join = position === "top" ? g.tt : position === "bottom" ? g.bt : g.x;
-  return left + [w.no, w.nama, w.qty, w.harga, w.jumlah].map((n) => g.h.repeat(n + 2)).join(join) + right;
+  return left + [w.no, w.kode, w.nama, w.qty, w.harga, w.jumlah].map((n) => g.h.repeat(n + 2)).join(join) + right;
 }
 
-function row(settings: PrinterSettings, a: string, b: string, c: string, d: string, e: string): string {
+function row(settings: PrinterSettings, a: string, b: string, c: string, d: string, e: string, f: string): string {
   const w = columns(settings);
   const cells = [
     cell(a, w.no, "r"),
-    cell(b, w.nama),
-    cell(c, w.qty, "r"),
-    cell(d, w.harga, "r"),
-    cell(e, w.jumlah, "r"),
+    cell(b, w.kode),
+    cell(c, w.nama),
+    cell(d, w.qty, "r"),
+    cell(e, w.harga, "r"),
+    cell(f, w.jumlah, "r"),
   ];
   if (!boxed(settings)) return " " + cells.join("  ") + " ";
   const g = glyphs(settings);
@@ -258,13 +261,13 @@ function invoiceLines(data: ReceiptData, settings: PrinterSettings): string[] {
   lines.push(pair(width, "Pelanggan", fold(data.pelanggan || "Umum"), "Pembayaran", data.metode || "Tunai"));
   lines.push("");
   lines.push(rule(settings, "top"));
-  lines.push(row(settings, "No", "Nama Barang", "Qty", "Harga", "Jumlah"));
+  lines.push(row(settings, "No", "Kode", "Nama Barang", "Qty", "Harga", "Jumlah"));
   lines.push(rule(settings));
 
   data.items.forEach((item, index) => {
     const names = wrap(fold(item.nama_produk), columns(settings).nama);
-    lines.push(row(settings, String(index + 1), names[0], formatQty(item.jumlah), money(item.harga_satuan), money(item.subtotal)));
-    for (const extra of names.slice(1)) lines.push(row(settings, "", extra, "", "", ""));
+    lines.push(row(settings, String(index + 1), fold(item.kode ?? ""), names[0], formatQty(item.jumlah), money(item.harga_satuan), money(item.subtotal)));
+    for (const extra of names.slice(1)) lines.push(row(settings, "", "", extra, "", "", ""));
   });
 
   lines.push(rule(settings));
@@ -525,9 +528,9 @@ export function buildReceipt(data: ReceiptData, settings: PrinterSettings): Uint
 }
 
 const SAMPLE_ITEMS: SaleItem[] = [
-  { id: 1, penjualan_id: 0, produk_id: 1, nama_produk: "Semen Tiga Roda 50kg", jumlah: 3, harga_satuan: 68000, subtotal: 204000 },
-  { id: 2, penjualan_id: 0, produk_id: 2, nama_produk: "Cat Tembok Avitex 5kg Putih", jumlah: 2, harga_satuan: 87500, subtotal: 175000 },
-  { id: 3, penjualan_id: 0, produk_id: 3, nama_produk: "Paku Beton 5cm", jumlah: 1.5, harga_satuan: 24000, subtotal: 36000 },
+  { id: 1, penjualan_id: 0, produk_id: 1, kode: "SMN-001", nama_produk: "Semen Tiga Roda 50kg", jumlah: 3, harga_satuan: 68000, subtotal: 204000 },
+  { id: 2, penjualan_id: 0, produk_id: 2, kode: "CAT-002", nama_produk: "Cat Tembok Avitex 5kg Putih", jumlah: 2, harga_satuan: 87500, subtotal: 175000 },
+  { id: 3, penjualan_id: 0, produk_id: 3, kode: "BMR-003", nama_produk: "Paku Beton 5cm", jumlah: 1.5, harga_satuan: 24000, subtotal: 36000 },
 ];
 
 export function sampleReceipt(now: Date = new Date()): ReceiptData {

@@ -71,6 +71,7 @@ export interface SaleItem {
   jumlah: number;
   harga_satuan: number;
   subtotal: number;
+  kode?: string | null;
 }
 
 export interface Purchase {

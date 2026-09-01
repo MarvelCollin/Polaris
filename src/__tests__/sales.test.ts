@@ -118,15 +118,26 @@ describe("sales", () => {
 
   it("should fetch sale items by sale id", async () => {
     const mockItems = [
-      { id: 1, penjualan_id: 1, nama_produk: "Semen", jumlah: 5 },
+      { id: 1, penjualan_id: 1, produk_id: 7, kode: "SMN-001", nama_produk: "Semen", jumlah: 5 },
     ];
     mockDb.select.mockResolvedValueOnce(mockItems);
     const result = await getSaleItems(1);
     expect(result).toEqual(mockItems);
-    expect(mockDb.select).toHaveBeenCalledWith(
-      "SELECT * FROM item_penjualan WHERE penjualan_id = $1",
-      [1]
-    );
+    const [sql, params] = mockDb.select.mock.calls[0];
+    expect(sql as string).toContain("FROM item_penjualan i");
+    expect(sql as string).toContain("LEFT JOIN produk pr ON pr.id = i.produk_id");
+    expect(sql as string).toContain("WHERE i.penjualan_id = $1");
+    expect(params).toEqual([1]);
+  });
+
+  it("keeps the item when its product has since been deleted", async () => {
+    mockDb.select.mockResolvedValueOnce([
+      { id: 1, penjualan_id: 1, produk_id: 7, kode: null, nama_produk: "Semen", jumlah: 5 },
+    ]);
+    const [item] = await getSaleItems(1);
+    expect(item.kode).toBeNull();
+    expect(item.nama_produk).toBe("Semen");
+    expect((mockDb.select.mock.calls[0][0] as string)).toContain("LEFT JOIN");
   });
 
   it("should apply discount to sale total", async () => {

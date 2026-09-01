@@ -397,9 +397,49 @@ describe("formal invoice layout", () => {
     const lines = receiptLines(sampleReceipt(base.tanggal), shop);
     const head = lines.find((l) => l.includes("Nama Barang"));
     expect(head).toBeDefined();
+    expect(head).toContain("Kode");
     expect(head).toContain("Qty");
     expect(head).toContain("Harga");
     expect(head).toContain("Jumlah");
+  });
+
+  it("puts the code between the number and the name", () => {
+    const head = receiptLines(sampleReceipt(base.tanggal), shop).find((l) => l.includes("Nama Barang"))!;
+    expect(head.indexOf("No")).toBeLessThan(head.indexOf("Kode"));
+    expect(head.indexOf("Kode")).toBeLessThan(head.indexOf("Nama Barang"));
+  });
+
+  it("prints each item code in the table", () => {
+    const text = receiptLines(sampleReceipt(base.tanggal), shop).join("\n");
+    expect(text).toContain("SMN-001");
+    expect(text).toContain("CAT-002");
+    expect(text).toContain("BMR-003");
+  });
+
+  it("leaves the code blank when the product is gone", () => {
+    const data = sampleReceipt(base.tanggal);
+    const lines = receiptLines({ ...data, items: [{ ...data.items[0], kode: null }] }, shop);
+    const body = lines.find((l) => l.includes("Semen Tiga Roda"))!;
+    expect(body).not.toContain("SMN-001");
+    expect(body).toContain("Semen Tiga Roda");
+  });
+
+  it("repeats neither number nor code on a wrapped name", () => {
+    const data = sampleReceipt(base.tanggal);
+    const long = { ...data.items[0], kode: "SMN-001", nama_produk: "Semen Tiga Roda Serbaguna Kemasan Lima Puluh Kilogram Per Sak" };
+    const lines = receiptLines({ ...data, items: [long] }, { ...shop, width: 74 });
+    const rows = lines.filter((l) => l.includes("Semen") || l.includes("Kilogram"));
+    expect(rows.length).toBeGreaterThan(1);
+    expect(rows.slice(1).join("\n")).not.toContain("SMN-001");
+  });
+
+  it("keeps every table line the same width as the paper", () => {
+    for (const style of ["kotak", "sambung", "garis"] as const) {
+      const lines = receiptLines(sampleReceipt(base.tanggal), { ...shop, tableStyle: style });
+      const table = lines.filter((l) => l.includes("Nama Barang") || l.includes("SMN-001"));
+      expect(table.length).toBeGreaterThan(0);
+      for (const line of table) expect(line.length).toBe(shop.width);
+    }
   });
 
   it("carries the shop address and phone when they are filled", () => {

@@ -130,7 +130,10 @@ export async function getSaleById(saleId: number): Promise<Sale | null> {
 export async function getSaleItems(saleId: number): Promise<SaleItem[]> {
   const db = await getDb();
   return await db.select(
-    "SELECT * FROM item_penjualan WHERE penjualan_id = $1",
+    `SELECT i.*, pr.kode
+     FROM item_penjualan i
+     LEFT JOIN produk pr ON pr.id = i.produk_id
+     WHERE i.penjualan_id = $1`,
     [saleId]
   );
 }
