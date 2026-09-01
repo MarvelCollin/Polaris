@@ -3358,7 +3358,7 @@ dependencies = [
 
 [[package]]
 name = "polaris"
-version = "2.12.1"
+version = "2.12.2"
 dependencies = [
  "base64 0.22.1",
  "chrono",
