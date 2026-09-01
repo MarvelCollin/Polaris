@@ -31,10 +31,16 @@ The app checks `https://api.github.com/repos/MarvelCollin/Polaris-dist/contents/
 | Secret | Used by | Access needed |
 | --- | --- | --- |
 | `DIST_TOKEN` | CI only, never shipped | Contents read and write on `Polaris-dist` |
-| `UPDATER_TOKEN` | Compiled into the app | Contents read only on `Polaris-dist` |
+| `UPDATER_TOKEN` | Compiled into the app | Contents read only on `Polaris` and `Polaris-dist` |
+
+`UPDATER_TOKEN` needs both repositories. Every release also force pushes the same manifest to the `updater` branch of this repository, because copies from v2.8.0 to v2.12.0 were built before the dist repository existed and still check `https://api.github.com/repos/MarvelCollin/Polaris/contents/latest.json?ref=updater`. That manifest points at an installer on `Polaris-dist`, so a token that reads only one of the two lets the check succeed and the download fail.
+
+Rotating `UPDATER_TOKEN` does not reach copies that are already installed. They keep the token they were compiled with, so the older token has to stay alive and gain access to `Polaris-dist` rather than being replaced. Revoking it is not recoverable over the air: `api.github.com` answers 401 for a rejected token even on a public repository, so those copies cannot read the manifest at all and have to be reinstalled from a fresh installer.
 
 Verify a published release end to end with:
 
 ```
-GITHUB_TOKEN=<token with read access to Polaris-dist> node scripts/verify-updater.mjs
+UPDATER_TOKEN=<the token compiled into the app> pnpm verify:updater
 ```
+
+That walks both the current and the legacy endpoint, downloads each installer it finds, and names the repository the token is missing when the two are on different repositories. Set `REPO` to check a single one.

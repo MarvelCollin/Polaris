@@ -9,7 +9,8 @@
     "preview": "vite preview",
     "tauri": "tauri",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "verify:updater": "node scripts/verify-updater.mjs"
   },
   "dependencies": {
     "@tauri-apps/api": "^2",

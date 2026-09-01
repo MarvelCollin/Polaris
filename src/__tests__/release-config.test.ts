@@ -90,4 +90,38 @@ describe("release workflow", () => {
   it("still refreshes the old endpoint so installed copies can migrate", () => {
     expect(workflow).toContain('publish_manifest "$GITHUB_REPOSITORY"');
   });
+
+  it("verifies the endpoints with the token the app carries, not the dist token", () => {
+    const verify = workflow.slice(workflow.indexOf("Verify both endpoints"));
+    expect(verify).toContain("node scripts/verify-updater.mjs");
+    expect(verify).toContain("UPDATER_TOKEN: ${{ secrets.UPDATER_TOKEN }}");
+    expect(verify).not.toContain("secrets.DIST_TOKEN");
+  });
+
+  it("verifies only after both manifests are published", () => {
+    expect(workflow.indexOf('publish_manifest "$GITHUB_REPOSITORY"'))
+      .toBeLessThan(workflow.indexOf("Verify both endpoints"));
+  });
+});
+
+describe("updater verifier", () => {
+  const script = read("scripts/verify-updater.mjs");
+
+  it("checks the legacy endpoint as well as the current one", () => {
+    expect(script).toContain(DIST_REPO);
+    expect(script).toContain('SOURCE_REPO = "MarvelCollin/Polaris"');
+  });
+
+  it("prefers the baked token over whatever else is in the environment", () => {
+    expect(script).toContain("process.env.UPDATER_TOKEN ?? process.env.GITHUB_TOKEN");
+  });
+
+  it("downloads the installer so a manifest that only looks right still fails", () => {
+    expect(script).toContain('report(bin.ok, "installer downloads"');
+  });
+
+  it("names the repo the token is missing when the manifest and installer differ", () => {
+    expect(script).toContain("installerRepo !== repo");
+    expect(script).toContain("Contents: Read on ${installerRepo}");
+  });
 });

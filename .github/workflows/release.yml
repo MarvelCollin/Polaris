@@ -129,3 +129,10 @@ jobs:
 
           publish_manifest "$DIST_REPO" "$GH_TOKEN"
           publish_manifest "$GITHUB_REPOSITORY" "$LEGACY_TOKEN"
+
+      - name: Verify both endpoints with the token the app carries
+        shell: bash
+        working-directory: ${{ github.workspace }}
+        env:
+          UPDATER_TOKEN: ${{ secrets.UPDATER_TOKEN }}
+        run: node scripts/verify-updater.mjs
