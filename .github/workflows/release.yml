@@ -7,6 +7,13 @@ on:
 
 env:
   DIST_REPO: MarvelCollin/Polaris-dist
+  # Temporary. Copies from v2.8.0 to v2.12.0 carry a token that can only read
+  # public repositories, so they cannot fetch an installer out of the private
+  # dist repo. While this is "true" the same installer is also published here,
+  # in public, and the legacy manifest points at that public copy instead.
+  # The installer has the Turso, Midtrans and Drive credentials compiled in, so
+  # set this back to "false" once those copies have migrated to v2.12.1 or later.
+  PUBLIC_MIGRATION: "true"
 
 jobs:
   release:
@@ -79,6 +86,24 @@ jobs:
             --notes "See the assets to download this version and install." \
             src-tauri/target/release/bundle/nsis/*
 
+      - name: Publish a public migration copy for the pre v2.12.1 endpoint
+        if: env.PUBLIC_MIGRATION == 'true'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release delete "$TAG" --repo "$GITHUB_REPOSITORY" --yes
+          fi
+          gh release create "$TAG" \
+            --repo "$GITHUB_REPOSITORY" \
+            --target main \
+            --title "Polaris $TAG migration build" \
+            --notes "Published so copies older than v2.12.1 can update themselves. It is withdrawn once they have. Install from the dist repository instead." \
+            src-tauri/target/release/bundle/nsis/*
+
       - name: Publish updater manifest
         shell: bash
         env:
@@ -87,32 +112,52 @@ jobs:
           TAG: ${{ github.ref_name }}
         run: |
           set -euo pipefail
-          api="https://api.github.com/repos/${DIST_REPO}"
-          auth="Authorization: Bearer ${GH_TOKEN}"
-          release=$(curl -sSf -H "$auth" -H "Accept: application/vnd.github+json" "$api/releases/tags/${TAG}")
           version="${TAG#v}"
-          setup_url=$(echo "$release" | jq -r '.assets[] | select(.name | endswith("x64-setup.nsis.zip")) | .url')
-          sig_url=$(echo "$release" | jq -r '.assets[] | select(.name | endswith("x64-setup.nsis.zip.sig")) | .url')
-          if [ -z "$setup_url" ] || [ "$setup_url" = "null" ]; then
-            echo "installer asset not found on ${TAG}"
-            exit 1
-          fi
+          published=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+
+          asset_url() {
+            local repo="$1" token="$2" suffix="$3"
+            curl -sSf -H "Authorization: Bearer ${token}" -H "Accept: application/vnd.github+json" \
+              "https://api.github.com/repos/${repo}/releases/tags/${TAG}" \
+              | jq -r --arg s "$suffix" '.assets[] | select(.name | endswith($s)) | .url'
+          }
+
+          write_manifest() {
+            local url="$1" out="$2"
+            if [ -z "$url" ] || [ "$url" = "null" ]; then
+              echo "installer asset not found for ${TAG}"
+              exit 1
+            fi
+            jq -n --arg v "$version" --arg d "$published" --arg s "$signature" --arg u "$url" '{
+              version: $v,
+              notes: "See the release page for details.",
+              pub_date: $d,
+              platforms: { "windows-x86_64": { signature: $s, url: $u } }
+            }' > "$out"
+          }
+
+          sig_url=$(asset_url "$DIST_REPO" "$GH_TOKEN" "x64-setup.nsis.zip.sig")
           if [ -z "$sig_url" ] || [ "$sig_url" = "null" ]; then
             echo "signature asset not found on ${TAG}"
             exit 1
           fi
-          signature=$(curl -sSfL -H "$auth" -H "Accept: application/octet-stream" "$sig_url")
-          published=$(date -u +%Y-%m-%dT%H:%M:%SZ)
-          jq -n --arg v "$version" --arg d "$published" --arg s "$signature" --arg u "$setup_url" '{
-            version: $v,
-            notes: "See the release page for details.",
-            pub_date: $d,
-            platforms: { "windows-x86_64": { signature: $s, url: $u } }
-          }' > "${RUNNER_TEMP}/latest.json"
+          signature=$(curl -sSfL -H "Authorization: Bearer ${GH_TOKEN}" -H "Accept: application/octet-stream" "$sig_url")
+
+          write_manifest "$(asset_url "$DIST_REPO" "$GH_TOKEN" "x64-setup.nsis.zip")" "${RUNNER_TEMP}/latest.json"
+
+          # The legacy manifest has to name an installer the old token can actually
+          # reach. That token only reads public repositories, so while the migration
+          # is on it points at the public copy rather than the private dist one.
+          if [ "${PUBLIC_MIGRATION}" = "true" ]; then
+            write_manifest "$(asset_url "$GITHUB_REPOSITORY" "$LEGACY_TOKEN" "x64-setup.nsis.zip")" "${RUNNER_TEMP}/legacy.json"
+          else
+            cp "${RUNNER_TEMP}/latest.json" "${RUNNER_TEMP}/legacy.json"
+          fi
 
           publish_manifest() {
             local repo="$1"
             local token="$2"
+            local manifest="$3"
             local dir="${RUNNER_TEMP}/manifest-$(echo "$repo" | tr '/' '-')"
             rm -rf "$dir"
             mkdir -p "$dir"
@@ -120,15 +165,15 @@ jobs:
             git init -q -b updater
             git config user.name "github-actions[bot]"
             git config user.email "github-actions[bot]@users.noreply.github.com"
-            cp "${RUNNER_TEMP}/latest.json" latest.json
+            cp "$manifest" latest.json
             git add latest.json
             git commit -q -m "chore: publish updater manifest for ${TAG}"
             git push -q --force "https://x-access-token:${token}@github.com/${repo}.git" updater:updater
             cd "${RUNNER_TEMP}"
           }
 
-          publish_manifest "$DIST_REPO" "$GH_TOKEN"
-          publish_manifest "$GITHUB_REPOSITORY" "$LEGACY_TOKEN"
+          publish_manifest "$DIST_REPO" "$GH_TOKEN" "${RUNNER_TEMP}/latest.json"
+          publish_manifest "$GITHUB_REPOSITORY" "$LEGACY_TOKEN" "${RUNNER_TEMP}/legacy.json"
 
       - name: Verify both endpoints with the token the app carries
         shell: bash

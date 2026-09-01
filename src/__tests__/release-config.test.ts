@@ -104,6 +104,38 @@ describe("release workflow", () => {
   });
 });
 
+describe("public migration build", () => {
+  const workflow = read(".github/workflows/release.yml");
+
+  it("is a single flag that can be turned off without touching the steps", () => {
+    expect(workflow).toMatch(/^ {2}PUBLIC_MIGRATION: "(true|false)"$/m);
+  });
+
+  it("gates the public release on that flag", () => {
+    expect(workflow).toContain("if: env.PUBLIC_MIGRATION == 'true'");
+  });
+
+  it("gives the legacy endpoint its own manifest so it can name the public copy", () => {
+    expect(workflow).toContain('publish_manifest "$DIST_REPO" "$GH_TOKEN" "${RUNNER_TEMP}/latest.json"');
+    expect(workflow).toContain('publish_manifest "$GITHUB_REPOSITORY" "$LEGACY_TOKEN" "${RUNNER_TEMP}/legacy.json"');
+  });
+
+  it("falls back to the private installer once the flag is off", () => {
+    expect(workflow).toContain('cp "${RUNNER_TEMP}/latest.json" "${RUNNER_TEMP}/legacy.json"');
+  });
+
+  it("keeps the dist manifest on the private installer either way", () => {
+    const dist = workflow.slice(workflow.indexOf('write_manifest "$(asset_url "$DIST_REPO"'));
+    expect(dist.slice(0, 120)).toContain("$DIST_REPO");
+  });
+
+  it("never deletes the tag it was triggered by", () => {
+    const step = workflow.slice(workflow.indexOf("Publish a public migration copy"), workflow.indexOf("Publish updater manifest"));
+    expect(step).toContain('gh release delete "$TAG" --repo "$GITHUB_REPOSITORY" --yes');
+    expect(step).not.toContain("--cleanup-tag");
+  });
+});
+
 describe("updater verifier", () => {
   const script = read("scripts/verify-updater.mjs");
 
@@ -123,5 +155,10 @@ describe("updater verifier", () => {
   it("names the repo the token is missing when the manifest and installer differ", () => {
     expect(script).toContain("installerRepo !== repo");
     expect(script).toContain("Contents: Read on ${installerRepo}");
+  });
+
+  it("proves the legacy installer is public, which is all the old token can read", () => {
+    expect(script).toContain("anonymous: true");
+    expect(script).toContain('"installer downloads without a token"');
   });
 });

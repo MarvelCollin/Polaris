@@ -7,7 +7,13 @@ const targets = process.env.REPO
   ? [{ repo: process.env.REPO, label: "override" }]
   : [
       { repo: DIST_REPO, label: "current endpoint, shipped since v2.12.1" },
-      { repo: SOURCE_REPO, label: "legacy endpoint, baked into v2.8.0 to v2.12.0" },
+      {
+        repo: SOURCE_REPO,
+        label: "legacy endpoint, baked into v2.8.0 to v2.12.0",
+        // The token those copies carry only reads public repositories, so an
+        // anonymous fetch is the honest test of whether they can update.
+        anonymous: true,
+      },
     ];
 
 let failed = 0;
@@ -27,7 +33,11 @@ function repoOf(url) {
   return url.match(/api\.github\.com\/repos\/([^/]+\/[^/]+)\//)?.[1] ?? null;
 }
 
-async function verify({ repo, label }) {
+function anon(accept) {
+  return { Accept: accept, "User-Agent": "polaris-updater-check" };
+}
+
+async function verify({ repo, label, anonymous }) {
   const endpoint = `https://api.github.com/repos/${repo}/contents/latest.json?ref=${BRANCH}`;
   console.log("");
   console.log(`repo      ${repo}  (${label})`);
@@ -102,6 +112,20 @@ async function verify({ repo, label }) {
     console.log(`The token reads ${repo} but not ${installerRepo}.`);
     console.log(`Grant it Contents: Read on ${installerRepo}, or copies pointed at this`);
     console.log("endpoint will offer the update and then fail while downloading it.");
+  }
+
+  if (!anonymous) return;
+
+  const openManifest = await fetch(endpoint, { headers: anon("application/vnd.github.raw") });
+  report(openManifest.ok, "manifest reachable without a token", `HTTP ${openManifest.status}`);
+  const openBin = await fetch(platform.url, { headers: anon("application/octet-stream") });
+  report(openBin.ok, "installer downloads without a token", `HTTP ${openBin.status}`);
+  if (!openBin.ok) {
+    console.log("");
+    console.log(`The installer on ${installerRepo} is not public.`);
+    console.log("The token compiled into v2.8.0 to v2.12.0 only reads public repositories,");
+    console.log("so those copies cannot fetch it. Either publish a public copy for this");
+    console.log(`endpoint or grant that token Contents: Read on ${installerRepo}.`);
   }
 }
 
