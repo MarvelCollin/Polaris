@@ -11,10 +11,6 @@ export async function getDistinctSuppliers(): Promise<string[]> {
   return rows.map((r) => r.supplier);
 }
 
-function esc(s: string): string {
-  return s.replace(/'/g, "''");
-}
-
 export async function createPurchase(
   supplier: string,
   items: PurchaseEntry[],
@@ -45,38 +41,47 @@ export async function createPurchase(
   const nomor = `PO-${dateStr}-${(countRows[0].count + 1).toString().padStart(4, "0")}`;
   const produkMap = new Map(produkRows.map((r) => [r.id, r]));
 
-  const stmts: string[] = [
-    `INSERT INTO pembelian (supplier, referensi_faktur, total, dibayar) VALUES ('${esc(supplier)}', '${esc(nomor)}', ${total}, ${paid})`,
-  ];
-
-  for (const item of items) {
-    stmts.push(
-      `INSERT INTO item_pembelian (pembelian_id, produk_id, nama_produk, jumlah, harga_satuan, subtotal) VALUES ((SELECT seq FROM sqlite_sequence WHERE name='pembelian'), ${item.produk_id}, '${esc(item.nama)}', ${item.jumlah}, ${item.harga}, ${item.jumlah * item.harga})`
+  await db.execute("BEGIN IMMEDIATE");
+  try {
+    await db.execute(
+      "INSERT INTO pembelian (supplier, referensi_faktur, total, dibayar) VALUES ($1, $2, $3, $4)",
+      [supplier, nomor, total, paid]
     );
+    const idRows: { id: number }[] = await db.select("SELECT last_insert_rowid() as id");
+    const purchaseId = idRows[0].id;
+    if (!purchaseId) throw new Error("Gagal membuat pembelian");
 
-    const produk = produkMap.get(item.produk_id);
-    if (produk) {
-      const newHpp = (produk.stok * produk.harga_beli + item.jumlah * item.harga) / (produk.stok + item.jumlah);
-      stmts.push(
-        `UPDATE produk SET stok = stok + ${item.jumlah}, harga_beli = ${Math.round(newHpp)}, diperbarui_pada = strftime('%s','now') WHERE id = ${item.produk_id}`
+    for (const item of items) {
+      await db.execute(
+        "INSERT INTO item_pembelian (pembelian_id, produk_id, nama_produk, jumlah, harga_satuan, subtotal) VALUES ($1, $2, $3, $4, $5, $6)",
+        [purchaseId, item.produk_id, item.nama, item.jumlah, item.harga, item.jumlah * item.harga]
       );
-      produk.stok += item.jumlah;
-      produk.harga_beli = Math.round(newHpp);
-    } else {
-      stmts.push(
-        `UPDATE produk SET stok = stok + ${item.jumlah}, diperbarui_pada = strftime('%s','now') WHERE id = ${item.produk_id}`
-      );
+
+      const produk = produkMap.get(item.produk_id);
+      if (produk) {
+        const totalStok = produk.stok + item.jumlah;
+        const newHpp = totalStok === 0 ? item.harga : (produk.stok * produk.harga_beli + item.jumlah * item.harga) / totalStok;
+        await db.execute(
+          "UPDATE produk SET stok = stok + $1, harga_beli = $2, diperbarui_pada = strftime('%s','now') WHERE id = $3",
+          [item.jumlah, Math.round(newHpp), item.produk_id]
+        );
+        produk.stok += item.jumlah;
+        produk.harga_beli = Math.round(newHpp);
+      } else {
+        await db.execute(
+          "UPDATE produk SET stok = stok + $1, diperbarui_pada = strftime('%s','now') WHERE id = $2",
+          [item.jumlah, item.produk_id]
+        );
+      }
     }
+
+    await db.execute("COMMIT");
+    syncDb();
+    return purchaseId;
+  } catch (e) {
+    await db.execute("ROLLBACK").catch(() => {});
+    throw e;
   }
-
-  await db.batch(stmts);
-
-  const seqRows: { seq: number }[] = await db.select(
-    "SELECT seq FROM sqlite_sequence WHERE name = $1",
-    ["pembelian"]
-  );
-  syncDb();
-  return seqRows[0]?.seq ?? 0;
 }
 
 export async function getPurchases(
@@ -294,39 +299,48 @@ export async function createPurchaseReturn(
   const db = await getDb();
   const total = items.reduce((sum, i) => sum + i.jumlah * i.harga_satuan, 0);
 
-  const produkIds = items.map((i) => i.produk_id);
-  const placeholders = produkIds.map((_, i) => `$${i + 1}`).join(",");
-  const produkRows: { id: number; stok: number }[] = await db.select(
-    `SELECT id, stok FROM produk WHERE id IN (${placeholders})`,
-    produkIds
-  );
-  const stokMap = new Map(produkRows.map((r) => [r.id, r.stok]));
-
-  for (const item of items) {
-    if ((stokMap.get(item.produk_id) ?? 0) < item.jumlah) {
-      throw new Error(`Stok ${item.nama_produk} tidak mencukupi untuk retur`);
-    }
-  }
-
-  const stmts: string[] = [
-    `INSERT INTO retur_pembelian (pembelian_id, total, alasan) VALUES (${purchaseId}, ${total}, ${alasan ? `'${esc(alasan)}'` : "NULL"})`,
-  ];
-
-  for (const item of items) {
-    stmts.push(
-      `INSERT INTO item_retur_pembelian (retur_id, produk_id, nama_produk, jumlah, harga_satuan, subtotal) VALUES ((SELECT seq FROM sqlite_sequence WHERE name='retur_pembelian'), ${item.produk_id}, '${esc(item.nama_produk)}', ${item.jumlah}, ${item.harga_satuan}, ${item.jumlah * item.harga_satuan})`,
-      `UPDATE produk SET stok = stok - ${item.jumlah}, diperbarui_pada = strftime('%s','now') WHERE id = ${item.produk_id}`
+  await db.execute("BEGIN IMMEDIATE");
+  try {
+    const produkIds = items.map((i) => i.produk_id);
+    const placeholders = produkIds.map((_, i) => `$${i + 1}`).join(",");
+    const produkRows: { id: number; stok: number }[] = await db.select(
+      `SELECT id, stok FROM produk WHERE id IN (${placeholders})`,
+      produkIds
     );
+    const stokMap = new Map(produkRows.map((r) => [r.id, r.stok]));
+
+    for (const item of items) {
+      if ((stokMap.get(item.produk_id) ?? 0) < item.jumlah) {
+        throw new Error(`Stok ${item.nama_produk} tidak mencukupi untuk retur`);
+      }
+    }
+
+    await db.execute(
+      "INSERT INTO retur_pembelian (pembelian_id, total, alasan) VALUES ($1, $2, $3)",
+      [purchaseId, total, alasan || null]
+    );
+    const idRows: { id: number }[] = await db.select("SELECT last_insert_rowid() as id");
+    const returId = idRows[0].id;
+    if (!returId) throw new Error("Gagal membuat retur pembelian");
+
+    for (const item of items) {
+      await db.execute(
+        "INSERT INTO item_retur_pembelian (retur_id, produk_id, nama_produk, jumlah, harga_satuan, subtotal) VALUES ($1, $2, $3, $4, $5, $6)",
+        [returId, item.produk_id, item.nama_produk, item.jumlah, item.harga_satuan, item.jumlah * item.harga_satuan]
+      );
+      await db.execute(
+        "UPDATE produk SET stok = stok - $1, diperbarui_pada = strftime('%s','now') WHERE id = $2",
+        [item.jumlah, item.produk_id]
+      );
+    }
+
+    await db.execute("COMMIT");
+    syncDb();
+    return returId;
+  } catch (e) {
+    await db.execute("ROLLBACK").catch(() => {});
+    throw e;
   }
-
-  await db.batch(stmts);
-
-  const seqRows: { seq: number }[] = await db.select(
-    "SELECT seq FROM sqlite_sequence WHERE name = $1",
-    ["retur_pembelian"]
-  );
-  syncDb();
-  return seqRows[0]?.seq ?? 0;
 }
 
 export async function getPurchaseReturns(purchaseId: number): Promise<ReturPembelian[]> {

@@ -94,6 +94,7 @@ export async function updateProduct(
 }
 
 export async function updateStock(id: number, stok: number): Promise<void> {
+  if (stok < 0) throw new Error("Stok tidak boleh negatif");
   const db = await getDb();
   await db.execute(
     "UPDATE produk SET stok=$1, diperbarui_pada=strftime('%s','now') WHERE id=$2",
