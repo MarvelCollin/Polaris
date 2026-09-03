@@ -1,7 +1,7 @@
 use chrono::{Local, Timelike};
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
-use std::sync::Mutex;
+use std::sync::{LazyLock, Mutex};
 use std::time::Duration;
 use tauri::Manager;
 
@@ -10,6 +10,13 @@ const CLIENT_SECRET: &str = env!("GDRIVE_CLIENT_SECRET");
 const REFRESH_TOKEN: &str = env!("GDRIVE_REFRESH_TOKEN");
 
 static CACHED_TOKEN: Mutex<Option<(String, u64)>> = Mutex::new(None);
+static HTTP: LazyLock<reqwest::Client> = LazyLock::new(|| reqwest::Client::new());
+static HOSTNAME: LazyLock<String> = LazyLock::new(|| {
+    hostname::get()
+        .ok()
+        .and_then(|h| h.into_string().ok())
+        .unwrap_or_else(|| "unknown".to_string())
+});
 
 #[derive(Serialize, Deserialize, Clone)]
 pub struct DriveFile {
@@ -80,9 +87,7 @@ fn save_auto_config(app_dir: &PathBuf, config: &AutoBackupConfig) -> Result<(), 
 }
 
 fn device_name() -> String {
-    hostname::get()
-        .map(|h| h.to_string_lossy().to_string())
-        .unwrap_or_else(|_| "unknown".to_string())
+    HOSTNAME.clone()
 }
 
 async fn get_access_token() -> Result<String, String> {
@@ -103,7 +108,7 @@ async fn get_access_token() -> Result<String, String> {
         }
     }
 
-    let client = reqwest::Client::new();
+    let client = HTTP.clone();
     let resp = client
         .post("https://oauth2.googleapis.com/token")
         .form(&[
@@ -205,7 +210,7 @@ async fn backup_internal(db_path: &PathBuf) -> Result<DriveFile, String> {
     let access_token = get_access_token().await?;
     let file_bytes = std::fs::read(db_path).map_err(|e| format!("Gagal membaca database: {}", e))?;
 
-    let client = reqwest::Client::new();
+    let client = HTTP.clone();
     let folder_id = get_backup_folder(&client, &access_token).await?;
 
     let ts = std::time::SystemTime::now()
@@ -267,7 +272,7 @@ pub async fn gdrive_backup(app: tauri::AppHandle) -> Result<DriveFile, String> {
 #[tauri::command]
 pub async fn gdrive_list_backups() -> Result<Vec<DriveFile>, String> {
     let access_token = get_access_token().await?;
-    let client = reqwest::Client::new();
+    let client = HTTP.clone();
     let folder_id = get_backup_folder(&client, &access_token).await?;
 
     let resp = client
@@ -297,7 +302,7 @@ pub async fn gdrive_list_backups() -> Result<Vec<DriveFile>, String> {
 pub async fn gdrive_restore(app: tauri::AppHandle, file_id: String) -> Result<(), String> {
     let app_dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
     let access_token = get_access_token().await?;
-    let client = reqwest::Client::new();
+    let client = HTTP.clone();
     let resp = client
         .get(format!(
             "https://www.googleapis.com/drive/v3/files/{}?alt=media",
@@ -328,7 +333,7 @@ pub async fn gdrive_restore(app: tauri::AppHandle, file_id: String) -> Result<()
 #[tauri::command]
 pub async fn gdrive_delete_backup(file_id: String) -> Result<(), String> {
     let access_token = get_access_token().await?;
-    let client = reqwest::Client::new();
+    let client = HTTP.clone();
     let resp = client
         .delete(format!(
             "https://www.googleapis.com/drive/v3/files/{}",

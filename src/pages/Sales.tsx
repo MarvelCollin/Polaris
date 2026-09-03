@@ -356,6 +356,8 @@ export default function Sales() {
     return map;
   }, [cart]);
 
+  const customerOptions = useMemo(() => customers?.map((c) => ({ value: c.id, label: c.nama })) ?? [], [customers]);
+
   return (
     <div className="animate-fade-in">
       <h1 className="mb-4 text-2xl font-bold">Kasir</h1>
@@ -448,7 +450,7 @@ export default function Sales() {
                 <div className="flex items-center gap-2">
                   <UserCircle className="size-4 shrink-0 text-muted-foreground" />
                   <SearchableSelect
-                    options={customers?.map((c) => ({ value: c.id, label: c.nama })) ?? []}
+                    options={customerOptions}
                     value={selectedCustomer?.id ?? 0}
                     onChange={handleCustomerChange}
                     placeholder="Cari pelanggan..."

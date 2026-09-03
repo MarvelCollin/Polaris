@@ -212,6 +212,8 @@ export default function Products() {
 
   const { visible: visibleProducts, Sentinel } = useIncrementalRender(filteredProducts, 48);
 
+  const categoryOptions = useMemo(() => categories?.map((c) => ({ value: c.id, label: c.nama })) ?? [], [categories]);
+
   return (
     <div className="animate-fade-in">
       <div className="mb-4 flex items-center justify-between">
@@ -314,7 +316,7 @@ export default function Products() {
             <div>
               <Label>Kategori</Label>
               <SearchableSelect
-                options={categories?.map((c) => ({ value: c.id, label: c.nama })) ?? []}
+                options={categoryOptions}
                 value={form.kategori_id}
                 onChange={(v) => set("kategori_id", v)}
                 placeholder="Cari kategori..."

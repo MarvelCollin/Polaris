@@ -37,7 +37,7 @@ incremental = true
 
 [profile.release]
 codegen-units = 1
-lto = "thin"
-opt-level = 2
+lto = true
+opt-level = 3
 strip = true
 panic = "abort"

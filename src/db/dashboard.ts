@@ -11,48 +11,41 @@ export async function getDashboardStats() {
   const startOfMonth = toUnixTimestamp(new Date(now.getFullYear(), now.getMonth(), 1));
   const endOfMonth = toUnixTimestamp(new Date(now.getFullYear(), now.getMonth() + 1, 1));
 
-  const rows: {
-    totalProducts: number;
-    todaySales: number;
-    todayPurchases: number;
-    lowStockCount: number;
-    monthlySales: number;
-    monthlyPurchases: number;
-    totalCustomers: number;
-    allTimeSales: number;
-    allTimePurchases: number;
-    allTimeGrossProfit: number;
-    monthlyGrossProfit: number;
-  }[] = await db.select(
-    `SELECT
-       (SELECT COUNT(*) FROM produk) as totalProducts,
-       (SELECT COALESCE(SUM(p.total - COALESCE(ret.total_retur, 0)), 0) FROM penjualan p LEFT JOIN (SELECT penjualan_id, SUM(total) as total_retur FROM retur_penjualan GROUP BY penjualan_id) ret ON ret.penjualan_id = p.id WHERE p.dibuat_pada >= $1 AND p.dibuat_pada < $2) as todaySales,
-       (SELECT COALESCE(SUM(p.total - COALESCE(ret.total_retur, 0)), 0) FROM pembelian p LEFT JOIN (SELECT pembelian_id, SUM(total) as total_retur FROM retur_pembelian GROUP BY pembelian_id) ret ON ret.pembelian_id = p.id WHERE p.dibuat_pada >= $1 AND p.dibuat_pada < $2) as todayPurchases,
-       (SELECT COUNT(*) FROM produk WHERE stok <= stok_minimum) as lowStockCount,
-       (SELECT COALESCE(SUM(p.total - COALESCE(ret.total_retur, 0)), 0) FROM penjualan p LEFT JOIN (SELECT penjualan_id, SUM(total) as total_retur FROM retur_penjualan GROUP BY penjualan_id) ret ON ret.penjualan_id = p.id WHERE p.dibuat_pada >= $3 AND p.dibuat_pada < $4) as monthlySales,
-       (SELECT COALESCE(SUM(p.total - COALESCE(ret.total_retur, 0)), 0) FROM pembelian p LEFT JOIN (SELECT pembelian_id, SUM(total) as total_retur FROM retur_pembelian GROUP BY pembelian_id) ret ON ret.pembelian_id = p.id WHERE p.dibuat_pada >= $3 AND p.dibuat_pada < $4) as monthlyPurchases,
-       (SELECT COUNT(*) FROM pelanggan) as totalCustomers,
-       (SELECT COALESCE(SUM(p.total - COALESCE(ret.total_retur, 0)), 0) FROM penjualan p LEFT JOIN (SELECT penjualan_id, SUM(total) as total_retur FROM retur_penjualan GROUP BY penjualan_id) ret ON ret.penjualan_id = p.id) as allTimeSales,
-       (SELECT COALESCE(SUM(p.total - COALESCE(ret.total_retur, 0)), 0) FROM pembelian p LEFT JOIN (SELECT pembelian_id, SUM(total) as total_retur FROM retur_pembelian GROUP BY pembelian_id) ret ON ret.pembelian_id = p.id) as allTimePurchases,
-       (SELECT COALESCE(SUM((ip.subtotal - COALESCE(ret.total_retur, 0)) - ((ip.jumlah - COALESCE(ret.jumlah_retur, 0)) * ip.hpp)), 0) FROM item_penjualan ip LEFT JOIN (SELECT r.penjualan_id, ir.produk_id, SUM(ir.jumlah) as jumlah_retur, SUM(ir.subtotal) as total_retur FROM item_retur_penjualan ir JOIN retur_penjualan r ON ir.retur_id = r.id GROUP BY r.penjualan_id, ir.produk_id) ret ON ret.penjualan_id = ip.penjualan_id AND ret.produk_id = ip.produk_id WHERE ip.hpp > 0) as allTimeGrossProfit,
-       (SELECT COALESCE(SUM((ip.subtotal - COALESCE(ret.total_retur, 0)) - ((ip.jumlah - COALESCE(ret.jumlah_retur, 0)) * ip.hpp)), 0) FROM item_penjualan ip JOIN penjualan p ON ip.penjualan_id = p.id LEFT JOIN (SELECT r.penjualan_id, ir.produk_id, SUM(ir.jumlah) as jumlah_retur, SUM(ir.subtotal) as total_retur FROM item_retur_penjualan ir JOIN retur_penjualan r ON ir.retur_id = r.id GROUP BY r.penjualan_id, ir.produk_id) ret ON ret.penjualan_id = ip.penjualan_id AND ret.produk_id = ip.produk_id WHERE ip.hpp > 0 AND p.dibuat_pada >= $3 AND p.dibuat_pada < $4) as monthlyGrossProfit`,
-    [startOfDay, endOfDay, startOfMonth, endOfMonth]
-  );
+  const salesWithRetur = `FROM penjualan p LEFT JOIN (SELECT penjualan_id, SUM(total) as total_retur FROM retur_penjualan GROUP BY penjualan_id) ret ON ret.penjualan_id = p.id`;
+  const purchasesWithRetur = `FROM pembelian p LEFT JOIN (SELECT pembelian_id, SUM(total) as total_retur FROM retur_pembelian GROUP BY pembelian_id) ret ON ret.pembelian_id = p.id`;
+  const profitJoin = `FROM item_penjualan ip LEFT JOIN (SELECT r.penjualan_id, ir.produk_id, SUM(ir.jumlah) as jumlah_retur, SUM(ir.subtotal) as total_retur FROM item_retur_penjualan ir JOIN retur_penjualan r ON ir.retur_id = r.id GROUP BY r.penjualan_id, ir.produk_id) ret ON ret.penjualan_id = ip.penjualan_id AND ret.produk_id = ip.produk_id`;
+  const profitExpr = `COALESCE(SUM((ip.subtotal - COALESCE(ret.total_retur, 0)) - ((ip.jumlah - COALESCE(ret.jumlah_retur, 0)) * ip.hpp)), 0)`;
 
-  const r = rows[0];
+  const [counts, todaySales, todayPurchases, monthlySales, monthlyPurchases, allTimeSales, allTimePurchases, allTimeGrossProfit, monthlyGrossProfit] = await Promise.all([
+    db.select<{ totalProducts: number; lowStockCount: number; totalCustomers: number }[]>(
+      `SELECT (SELECT COUNT(*) FROM produk) as totalProducts, (SELECT COUNT(*) FROM produk WHERE stok <= stok_minimum) as lowStockCount, (SELECT COUNT(*) FROM pelanggan) as totalCustomers`
+    ),
+    db.select<{ v: number }[]>(`SELECT COALESCE(SUM(p.total - COALESCE(ret.total_retur, 0)), 0) as v ${salesWithRetur} WHERE p.dibuat_pada >= $1 AND p.dibuat_pada < $2`, [startOfDay, endOfDay]),
+    db.select<{ v: number }[]>(`SELECT COALESCE(SUM(p.total - COALESCE(ret.total_retur, 0)), 0) as v ${purchasesWithRetur} WHERE p.dibuat_pada >= $1 AND p.dibuat_pada < $2`, [startOfDay, endOfDay]),
+    db.select<{ v: number }[]>(`SELECT COALESCE(SUM(p.total - COALESCE(ret.total_retur, 0)), 0) as v ${salesWithRetur} WHERE p.dibuat_pada >= $1 AND p.dibuat_pada < $2`, [startOfMonth, endOfMonth]),
+    db.select<{ v: number }[]>(`SELECT COALESCE(SUM(p.total - COALESCE(ret.total_retur, 0)), 0) as v ${purchasesWithRetur} WHERE p.dibuat_pada >= $1 AND p.dibuat_pada < $2`, [startOfMonth, endOfMonth]),
+    db.select<{ v: number }[]>(`SELECT COALESCE(SUM(p.total - COALESCE(ret.total_retur, 0)), 0) as v ${salesWithRetur}`),
+    db.select<{ v: number }[]>(`SELECT COALESCE(SUM(p.total - COALESCE(ret.total_retur, 0)), 0) as v ${purchasesWithRetur}`),
+    db.select<{ v: number }[]>(`SELECT ${profitExpr} as v ${profitJoin} WHERE ip.hpp > 0`),
+    db.select<{ v: number }[]>(`SELECT ${profitExpr} as v ${profitJoin} JOIN penjualan p ON ip.penjualan_id = p.id WHERE ip.hpp > 0 AND p.dibuat_pada >= $1 AND p.dibuat_pada < $2`, [startOfMonth, endOfMonth]),
+  ]);
+
+  const c = counts[0];
+  const ats = allTimeSales[0].v;
+  const atp = allTimePurchases[0].v;
   return {
-    totalProducts: r.totalProducts,
-    todaySales: r.todaySales,
-    todayPurchases: r.todayPurchases,
-    lowStockCount: r.lowStockCount,
-    monthlySales: r.monthlySales,
-    monthlyPurchases: r.monthlyPurchases,
-    monthlyGrossProfit: r.monthlyGrossProfit,
-    totalCustomers: r.totalCustomers,
-    allTimeSales: r.allTimeSales,
-    allTimePurchases: r.allTimePurchases,
-    allTimeProfit: r.allTimeSales - r.allTimePurchases,
-    allTimeGrossProfit: r.allTimeGrossProfit,
+    totalProducts: c.totalProducts,
+    todaySales: todaySales[0].v,
+    todayPurchases: todayPurchases[0].v,
+    lowStockCount: c.lowStockCount,
+    monthlySales: monthlySales[0].v,
+    monthlyPurchases: monthlyPurchases[0].v,
+    monthlyGrossProfit: monthlyGrossProfit[0].v,
+    totalCustomers: c.totalCustomers,
+    allTimeSales: ats,
+    allTimePurchases: atp,
+    allTimeProfit: ats - atp,
+    allTimeGrossProfit: allTimeGrossProfit[0].v,
   };
 }
 

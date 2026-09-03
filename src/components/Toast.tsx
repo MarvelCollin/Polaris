@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, createContext, useContext, type ReactNode } from "react";
+import React, { useState, useEffect, useCallback, createContext, useContext, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { CheckCircle, AlertCircle, X } from "lucide-react";
 
@@ -52,7 +52,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   );
 }
 
-function ToastItem({ toast, onClose }: { toast: ToastItem; onClose: () => void }) {
+const ToastItem = React.memo(function ToastItem({ toast, onClose }: { toast: ToastItem; onClose: () => void }) {
   const [visible, setVisible] = useState(false);
 
   useEffect(() => {
@@ -80,7 +80,7 @@ function ToastItem({ toast, onClose }: { toast: ToastItem; onClose: () => void }
       </button>
     </div>
   );
-}
+});
 
 export function useToast(): ToastContextValue {
   const ctx = useContext(ToastContext);
