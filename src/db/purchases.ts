@@ -1,4 +1,4 @@
-import { getDb, syncDb } from "../database";
+import { getDb, syncDb, withTransaction } from "../database";
 import { Purchase, PurchaseItem, PurchaseEntry, PurchaseDebt, Payment, ReturPembelian, ReturItem } from "../types";
 import { type ChartGroupBy, groupSqlFor, formatGroupLabel } from "./sales";
 import { toLocalDateKey, toUnixTimestamp } from "../lib/utils";
@@ -41,47 +41,43 @@ export async function createPurchase(
   const nomor = `PO-${dateStr}-${(countRows[0].count + 1).toString().padStart(4, "0")}`;
   const produkMap = new Map(produkRows.map((r) => [r.id, r]));
 
-  await db.execute("BEGIN IMMEDIATE");
-  try {
-    await db.execute(
+  const purchaseId = await withTransaction(async (tx) => {
+    await tx.execute(
       "INSERT INTO pembelian (supplier, referensi_faktur, total, dibayar) VALUES ($1, $2, $3, $4)",
       [supplier, nomor, total, paid]
     );
-    const idRows: { id: number }[] = await db.select("SELECT last_insert_rowid() as id");
-    const purchaseId = idRows[0].id;
-    if (!purchaseId) throw new Error("Gagal membuat pembelian");
+    const idRows = await tx.select<{ id: number }[]>("SELECT last_insert_rowid() as id");
+    const id = idRows[0].id;
+    if (!id) throw new Error("Gagal membuat pembelian");
 
     for (const item of items) {
-      await db.execute(
+      await tx.execute(
         "INSERT INTO item_pembelian (pembelian_id, produk_id, nama_produk, jumlah, harga_satuan, subtotal) VALUES ($1, $2, $3, $4, $5, $6)",
-        [purchaseId, item.produk_id, item.nama, item.jumlah, item.harga, item.jumlah * item.harga]
+        [id, item.produk_id, item.nama, item.jumlah, item.harga, item.jumlah * item.harga]
       );
 
       const produk = produkMap.get(item.produk_id);
       if (produk) {
         const totalStok = produk.stok + item.jumlah;
         const newHpp = totalStok === 0 ? item.harga : (produk.stok * produk.harga_beli + item.jumlah * item.harga) / totalStok;
-        await db.execute(
+        await tx.execute(
           "UPDATE produk SET stok = stok + $1, harga_beli = $2, diperbarui_pada = strftime('%s','now') WHERE id = $3",
           [item.jumlah, Math.round(newHpp), item.produk_id]
         );
         produk.stok += item.jumlah;
         produk.harga_beli = Math.round(newHpp);
       } else {
-        await db.execute(
+        await tx.execute(
           "UPDATE produk SET stok = stok + $1, diperbarui_pada = strftime('%s','now') WHERE id = $2",
           [item.jumlah, item.produk_id]
         );
       }
     }
 
-    await db.execute("COMMIT");
-    syncDb();
-    return purchaseId;
-  } catch (e) {
-    await db.execute("ROLLBACK").catch(() => {});
-    throw e;
-  }
+    return id;
+  });
+  syncDb();
+  return purchaseId;
 }
 
 export async function getPurchases(
@@ -296,14 +292,12 @@ export async function createPurchaseReturn(
   items: { produk_id: number; nama_produk: string; jumlah: number; harga_satuan: number }[],
   alasan?: string
 ): Promise<number> {
-  const db = await getDb();
   const total = items.reduce((sum, i) => sum + i.jumlah * i.harga_satuan, 0);
 
-  await db.execute("BEGIN IMMEDIATE");
-  try {
+  const returId = await withTransaction(async (tx) => {
     const produkIds = items.map((i) => i.produk_id);
     const placeholders = produkIds.map((_, i) => `$${i + 1}`).join(",");
-    const produkRows: { id: number; stok: number }[] = await db.select(
+    const produkRows: { id: number; stok: number }[] = await tx.select(
       `SELECT id, stok FROM produk WHERE id IN (${placeholders})`,
       produkIds
     );
@@ -315,32 +309,29 @@ export async function createPurchaseReturn(
       }
     }
 
-    await db.execute(
+    await tx.execute(
       "INSERT INTO retur_pembelian (pembelian_id, total, alasan) VALUES ($1, $2, $3)",
       [purchaseId, total, alasan || null]
     );
-    const idRows: { id: number }[] = await db.select("SELECT last_insert_rowid() as id");
-    const returId = idRows[0].id;
-    if (!returId) throw new Error("Gagal membuat retur pembelian");
+    const idRows = await tx.select<{ id: number }[]>("SELECT last_insert_rowid() as id");
+    const id = idRows[0].id;
+    if (!id) throw new Error("Gagal membuat retur pembelian");
 
     for (const item of items) {
-      await db.execute(
+      await tx.execute(
         "INSERT INTO item_retur_pembelian (retur_id, produk_id, nama_produk, jumlah, harga_satuan, subtotal) VALUES ($1, $2, $3, $4, $5, $6)",
-        [returId, item.produk_id, item.nama_produk, item.jumlah, item.harga_satuan, item.jumlah * item.harga_satuan]
+        [id, item.produk_id, item.nama_produk, item.jumlah, item.harga_satuan, item.jumlah * item.harga_satuan]
       );
-      await db.execute(
+      await tx.execute(
         "UPDATE produk SET stok = stok - $1, diperbarui_pada = strftime('%s','now') WHERE id = $2",
         [item.jumlah, item.produk_id]
       );
     }
 
-    await db.execute("COMMIT");
-    syncDb();
-    return returId;
-  } catch (e) {
-    await db.execute("ROLLBACK").catch(() => {});
-    throw e;
-  }
+    return id;
+  });
+  syncDb();
+  return returId;
 }
 
 export async function getPurchaseReturns(purchaseId: number): Promise<ReturPembelian[]> {

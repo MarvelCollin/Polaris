@@ -57,6 +57,25 @@ export function getDb(): Promise<Database> {
   return dbPromise;
 }
 
+let transactionQueue: Promise<unknown> = Promise.resolve();
+
+export function withTransaction<T>(work: (tx: Database) => Promise<T>): Promise<T> {
+  const run = transactionQueue.then(async () => {
+    const database = await getDb();
+    await database.execute("BEGIN IMMEDIATE");
+    try {
+      const result = await work(database);
+      await database.execute("COMMIT");
+      return result;
+    } catch (e) {
+      await database.execute("ROLLBACK").catch(() => {});
+      throw e;
+    }
+  });
+  transactionQueue = run.catch(() => {});
+  return run;
+}
+
 export async function connectTurso(): Promise<void> {
   if (tursoConnected) return;
   await getDb();

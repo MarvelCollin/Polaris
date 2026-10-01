@@ -1,4 +1,4 @@
-import { getDb, syncDb } from "../database";
+import { getDb, syncDb, withTransaction } from "../database";
 import { Sale, SaleItem, CartEntry, SaleDebt, Payment, ReturPenjualan, ReturItem } from "../types";
 import { toLocalDateKey, toUnixTimestamp } from "../lib/utils";
 
@@ -36,34 +36,31 @@ export async function createSale(
   const nomor = `INV-${dateStr}-${(countRows[0].count + 1).toString().padStart(4, "0")}`;
   const hppMap = new Map(hppRows.map((r) => [r.id, r.harga_beli]));
 
-  await db.execute("BEGIN IMMEDIATE");
-  try {
-    await db.execute(
+  const saleId = await withTransaction(async (tx) => {
+    await tx.execute(
       "INSERT INTO penjualan (nomor_faktur, total, dibayar, kembalian, pelanggan_id, nama_pelanggan, diskon, alamat_pengiriman) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)",
       [nomor, total, dibayar, kembalian, pelangganId ?? null, namaPelanggan ?? null, diskon, alamatPengiriman ?? null]
     );
-    const idRows = await db.select<{ id: number }[]>("SELECT last_insert_rowid() as id");
-    const saleId = idRows[0].id;
-    if (!saleId) throw new Error("Gagal membuat penjualan");
+    const idRows = await tx.select<{ id: number }[]>("SELECT last_insert_rowid() as id");
+    const id = idRows[0].id;
+    if (!id) throw new Error("Gagal membuat penjualan");
 
     for (const item of items) {
       const hpp = hppMap.get(item.produk_id) ?? 0;
-      await db.execute(
+      await tx.execute(
         "INSERT INTO item_penjualan (penjualan_id, produk_id, nama_produk, jumlah, harga_satuan, subtotal, hpp) VALUES ($1, $2, $3, $4, $5, $6, $7)",
-        [saleId, item.produk_id, item.nama, item.jumlah, item.harga, item.jumlah * item.harga, hpp]
+        [id, item.produk_id, item.nama, item.jumlah, item.harga, item.jumlah * item.harga, hpp]
       );
-      await db.execute(
+      await tx.execute(
         "UPDATE produk SET stok = stok - $1, diperbarui_pada = strftime('%s','now') WHERE id = $2",
         [item.jumlah, item.produk_id]
       );
     }
-    await db.execute("COMMIT");
-    syncDb();
-    return saleId;
-  } catch (e) {
-    await db.execute("ROLLBACK").catch(() => {});
-    throw e;
-  }
+
+    return id;
+  });
+  syncDb();
+  return saleId;
 }
 
 export async function getSales(
@@ -309,36 +306,32 @@ export async function createSaleReturn(
   items: { produk_id: number; nama_produk: string; jumlah: number; harga_satuan: number }[],
   alasan?: string
 ): Promise<number> {
-  const db = await getDb();
   const total = items.reduce((sum, i) => sum + i.jumlah * i.harga_satuan, 0);
 
-  await db.execute("BEGIN IMMEDIATE");
-  try {
-    await db.execute(
+  const returId = await withTransaction(async (tx) => {
+    await tx.execute(
       "INSERT INTO retur_penjualan (penjualan_id, total, alasan) VALUES ($1, $2, $3)",
       [saleId, total, alasan ?? null]
     );
-    const idRows = await db.select<{ id: number }[]>("SELECT last_insert_rowid() as id");
-    const returId = idRows[0].id;
-    if (!returId) throw new Error("Gagal membuat retur penjualan");
+    const idRows = await tx.select<{ id: number }[]>("SELECT last_insert_rowid() as id");
+    const id = idRows[0].id;
+    if (!id) throw new Error("Gagal membuat retur penjualan");
 
     for (const item of items) {
-      await db.execute(
+      await tx.execute(
         "INSERT INTO item_retur_penjualan (retur_id, produk_id, nama_produk, jumlah, harga_satuan, subtotal) VALUES ($1, $2, $3, $4, $5, $6)",
-        [returId, item.produk_id, item.nama_produk, item.jumlah, item.harga_satuan, item.jumlah * item.harga_satuan]
+        [id, item.produk_id, item.nama_produk, item.jumlah, item.harga_satuan, item.jumlah * item.harga_satuan]
       );
-      await db.execute(
+      await tx.execute(
         "UPDATE produk SET stok = stok + $1, diperbarui_pada = strftime('%s','now') WHERE id = $2",
         [item.jumlah, item.produk_id]
       );
     }
-    await db.execute("COMMIT");
-    syncDb();
-    return returId;
-  } catch (e) {
-    await db.execute("ROLLBACK").catch(() => {});
-    throw e;
-  }
+
+    return id;
+  });
+  syncDb();
+  return returId;
 }
 
 export async function getSaleReturns(saleId: number): Promise<ReturPenjualan[]> {
