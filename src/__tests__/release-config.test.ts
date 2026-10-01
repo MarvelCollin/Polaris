@@ -47,6 +47,34 @@ describe("updater endpoint", () => {
   });
 });
 
+describe("installer shortcuts", () => {
+  const hooks = read("src-tauri/nsis-hooks.nsh");
+  const postInstall = hooks.slice(hooks.indexOf("!macro NSIS_HOOK_POSTINSTALL"));
+
+  it("loads the installer hooks file", () => {
+    expect(tauriConf.bundle.windows.nsis.installerHooks).toBe("nsis-hooks.nsh");
+    expect(hooks).toContain("!macro NSIS_HOOK_POSTINSTALL");
+  });
+
+  it("acts in update mode, where the stock installer skips every shortcut", () => {
+    expect(postInstall).toContain("${If} $UpdateMode = 1");
+  });
+
+  it("rewrites the start menu and desktop shortcuts to the installed binary", () => {
+    expect(hooks).toContain('CreateShortcut "${shortcut}" "$INSTDIR\\${MAINBINARYNAME}.exe"');
+    expect(postInstall).toContain('!insertmacro RecreateShortcut "$SMPROGRAMS\\${PRODUCTNAME}.lnk"');
+    expect(postInstall).toContain('!insertmacro RecreateShortcut "$DESKTOP\\${PRODUCTNAME}.lnk"');
+  });
+
+  it("keeps the app user model id on every rewritten shortcut", () => {
+    expect(hooks).toContain('!insertmacro SetLnkAppUserModelId "${shortcut}"');
+  });
+
+  it("stays valid only while the start menu entry is not moved into a folder", () => {
+    expect(tauriConf.bundle.windows.nsis).not.toHaveProperty("startMenuFolder");
+  });
+});
+
 describe("secrets never reach the public repo", () => {
   it("keeps the real secrets file ignored", () => {
     expect(read(".gitignore")).toContain("src-tauri/gdrive_secrets.toml");
