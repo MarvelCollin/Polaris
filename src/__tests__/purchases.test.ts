@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { resetMock, mockDb } from "./setup";
+import { resetMock, mockDb, writes, transactionLog, failOn } from "./setup";
 import {
   createPurchase, getPurchases, getPurchaseItems, getDistinctSuppliers,
   getReturnedQtyMapPurchase, createPurchaseReturn, getPurchaseReturns, getPurchaseReturItems,
@@ -27,21 +27,54 @@ describe("purchases", () => {
     const id = await createPurchase("PT Semen Indonesia", items);
     expect(id).toBe(1);
 
-    const batchCalls = mockDb.batch.mock.calls as unknown as unknown[][];
-    const purchaseBatch = batchCalls.find((c: unknown[]) =>
-      (c[0] as string[]).some((s: string) => s.includes("INSERT INTO pembelian"))
-    );
-    expect(purchaseBatch).toBeDefined();
-    const stmts = purchaseBatch![0] as unknown as string[];
-
-    const purchaseInsert = stmts.find((s: string) => s.includes("INSERT INTO pembelian"))!;
+    const [purchase] = writes(/INSERT INTO pembelian/);
     const total = 100 * 52000 + 50 * 45000;
-    expect(purchaseInsert).toContain(String(total));
+    expect(purchase.params).toEqual(["PT Semen Indonesia", expect.stringMatching(/^PO-\d{8}-0001$/), total, total]);
 
-    const itemInserts = stmts.filter((s: string) => s.includes("INSERT INTO item_pembelian"));
-    expect(itemInserts).toHaveLength(2);
-    const stockUpdates = stmts.filter((s: string) => s.includes("UPDATE produk SET stok"));
-    expect(stockUpdates).toHaveLength(2);
+    expect(writes(/INSERT INTO item_pembelian/)).toHaveLength(2);
+    expect(writes(/UPDATE produk SET stok/)).toHaveLength(2);
+    expect(transactionLog()).toEqual(["BEGIN IMMEDIATE", "COMMIT"]);
+  });
+
+  it("should bind every value as a parameter instead of building the sql", async () => {
+    mockDb.select.mockResolvedValueOnce([{ count: 0 }]);
+    mockDb.select.mockResolvedValueOnce([{ id: 1, stok: 10, harga_beli: 50000 }]);
+
+    await createPurchase("Toko ' OR 1=1 --", [
+      { produk_id: 1, nama: "O'Brien's cement", satuan: "sak", jumlah: 1, harga: 52000 },
+    ]);
+
+    for (const call of writes(/INSERT|UPDATE/)) {
+      expect(call.sql).not.toContain("O'Brien");
+      expect(call.sql).not.toContain("OR 1=1");
+    }
+    expect(writes(/INSERT INTO pembelian/)[0].params).toContain("Toko ' OR 1=1 --");
+    expect(writes(/INSERT INTO item_pembelian/)[0].params).toContain("O'Brien's cement");
+  });
+
+  it("should roll back and skip the sync when a statement fails", async () => {
+    mockDb.select.mockResolvedValueOnce([{ count: 0 }]);
+    mockDb.select.mockResolvedValueOnce([{ id: 1, stok: 10, harga_beli: 50000 }]);
+    failOn(/UPDATE produk/, "disk full");
+
+    await expect(createPurchase("Toko ABC", [
+      { produk_id: 1, nama: "Semen", satuan: "sak", jumlah: 1, harga: 52000 },
+    ])).rejects.toThrow("disk full");
+
+    expect(transactionLog()).toEqual(["BEGIN IMMEDIATE", "ROLLBACK"]);
+  });
+
+  it("should roll back when the new purchase id cannot be read", async () => {
+    mockDb.select.mockResolvedValueOnce([{ count: 0 }]);
+    mockDb.select.mockResolvedValueOnce([]);
+    mockDb.select.mockResolvedValueOnce([{ id: 0 }]);
+
+    await expect(createPurchase("Toko ABC", [
+      { produk_id: 1, nama: "Semen", satuan: "sak", jumlah: 1, harga: 52000 },
+    ])).rejects.toThrow("Gagal membuat pembelian");
+
+    expect(transactionLog()).toEqual(["BEGIN IMMEDIATE", "ROLLBACK"]);
+    expect(writes(/INSERT INTO item_pembelian/)).toHaveLength(0);
   });
 
   it("should auto-generate purchase number", async () => {
@@ -54,12 +87,7 @@ describe("purchases", () => {
 
     await createPurchase("Toko ABC", items);
 
-    const batchCalls = mockDb.batch.mock.calls as unknown as unknown[][];
-    const purchaseBatch = batchCalls.find((c: unknown[]) =>
-      (c[0] as string[]).some((s: string) => s.includes("INSERT INTO pembelian"))
-    );
-    const purchaseInsert = (purchaseBatch![0] as unknown as string[]).find((s: string) => s.includes("INSERT INTO pembelian"))!;
-    expect(purchaseInsert).toMatch(/PO-\d{8}-0004/);
+    expect(writes(/INSERT INTO pembelian/)[0].params[1]).toMatch(/^PO-\d{8}-0004$/);
   });
 
   it("should fetch purchases with pagination", async () => {
@@ -109,16 +137,11 @@ describe("purchases", () => {
 
     await createPurchase("Supplier A", items);
 
-    const batchCalls = mockDb.batch.mock.calls as unknown as unknown[][];
-    const itemBatch = batchCalls.find((c: unknown[]) =>
-      (c[0] as string[]).some((s: string) => s.includes("UPDATE produk SET stok"))
-    );
-    expect(itemBatch).toBeDefined();
-    const updateStmts = (itemBatch![0] as unknown as string[]).filter((s: string) => s.includes("UPDATE produk SET stok"));
-    expect(updateStmts).toHaveLength(1);
+    const updates = writes(/UPDATE produk SET stok/);
+    expect(updates).toHaveLength(1);
     const expectedHpp = Math.round((100 * 50000 + 50 * 56000) / (100 + 50));
-    expect(updateStmts[0]).toContain("stok + 50");
-    expect(updateStmts[0]).toContain(`harga_beli = ${expectedHpp}`);
+    expect(updates[0].sql).toContain("harga_beli = $2");
+    expect(updates[0].params).toEqual([50, expectedHpp, 1]);
   });
 
   it("should handle HPP when product has no prior stock data", async () => {
@@ -131,14 +154,10 @@ describe("purchases", () => {
 
     await createPurchase("Supplier X", items);
 
-    const batchCalls = mockDb.batch.mock.calls as unknown as unknown[][];
-    const itemBatch = batchCalls.find((c: unknown[]) =>
-      (c[0] as string[]).some((s: string) => s.includes("UPDATE produk SET stok"))
-    );
-    expect(itemBatch).toBeDefined();
-    const updateStmts = (itemBatch![0] as unknown as string[]).filter((s: string) => s.includes("UPDATE produk SET stok"));
-    expect(updateStmts).toHaveLength(1);
-    expect(updateStmts[0]).not.toContain("harga_beli");
+    const updates = writes(/UPDATE produk SET stok/);
+    expect(updates).toHaveLength(1);
+    expect(updates[0].sql).not.toContain("harga_beli");
+    expect(updates[0].params).toEqual([20, 99]);
   });
 
   it("should save partial payment as utang", async () => {
@@ -151,13 +170,9 @@ describe("purchases", () => {
 
     await createPurchase("Toko ABC", items, 200000);
 
-    const batchCalls = mockDb.batch.mock.calls as unknown as unknown[][];
-    const purchaseBatch = batchCalls.find((c: unknown[]) =>
-      (c[0] as string[]).some((s: string) => s.includes("INSERT INTO pembelian"))
-    );
-    const purchaseInsert = (purchaseBatch![0] as unknown as string[]).find((s: string) => s.includes("INSERT INTO pembelian"))!;
-    expect(purchaseInsert).toContain("520000");
-    expect(purchaseInsert).toContain("200000");
+    const [purchase] = writes(/INSERT INTO pembelian/);
+    expect(purchase.params[2]).toBe(520000);
+    expect(purchase.params[3]).toBe(200000);
   });
 
   it("should default dibayar to total when not provided", async () => {
@@ -170,13 +185,9 @@ describe("purchases", () => {
 
     await createPurchase("Toko DEF", items);
 
-    const batchCalls = mockDb.batch.mock.calls as unknown as unknown[][];
-    const purchaseBatch = batchCalls.find((c: unknown[]) =>
-      (c[0] as string[]).some((s: string) => s.includes("INSERT INTO pembelian"))
-    );
-    const purchaseInsert = (purchaseBatch![0] as unknown as string[]).find((s: string) => s.includes("INSERT INTO pembelian"))!;
+    const [purchase] = writes(/INSERT INTO pembelian/);
     const total = 5 * 52000;
-    expect(purchaseInsert).toContain(`${total}, ${total}`);
+    expect(purchase.params.slice(2)).toEqual([total, total]);
   });
 
   it("should return distinct suppliers grouped case-insensitively", async () => {
@@ -206,25 +217,25 @@ describe("purchases", () => {
     const id = await createPurchaseReturn(1, returItems, "Barang cacat");
     expect(id).toBe(1);
 
-    const batchCalls = mockDb.batch.mock.calls as unknown as unknown[][];
-    const returBatch = batchCalls.find((c: unknown[]) =>
-      (c[0] as string[]).some((s: string) => s.includes("INSERT INTO retur_pembelian"))
-    );
-    expect(returBatch).toBeDefined();
-    const stmts = returBatch![0] as unknown as string[];
-
-    const returInsert = stmts.find((s: string) => s.includes("INSERT INTO retur_pembelian"))!;
+    const [retur] = writes(/INSERT INTO retur_pembelian/);
     const expectedTotal = 10 * 52000 + 5 * 45000;
-    expect(returInsert).toContain(String(expectedTotal));
-    expect(returInsert).toContain("Barang cacat");
+    expect(retur.params).toEqual([1, expectedTotal, "Barang cacat"]);
 
-    const itemInserts = stmts.filter((s: string) => s.includes("INSERT INTO item_retur_pembelian"));
-    expect(itemInserts).toHaveLength(2);
+    expect(writes(/INSERT INTO item_retur_pembelian/)).toHaveLength(2);
+    const stockReduces = writes(/UPDATE produk SET stok = stok -/);
+    expect(stockReduces.map((u) => u.params)).toEqual([[10, 1], [5, 2]]);
+    expect(transactionLog()).toEqual(["BEGIN IMMEDIATE", "COMMIT"]);
+  });
 
-    const stockReduces = stmts.filter((s: string) => s.includes("UPDATE produk SET stok = stok -"));
-    expect(stockReduces).toHaveLength(2);
-    expect(stockReduces[0]).toContain("stok - 10,");
-    expect(stockReduces[1]).toContain("stok - 5,");
+  it("should roll back a purchase return when a statement fails", async () => {
+    mockDb.select.mockResolvedValueOnce([{ id: 1, stok: 100 }]);
+    failOn(/UPDATE produk/, "disk full");
+
+    await expect(createPurchaseReturn(1, [
+      { produk_id: 1, nama_produk: "Semen", jumlah: 1, harga_satuan: 52000 },
+    ])).rejects.toThrow("disk full");
+
+    expect(transactionLog()).toEqual(["BEGIN IMMEDIATE", "ROLLBACK"]);
   });
 
   it("should create purchase return with null alasan", async () => {
@@ -234,12 +245,7 @@ describe("purchases", () => {
       { produk_id: 1, nama_produk: "Semen", jumlah: 1, harga_satuan: 52000 },
     ]);
 
-    const batchCalls = mockDb.batch.mock.calls as unknown as unknown[][];
-    const returBatch = batchCalls.find((c: unknown[]) =>
-      (c[0] as string[]).some((s: string) => s.includes("INSERT INTO retur_pembelian"))
-    );
-    const returInsert = (returBatch![0] as unknown as string[]).find((s: string) => s.includes("INSERT INTO retur_pembelian"))!;
-    expect(returInsert).toContain("NULL");
+    expect(writes(/INSERT INTO retur_pembelian/)[0].params[2]).toBeNull();
   });
 
   it("should reject purchase return when stock is insufficient", async () => {
@@ -249,7 +255,8 @@ describe("purchases", () => {
       { produk_id: 1, nama_produk: "Semen", jumlah: 10, harga_satuan: 52000 },
     ])).rejects.toThrow("Stok Semen tidak mencukupi untuk retur");
 
-    expect(mockDb.batch).not.toHaveBeenCalled();
+    expect(writes(/INSERT INTO retur_pembelian/)).toHaveLength(0);
+    expect(transactionLog()).toEqual(["BEGIN IMMEDIATE", "ROLLBACK"]);
   });
 
   it("should fetch returned qty map for a purchase", async () => {
@@ -344,11 +351,6 @@ describe("purchases", () => {
 
     await createPurchase("Test", items);
 
-    const batchCalls = mockDb.batch.mock.calls as unknown as unknown[][];
-    const purchaseBatch = batchCalls.find((c: unknown[]) =>
-      (c[0] as string[]).some((s: string) => s.includes("INSERT INTO pembelian"))
-    );
-    const purchaseInsert = (purchaseBatch![0] as unknown as string[]).find((s: string) => s.includes("INSERT INTO pembelian"))!;
-    expect(purchaseInsert).toMatch(/PO-\d{8}-0006/);
+    expect(writes(/INSERT INTO pembelian/)[0].params[1]).toMatch(/^PO-\d{8}-0006$/);
   });
 });

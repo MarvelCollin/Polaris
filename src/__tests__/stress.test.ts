@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll, beforeEach, afterEach, vi } from "vitest";
-import { resetMock, mockDb } from "./setup";
+import { resetMock, mockDb, writes, transactionLog, failOn } from "./setup";
 import { invoke } from "@tauri-apps/api/core";
-import { connectTurso, syncDb, SYNC_DELAY_MS, SYNC_MAX_DELAY_MS } from "@/database";
+import { connectTurso, syncDb, withTransaction, SYNC_DELAY_MS, SYNC_MAX_DELAY_MS } from "@/database";
 import { getDashboardStats, getDailySales, getMonthlySalesVsPurchases } from "@/db/dashboard";
 import { createSale, createSaleReturn, addSalePayment } from "@/db/sales";
 import { createPurchase, createPurchaseReturn, addPurchasePayment } from "@/db/purchases";
@@ -76,7 +76,7 @@ describe("stress: transaction batching", () => {
     resetMock();
   });
 
-  it("createSale batches HPP lookup into single query for N items", async () => {
+  it("createSale looks up HPP in one query and writes N items in one transaction", async () => {
     const items = Array.from({ length: 20 }, (_, i) => ({
       produk_id: i + 1,
       nama: `Product ${i + 1}`,
@@ -96,11 +96,11 @@ describe("stress: transaction batching", () => {
     const selectCalls = mockDb.select.mock.calls;
     expect(selectCalls).toHaveLength(3);
 
-    const batchCalls = mockDb.batch.mock.calls;
-    expect(batchCalls).toHaveLength(1);
+    expect(writes(/INSERT INTO item_penjualan/)).toHaveLength(20);
+    expect(transactionLog()).toEqual(["BEGIN IMMEDIATE", "COMMIT"]);
   });
 
-  it("createPurchase batches stock lookup into single query for N items", async () => {
+  it("createPurchase looks up stock in one query and writes N items in one transaction", async () => {
     const items = Array.from({ length: 15 }, (_, i) => ({
       produk_id: i + 1,
       nama: `Product ${i + 1}`,
@@ -119,15 +119,15 @@ describe("stress: transaction batching", () => {
     const selectCalls = mockDb.select.mock.calls;
     expect(selectCalls).toHaveLength(3);
 
-    const batchCalls = mockDb.batch.mock.calls;
-    expect(batchCalls).toHaveLength(1);
+    expect(writes(/INSERT INTO item_pembelian/)).toHaveLength(15);
+    expect(transactionLog()).toEqual(["BEGIN IMMEDIATE", "COMMIT"]);
   });
 
-  it("createSale propagates batch error", async () => {
+  it("createSale propagates a write error", async () => {
     mockDb.select.mockResolvedValueOnce([{ count: 0 }]);
     mockDb.select.mockResolvedValueOnce([{ id: 1, harga_beli: 8000 }]);
 
-    mockDb.batch.mockRejectedValueOnce(new Error("disk full"));
+    failOn(/INSERT INTO penjualan/, "disk full");
 
     await expect(
       createSale([{ produk_id: 1, nama: "X", satuan: "pcs", jumlah: 1, harga: 10000, stok: 10 }], 10000)
@@ -514,7 +514,7 @@ describe("stress: syncDb fires after every write", () => {
   it("failed transaction does NOT trigger sync", async () => {
     mockDb.select.mockResolvedValueOnce([{ count: 0 }]);
     mockDb.select.mockResolvedValueOnce([{ id: 1, harga_beli: 8000 }]);
-    mockDb.batch.mockRejectedValueOnce(new Error("fail"));
+    failOn(/INSERT INTO penjualan/, "fail");
 
     await expect(
       createSale([{ produk_id: 1, nama: "X", satuan: "pcs", jumlah: 1, harga: 10000, stok: 10 }], 10000)
@@ -579,6 +579,38 @@ describe("stress: concurrent write simulation", () => {
     const results = await Promise.all(sales);
     expect(results).toHaveLength(10);
     results.forEach((id) => expect(id).toBeGreaterThan(0));
+    expect(new Set(results).size).toBe(10);
+    expect(transactionLog()).toEqual(
+      Array.from({ length: 10 }, () => ["BEGIN IMMEDIATE", "COMMIT"]).flat()
+    );
+  });
+
+  it("withTransaction never overlaps two transactions", async () => {
+    let open = 0;
+    let peak = 0;
+    const run = () =>
+      withTransaction(async () => {
+        open++;
+        peak = Math.max(peak, open);
+        await Promise.resolve();
+        await Promise.resolve();
+        open--;
+      });
+
+    await Promise.all([run(), run(), run()]);
+
+    expect(peak).toBe(1);
+  });
+
+  it("withTransaction keeps serving the queue after one transaction fails", async () => {
+    await expect(
+      withTransaction(async () => {
+        throw new Error("boom");
+      })
+    ).rejects.toThrow("boom");
+    await expect(withTransaction(async () => "ok")).resolves.toBe("ok");
+
+    expect(transactionLog()).toEqual(["BEGIN IMMEDIATE", "ROLLBACK", "BEGIN IMMEDIATE", "COMMIT"]);
   });
 
   it("mixed sales and purchases resolve independently", async () => {
@@ -627,7 +659,8 @@ describe("stress: return operations", () => {
     const elapsed = performance.now() - start;
 
     expect(elapsed).toBeLessThan(50);
-    expect(mockDb.batch).toHaveBeenCalledTimes(1);
+    expect(writes(/INSERT INTO item_retur_penjualan/)).toHaveLength(20);
+    expect(transactionLog()).toEqual(["BEGIN IMMEDIATE", "COMMIT"]);
   });
 
   it("createSaleReturn restores stock for each item", async () => {
@@ -636,33 +669,20 @@ describe("stress: return operations", () => {
       { produk_id: 8, nama_produk: "Cat", jumlah: 2, harga_satuan: 45000 },
     ]);
 
-    const batchCalls = mockDb.batch.mock.calls as unknown as unknown[][];
-    const returBatch = batchCalls.find((c: unknown[]) =>
-      (c[0] as string[]).some((s: string) => s.includes("stok = stok +"))
-    );
-    expect(returBatch).toBeDefined();
-    const stockUpdates = (returBatch![0] as unknown as string[]).filter((s: string) => s.includes("stok = stok +"));
-    expect(stockUpdates).toHaveLength(2);
-    expect(stockUpdates[0]).toContain("stok + 3");
-    expect(stockUpdates[0]).toContain("WHERE id = 5");
-    expect(stockUpdates[1]).toContain("stok + 2");
-    expect(stockUpdates[1]).toContain("WHERE id = 8");
+    const stockUpdates = writes(/stok = stok \+/);
+    expect(stockUpdates.map((u) => u.params)).toEqual([[3, 5], [2, 8]]);
   });
 
-  it("createPurchaseReturn decrements stock via batch", async () => {
+  it("createPurchaseReturn decrements stock inside one transaction", async () => {
     mockDb.select.mockResolvedValueOnce([{ id: 1, stok: 100 }]);
 
     await createPurchaseReturn(1, [
       { produk_id: 1, nama_produk: "X", jumlah: 2, harga_satuan: 5000 },
     ]);
 
-    const batchCalls = mockDb.batch.mock.calls as unknown as unknown[][];
-    const returBatch = batchCalls.find((c: unknown[]) =>
-      (c[0] as string[]).some((s: string) => s.includes("stok = stok -"))
-    );
-    expect(returBatch).toBeDefined();
-    const stockUpdates = (returBatch![0] as unknown as string[]).filter((s: string) => s.includes("stok = stok -"));
-    expect(stockUpdates).toHaveLength(1);
+    const stockUpdates = writes(/stok = stok -/);
+    expect(stockUpdates.map((u) => u.params)).toEqual([[2, 1]]);
+    expect(transactionLog()).toEqual(["BEGIN IMMEDIATE", "COMMIT"]);
   });
 
   it("createPurchaseReturn rejects on insufficient stock", async () => {
@@ -674,7 +694,8 @@ describe("stress: return operations", () => {
       ])
     ).rejects.toThrow("tidak mencukupi");
 
-    expect(mockDb.batch).not.toHaveBeenCalled();
+    expect(writes(/INSERT INTO retur_pembelian/)).toHaveLength(0);
+    expect(transactionLog()).toEqual(["BEGIN IMMEDIATE", "ROLLBACK"]);
   });
 });
 

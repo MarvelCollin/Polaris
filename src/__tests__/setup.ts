@@ -2,6 +2,7 @@ import { vi } from "vitest";
 
 const rows: Record<string, unknown[][]> = {};
 let autoId = 1;
+let lastId = 0;
 
 function getTable(sql: string): string {
   const insertMatch = sql.match(/INSERT INTO (\w+)/i);
@@ -26,12 +27,16 @@ async function defaultExecute(sql: string, _params?: unknown[]) {
   if (sql.match(/INSERT/i)) {
     if (!rows[table]) rows[table] = [];
     rows[table].push(_params ?? []);
-    return { lastInsertId: autoId++, rowsAffected: 1 };
+    lastId = autoId++;
+    return { lastInsertId: lastId, rowsAffected: 1 };
   }
   return { lastInsertId: 0, rowsAffected: 1 };
 }
 
 async function defaultSelect(sql: string, _params?: unknown[]): Promise<Record<string, unknown>[]> {
+  if (sql.match(/last_insert_rowid/i)) {
+    return [{ id: lastId }];
+  }
   if (sql.match(/COUNT\(\*\)/i)) {
     return [{ count: 0 }];
   }
@@ -67,12 +72,33 @@ vi.mock("@tauri-apps/api/path", () => ({
 
 export { mockDb, rows, autoId };
 
+export function writes(pattern: RegExp) {
+  return mockDb.execute.mock.calls
+    .filter(([sql]) => pattern.test(sql))
+    .map(([sql, params]) => ({ sql, params: params ?? [] }));
+}
+
+export function transactionLog() {
+  return mockDb.execute.mock.calls
+    .map(([sql]) => sql)
+    .filter((sql) => /^(BEGIN|COMMIT|ROLLBACK)/.test(sql));
+}
+
+export function failOn(pattern: RegExp, message: string) {
+  mockDb.execute.mockImplementation(async (sql: string, params?: unknown[]) => {
+    if (pattern.test(sql)) throw new Error(message);
+    return defaultExecute(sql, params);
+  });
+}
+
 export function resetMock() {
   mockDb.execute.mockReset();
   mockDb.select.mockReset();
-  mockDb.batch.mockClear();
+  mockDb.batch.mockReset();
+  mockDb.batch.mockImplementation(async () => []);
   mockDb.execute.mockImplementation(defaultExecute);
   mockDb.select.mockImplementation(defaultSelect);
   Object.keys(rows).forEach((k) => delete rows[k]);
   autoId = 1;
+  lastId = 0;
 }
