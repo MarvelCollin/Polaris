@@ -1,5 +1,11 @@
+!macro RecreateShortcut shortcut
+  CreateShortcut "${shortcut}" "$INSTDIR\${MAINBINARYNAME}.exe"
+  !insertmacro SetLnkAppUserModelId "${shortcut}"
+!macroend
+
 !macro NSIS_HOOK_POSTINSTALL
-  ; Always recreate desktop shortcut so updates don't leave a broken link
-  CreateShortcut "$DESKTOP\${PRODUCTNAME}.lnk" "$INSTDIR\${MAINBINARYNAME}.exe"
-  !insertmacro SetLnkAppUserModelId "$DESKTOP\${PRODUCTNAME}.lnk"
+  ${If} $UpdateMode = 1
+    !insertmacro RecreateShortcut "$SMPROGRAMS\${PRODUCTNAME}.lnk"
+    !insertmacro RecreateShortcut "$DESKTOP\${PRODUCTNAME}.lnk"
+  ${EndIf}
 !macroend
