@@ -75,6 +75,29 @@ describe("installer shortcuts", () => {
   });
 });
 
+describe("tauri crates and npm packages", () => {
+  const cargoLock = read("src-tauri/Cargo.lock");
+  const pnpmLock = read("pnpm-lock.yaml");
+  const crateVersion = (name: string) =>
+    cargoLock.match(new RegExp(`name = "${name}"\\r?\\nversion = "([^"]+)"`))?.[1];
+  const npmVersion = (name: string) =>
+    pnpmLock.match(new RegExp(`^ {2}'${name}@([^']+)':`, "m"))?.[1];
+  const minor = (version?: string) => version?.split(".").slice(0, 2).join(".");
+
+  it.each([
+    ["tauri", "@tauri-apps/api"],
+    ["tauri-plugin-opener", "@tauri-apps/plugin-opener"],
+    ["tauri-plugin-dialog", "@tauri-apps/plugin-dialog"],
+    ["tauri-plugin-fs", "@tauri-apps/plugin-fs"],
+    ["tauri-plugin-updater", "@tauri-apps/plugin-updater"],
+    ["tauri-plugin-process", "@tauri-apps/plugin-process"],
+  ])("%s and %s stay on the same major and minor release", (crate, pkg) => {
+    expect(crateVersion(crate)).toBeDefined();
+    expect(npmVersion(pkg)).toBeDefined();
+    expect(minor(npmVersion(pkg))).toBe(minor(crateVersion(crate)));
+  });
+});
+
 describe("secrets never reach the public repo", () => {
   it("keeps the real secrets file ignored", () => {
     expect(read(".gitignore")).toContain("src-tauri/gdrive_secrets.toml");
