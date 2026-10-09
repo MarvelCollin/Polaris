@@ -37,6 +37,9 @@ pub fn run() {
 
                 let restore_file = app_dir.join("polaris_restore.db");
                 if restore_file.exists() {
+                    for suffix in turso::REPLICA_SIDECARS {
+                        std::fs::remove_file(turso::with_suffix(&db_file, suffix)).ok();
+                    }
                     std::fs::copy(&restore_file, &db_file).ok();
                     std::fs::remove_file(&restore_file).ok();
                 }
@@ -63,6 +66,9 @@ pub fn run() {
             printer::print_raw,
             printer::printer_status,
             turso::get_turso_config,
+            turso::turso_reachable,
+            turso::quarantine_replica,
+            turso::restore_replica,
             turso::get_updater_token,
         ])
         .run(tauri::generate_context!())

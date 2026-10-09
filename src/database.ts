@@ -34,18 +34,105 @@ async function tursoConfig(): Promise<TursoConfig | null> {
   }
 }
 
+const DIVERGED = /frame insert conflict|invalid local state|lower generation than local|verify metadata file/i;
+const DIRTY_KEY = "polaris:replica-dirty";
+const RESET_KEY = "polaris:replica-reset";
+const RESET_VERSION = "1";
+
+export const DIVERGED_MESSAGE =
+  "Data di komputer ini tidak sinkron dengan server. Tutup lalu buka lagi aplikasi agar diperbaiki otomatis. Cek riwayat dulu sebelum mengulang transaksi.";
+
+export function isDiverged(error: unknown): boolean {
+  return DIVERGED.test(error instanceof Error ? error.message : String(error));
+}
+
+function storage(): Storage | null {
+  try {
+    return typeof localStorage === "undefined" ? null : localStorage;
+  } catch (_) {
+    return null;
+  }
+}
+
+function markDirty() {
+  storage()?.setItem(DIRTY_KEY, "1");
+}
+
+function needsReset(): boolean {
+  const store = storage();
+  if (!store) return false;
+  return store.getItem(DIRTY_KEY) === "1" || store.getItem(RESET_KEY) !== RESET_VERSION;
+}
+
+function markReset() {
+  const store = storage();
+  store?.removeItem(DIRTY_KEY);
+  store?.setItem(RESET_KEY, RESET_VERSION);
+}
+
+async function tursoReachable(): Promise<boolean> {
+  try {
+    return (await invoke<boolean>("turso_reachable")) === true;
+  } catch (_) {
+    return false;
+  }
+}
+
+async function watch<T>(work: Promise<T>): Promise<T> {
+  try {
+    return await work;
+  } catch (e) {
+    if (!isDiverged(e)) throw e;
+    markDirty();
+    throw new Error(DIVERGED_MESSAGE);
+  }
+}
+
+function guard(replica: Database): Database {
+  return Object.assign(Object.create(replica) as Database, {
+    execute: (query: string, values?: unknown[]) => watch(replica.execute(query, values)),
+    select: <T>(query: string, values?: unknown[]) => watch(replica.select<T>(query, values)),
+    batch: (queries: string[]) => watch(replica.batch(queries)),
+    sync: () => watch(replica.sync()),
+  });
+}
+
+async function rebuildReplica(options: { path: string; syncUrl: string; authToken: string }): Promise<Database> {
+  const moved = await invoke<string>("quarantine_replica");
+  try {
+    const replica = await Database.load(options);
+    markReset();
+    return replica;
+  } catch (e) {
+    await invoke("restore_replica", { folder: moved }).catch(() => {});
+    throw e;
+  }
+}
+
+async function loadReplica(path: string, config: TursoConfig): Promise<Database> {
+  const options = { path, syncUrl: config.url, authToken: config.token };
+  if (needsReset() && (await tursoReachable())) return guard(await rebuildReplica(options));
+  try {
+    return guard(await Database.load(options));
+  } catch (e) {
+    if (!isDiverged(e)) throw e;
+    return guard(await rebuildReplica(options));
+  }
+}
+
 async function openDb(): Promise<Database> {
   const path = await databasePath();
   const config = await tursoConfig();
 
   if (config) {
     try {
-      const replica = await Database.load({ path, syncUrl: config.url, authToken: config.token });
+      const replica = await loadReplica(path, config);
       tursoConnected = true;
       db = await tune(replica);
       void replica.sync().catch(() => {});
       return db;
     } catch (_) {}
+    markDirty();
   }
 
   db = await tune(await Database.load(path));
@@ -77,22 +164,7 @@ export function withTransaction<T>(work: (tx: Database) => Promise<T>): Promise<
 }
 
 export async function connectTurso(): Promise<void> {
-  if (tursoConnected) return;
   await getDb();
-  if (tursoConnected) return;
-
-  const config = await tursoConfig();
-  if (!config) return;
-
-  try {
-    const path = await databasePath();
-    const replica = await Database.load({ path, syncUrl: config.url, authToken: config.token });
-    await tune(replica);
-    await replica.sync();
-    db = replica;
-    dbPromise = Promise.resolve(replica);
-    tursoConnected = true;
-  } catch (_) {}
 }
 
 export const SYNC_DELAY_MS = 2000;
