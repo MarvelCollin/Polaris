@@ -1,6 +1,6 @@
 [package]
 name = "polaris"
-version = "2.12.4"
+version = "2.12.5"
 description = "Polaris"
 authors = ["MarvelCollin"]
 edition = "2021"
