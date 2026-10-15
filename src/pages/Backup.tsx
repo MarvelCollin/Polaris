@@ -79,12 +79,8 @@ export default function Backup() {
     setError("");
     setSuccess("");
     try {
-      const target = await restoreBackup(confirmRestore.id);
-      setSuccess(
-        target === "server"
-          ? "Restore berhasil. Data di server sudah diganti dengan backup ini untuk semua komputer."
-          : "Backup berhasil didownload. Restart aplikasi untuk menerapkan restore."
-      );
+      await restoreBackup(confirmRestore.id);
+      setSuccess("Restore berhasil. Data di server sudah diganti dengan backup ini untuk semua komputer.");
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     }

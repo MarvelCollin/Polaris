@@ -60,21 +60,9 @@ pub struct AutoBackupConfig {
     pub last_backup_ts: Option<i64>,
 }
 
-fn get_db_path(app: &tauri::AppHandle) -> Result<PathBuf, String> {
-    let app_dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
-    Ok(app_dir.join("polaris.db"))
-}
-
 async fn read_database(app: &tauri::AppHandle) -> Result<Vec<u8>, String> {
-    if crate::turso::configured() {
-        let app_dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
-        return crate::turso::mirror_snapshot(&app_dir).await;
-    }
-    let db_path = get_db_path(app)?;
-    if !db_path.exists() {
-        return Err("Database tidak ditemukan".to_string());
-    }
-    std::fs::read(&db_path).map_err(|e| format!("Gagal membaca database: {}", e))
+    let app_dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
+    crate::turso::export_snapshot(&app_dir).await
 }
 
 fn parse_json<T: serde::de::DeserializeOwned>(body: &str) -> Result<T, String> {
@@ -306,7 +294,7 @@ pub async fn gdrive_list_backups() -> Result<Vec<DriveFile>, String> {
 }
 
 #[tauri::command]
-pub async fn gdrive_restore(app: tauri::AppHandle, file_id: String) -> Result<String, String> {
+pub async fn gdrive_restore(app: tauri::AppHandle, file_id: String) -> Result<(), String> {
     let app_dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
     let access_token = get_access_token().await?;
     let client = HTTP.clone();
@@ -330,16 +318,7 @@ pub async fn gdrive_restore(app: tauri::AppHandle, file_id: String) -> Result<St
         return Err("File bukan database SQLite yang valid".to_string());
     }
 
-    if crate::turso::configured() {
-        crate::turso::restore_to_turso(&app_dir, &bytes).await?;
-        return Ok("server".to_string());
-    }
-
-    let restore_path = app_dir.join("polaris_restore.db");
-    std::fs::write(&restore_path, &bytes)
-        .map_err(|e| format!("Gagal menyimpan file restore: {}", e))?;
-
-    Ok("local".to_string())
+    crate::turso::restore_to_turso(&app_dir, &bytes).await
 }
 
 #[tauri::command]
@@ -376,21 +355,14 @@ pub async fn gdrive_get_auto_backup_status(
     Ok(load_auto_config(&app_dir))
 }
 
-fn database_ready(app: &tauri::AppHandle) -> bool {
-    if crate::turso::configured() {
-        return app
-            .path()
-            .app_data_dir()
-            .map(|dir| crate::turso::mirror_exists(&dir))
-            .unwrap_or(false);
-    }
-    get_db_path(app).map(|p| p.exists()).unwrap_or(false)
+fn database_ready() -> bool {
+    crate::turso::configured()
 }
 
 pub async fn auto_backup_loop(app: tauri::AppHandle) {
     tokio::time::sleep(Duration::from_secs(10)).await;
 
-    if database_ready(&app) {
+    if database_ready() {
         if let Err(e) = try_auto_backup(&app).await {
             eprintln!("Auto backup (startup): {}", e);
         }
@@ -398,7 +370,7 @@ pub async fn auto_backup_loop(app: tauri::AppHandle) {
 
     loop {
         tokio::time::sleep(Duration::from_secs(60)).await;
-        if !database_ready(&app) {
+        if !database_ready() {
             continue;
         }
         if let Err(e) = try_auto_backup(&app).await {
