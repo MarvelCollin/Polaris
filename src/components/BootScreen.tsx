@@ -1,4 +1,6 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import type { Update } from "@tauri-apps/plugin-updater";
+import { findUpdate, installUpdate, reloadOrUpdate } from "@/lib/recovery";
 import Spinner from "./Spinner";
 
 export function formatError(error: unknown): string {
@@ -46,7 +48,30 @@ export function BootError({
   onRetry: () => void;
 }) {
   const [copied, setCopied] = useState(false);
+  const [update, setUpdate] = useState<Update | null>(null);
+  const [notice, setNotice] = useState("");
+  const [busy, setBusy] = useState(false);
   const detail = formatError(error);
+
+  useEffect(() => {
+    let alive = true;
+    findUpdate().then((found) => {
+      if (alive && found) setUpdate(found);
+    });
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  const runUpdate = async (found: Update) => {
+    setBusy(true);
+    if ((await installUpdate(found, setNotice)) === "failed") setBusy(false);
+  };
+
+  const reload = async () => {
+    setBusy(true);
+    if ((await reloadOrUpdate(setNotice)) === "failed") setBusy(false);
+  };
 
   const copy = async () => {
     try {
@@ -68,16 +93,30 @@ export function BootError({
       <pre className="max-h-[38vh] w-full max-w-xl overflow-auto rounded-xl border bg-card p-3.5 text-left font-mono text-xs leading-relaxed whitespace-pre-wrap text-muted-foreground">
         {detail}
       </pre>
+      {update && !busy && (
+        <div className="flex w-full max-w-xl flex-wrap items-center justify-between gap-3 rounded-xl border border-primary/30 bg-primary/10 p-3.5 text-left text-sm">
+          <span>Versi {update.version} sudah tersedia. Pasang update ini, masalah seperti ini biasanya sudah diperbaiki.</span>
+          <button
+            onClick={() => runUpdate(update)}
+            className="cursor-pointer rounded-lg bg-primary px-4 py-2 text-sm text-primary-foreground"
+          >
+            Update Sekarang
+          </button>
+        </div>
+      )}
+      {notice && <div className="max-w-xl text-sm text-muted-foreground">{notice}</div>}
       <div className="flex flex-wrap items-center justify-center gap-2.5">
         <button
           onClick={onRetry}
-          className="cursor-pointer rounded-lg bg-primary px-4 py-2 text-sm text-primary-foreground"
+          disabled={busy}
+          className="cursor-pointer rounded-lg bg-primary px-4 py-2 text-sm text-primary-foreground disabled:cursor-not-allowed disabled:opacity-50"
         >
           Coba Lagi
         </button>
         <button
-          onClick={() => window.location.reload()}
-          className="cursor-pointer rounded-lg border bg-card px-4 py-2 text-sm"
+          onClick={reload}
+          disabled={busy}
+          className="cursor-pointer rounded-lg border bg-card px-4 py-2 text-sm disabled:cursor-not-allowed disabled:opacity-50"
         >
           Muat Ulang
         </button>

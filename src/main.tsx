@@ -119,18 +119,15 @@ function Root() {
 
   if (state.phase === "error") {
     return (
-      <UpdateProvider>
-        <BootError
-          step={state.step}
-          error={state.error}
-          onRetry={() => {
-            setSlow(false);
-            publish({ phase: "loading", step: bootSteps[0].label });
-            startBoot();
-          }}
-        />
-        <UpdateChecker />
-      </UpdateProvider>
+      <BootError
+        step={state.step}
+        error={state.error}
+        onRetry={() => {
+          setSlow(false);
+          publish({ phase: "loading", step: bootSteps[0].label });
+          startBoot();
+        }}
+      />
     );
   }
 
