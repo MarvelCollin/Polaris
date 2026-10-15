@@ -65,6 +65,18 @@ fn get_db_path(app: &tauri::AppHandle) -> Result<PathBuf, String> {
     Ok(app_dir.join("polaris.db"))
 }
 
+async fn read_database(app: &tauri::AppHandle) -> Result<Vec<u8>, String> {
+    if crate::turso::configured() {
+        let app_dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
+        return crate::turso::mirror_snapshot(&app_dir).await;
+    }
+    let db_path = get_db_path(app)?;
+    if !db_path.exists() {
+        return Err("Database tidak ditemukan".to_string());
+    }
+    std::fs::read(&db_path).map_err(|e| format!("Gagal membaca database: {}", e))
+}
+
 fn parse_json<T: serde::de::DeserializeOwned>(body: &str) -> Result<T, String> {
     serde_json::from_str(body)
         .map_err(|e| format!("{} — response: {}", e, &body[..body.len().min(500)]))
@@ -202,13 +214,9 @@ async fn get_backup_folder(client: &reqwest::Client, access_token: &str) -> Resu
     get_or_create_folder(client, access_token, &device_name(), Some(&root)).await
 }
 
-async fn backup_internal(db_path: &PathBuf) -> Result<DriveFile, String> {
-    if !db_path.exists() {
-        return Err("Database tidak ditemukan".to_string());
-    }
-
+async fn backup_internal(app: &tauri::AppHandle) -> Result<DriveFile, String> {
     let access_token = get_access_token().await?;
-    let file_bytes = std::fs::read(db_path).map_err(|e| format!("Gagal membaca database: {}", e))?;
+    let file_bytes = read_database(app).await?;
 
     let client = HTTP.clone();
     let folder_id = get_backup_folder(&client, &access_token).await?;
@@ -259,8 +267,7 @@ async fn backup_internal(db_path: &PathBuf) -> Result<DriveFile, String> {
 #[tauri::command]
 pub async fn gdrive_backup(app: tauri::AppHandle) -> Result<DriveFile, String> {
     let app_dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
-    let db_path = get_db_path(&app)?;
-    let result = backup_internal(&db_path).await?;
+    let result = backup_internal(&app).await?;
 
     let mut config = load_auto_config(&app_dir);
     config.last_backup_ts = Some(Local::now().timestamp());
@@ -299,7 +306,7 @@ pub async fn gdrive_list_backups() -> Result<Vec<DriveFile>, String> {
 }
 
 #[tauri::command]
-pub async fn gdrive_restore(app: tauri::AppHandle, file_id: String) -> Result<(), String> {
+pub async fn gdrive_restore(app: tauri::AppHandle, file_id: String) -> Result<String, String> {
     let app_dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
     let access_token = get_access_token().await?;
     let client = HTTP.clone();
@@ -323,11 +330,16 @@ pub async fn gdrive_restore(app: tauri::AppHandle, file_id: String) -> Result<()
         return Err("File bukan database SQLite yang valid".to_string());
     }
 
+    if crate::turso::configured() {
+        crate::turso::restore_to_turso(&app_dir, &bytes).await?;
+        return Ok("server".to_string());
+    }
+
     let restore_path = app_dir.join("polaris_restore.db");
     std::fs::write(&restore_path, &bytes)
         .map_err(|e| format!("Gagal menyimpan file restore: {}", e))?;
 
-    Ok(())
+    Ok("local".to_string())
 }
 
 #[tauri::command]
@@ -365,6 +377,13 @@ pub async fn gdrive_get_auto_backup_status(
 }
 
 fn database_ready(app: &tauri::AppHandle) -> bool {
+    if crate::turso::configured() {
+        return app
+            .path()
+            .app_data_dir()
+            .map(|dir| crate::turso::mirror_exists(&dir))
+            .unwrap_or(false);
+    }
     get_db_path(app).map(|p| p.exists()).unwrap_or(false)
 }
 
@@ -420,8 +439,7 @@ async fn try_auto_backup(app: &tauri::AppHandle) -> Result<(), String> {
         }
     }
 
-    let db_path = get_db_path(app)?;
-    backup_internal(&db_path).await?;
+    backup_internal(app).await?;
 
     let updated = AutoBackupConfig {
         last_backup_ts: Some(Local::now().timestamp()),

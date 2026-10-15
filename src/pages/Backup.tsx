@@ -79,8 +79,12 @@ export default function Backup() {
     setError("");
     setSuccess("");
     try {
-      await restoreBackup(confirmRestore.id);
-      setSuccess("Backup berhasil didownload. Restart aplikasi untuk menerapkan restore.");
+      const target = await restoreBackup(confirmRestore.id);
+      setSuccess(
+        target === "server"
+          ? "Restore berhasil. Data di server sudah diganti dengan backup ini untuk semua komputer."
+          : "Backup berhasil didownload. Restart aplikasi untuk menerapkan restore."
+      );
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     }
@@ -206,7 +210,7 @@ export default function Backup() {
         onClose={() => setConfirmRestore(null)}
         onConfirm={handleRestore}
         title="Restore Backup"
-        message={`Restore dari "${confirmRestore?.name}"? Database saat ini akan diganti. Aplikasi perlu di-restart setelah restore.`}
+        message={`Restore dari "${confirmRestore?.name}"? Semua data di server akan diganti dengan isi backup ini, termasuk data dari komputer lain.`}
       />
 
       <ConfirmDialog

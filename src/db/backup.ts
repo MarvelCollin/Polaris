@@ -1,4 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
+import { requireOnline } from "@/database";
 
 export interface DriveFile {
   id: string;
@@ -16,8 +17,11 @@ export async function listBackups(): Promise<DriveFile[]> {
   return invoke<DriveFile[]>("gdrive_list_backups");
 }
 
-export async function restoreBackup(fileId: string): Promise<void> {
-  return invoke<void>("gdrive_restore", { fileId });
+export type RestoreTarget = "server" | "local";
+
+export async function restoreBackup(fileId: string): Promise<RestoreTarget> {
+  requireOnline();
+  return invoke<RestoreTarget>("gdrive_restore", { fileId });
 }
 
 export async function deleteBackup(fileId: string): Promise<void> {
