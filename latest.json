@@ -1,0 +1,11 @@
+{
+  "version": "2.13.0",
+  "notes": "See the release page for details.",
+  "pub_date": "2026-10-15T05:56:21Z",
+  "platforms": {
+    "windows-x86_64": {
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVROUVFWnVkNnU0Z05JRGttNUZFTExTWHo4MmdXakREVjRXZ243U1NDUGZkenMwVnc4MzYzV3Z3cjk0emszZHV6ekxzbzlNTUg0dWx5aVFvdUVTMGJyZFpJdDRlZThZZFFBPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkyMDQzNzU2CWZpbGU6UG9sYXJpc18yLjEzLjBfeDY0LXNldHVwLm5zaXMuemlwCjh1QWtzSHp0bExsR0JpL2RJMit0YXJYa2FBeDZVcUd4TzBoNUN3V0xKT1VaNWZGN1JyRnNBazVld2xNTGdRSnlMU3B2WUJHbjBQcVZuSVl4UTE2SUN3PT0K",
+      "url": "https://api.github.com/repos/MarvelCollin/Polaris/releases/assets/642847946"
+    }
+  }
+}
