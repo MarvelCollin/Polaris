@@ -199,7 +199,7 @@ async fn get_or_create_folder(
 
 async fn get_backup_folder(client: &reqwest::Client, access_token: &str) -> Result<String, String> {
     let root = get_or_create_folder(client, access_token, "Sahabat Sentarum Backup", None).await?;
-    get_or_create_folder(client, access_token, &device_name(), Some(&root)).await
+    get_or_create_folder(client, access_token, "Server (Turso)", Some(&root)).await
 }
 
 async fn backup_internal(app: &tauri::AppHandle) -> Result<DriveFile, String> {
@@ -209,11 +209,7 @@ async fn backup_internal(app: &tauri::AppHandle) -> Result<DriveFile, String> {
     let client = HTTP.clone();
     let folder_id = get_backup_folder(&client, &access_token).await?;
 
-    let ts = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap()
-        .as_secs();
-    let filename = format!("polaris_backup_{}.db", ts);
+    let filename = format!("turso_backup_{}_{}.db", Local::now().format("%Y%m%d-%H%M"), device_name());
 
     let boundary = "polaris_boundary_xyz789";
     let metadata = serde_json::json!({
