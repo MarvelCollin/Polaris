@@ -2,7 +2,8 @@ import React, { Suspense, lazy, useEffect, useState } from "react";
 import ReactDOM from "react-dom/client";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import App from "./App";
-import { initDb, connectTurso } from "./database";
+import { initDb } from "./database";
+import { keepCacheWarm } from "./db/warm";
 import { seedDatabase } from "./db/seed";
 import { initPassword } from "./db/auth";
 import Spinner from "./components/Spinner";
@@ -61,7 +62,7 @@ function startBoot() {
       }
     }
     publish({ phase: "ready" });
-    connectTurso();
+    keepCacheWarm();
   })();
 
   return bootPromise;
