@@ -42,28 +42,7 @@ describe("closing the app", () => {
   });
 });
 
-describe("database location", () => {
-  it("resolves an absolute path under the app data directory", async () => {
-    const { databasePath } = await import("@/database");
-    const path = await databasePath();
-    expect(path.startsWith("sqlite:")).toBe(true);
-    expect(path).toContain("AppData");
-    expect(path.endsWith("polaris.db")).toBe(true);
-  });
-
-  it("keeps the database inside the app data folder instead of gluing it to the folder name", async () => {
-    const { databasePath } = await import("@/database");
-    const path = await databasePath();
-    expect(path).toBe("sqlite:C:/Users/test/AppData/Roaming/com.marvelcollin.polaris/polaris.db");
-    expect(path).not.toContain("polarispolaris");
-  });
-
-  it("does not depend on the working directory", async () => {
-    const { databasePath } = await import("@/database");
-    expect(await databasePath()).toBe(await databasePath());
-    expect(await databasePath()).not.toBe("sqlite:polaris.db");
-  });
-
+describe("database connection", () => {
   it("opens one handle no matter how many callers ask", async () => {
     const { getDb } = await import("@/database");
     const [a, b, c] = await Promise.all([getDb(), getDb(), getDb()]);

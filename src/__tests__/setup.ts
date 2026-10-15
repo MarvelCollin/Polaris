@@ -1,4 +1,5 @@
 import { vi } from "vitest";
+import { clearCache } from "@/database";
 
 const rows: Record<string, unknown[][]> = {};
 let autoId = 1;
@@ -22,8 +23,21 @@ function getTable(sql: string): string {
   return "__unknown__";
 }
 
+const insertResults: { lastInsertId: number; rowsAffected: number }[] = [];
+
+export function nextInsertResult(result: { lastInsertId: number; rowsAffected: number }) {
+  insertResults.push(result);
+}
+
+export function statements() {
+  return mockDb.execute.mock.calls.filter(([sql]) => !/^(BEGIN|COMMIT|ROLLBACK)/.test(sql) && !/_applied_ops/.test(sql));
+}
+
 async function defaultExecute(sql: string, _params?: unknown[]) {
   const table = getTable(sql);
+  if (sql.match(/INSERT/i) && !/_applied_ops/.test(sql) && insertResults.length > 0) {
+    return insertResults.shift()!;
+  }
   if (sql.match(/INSERT/i)) {
     if (!rows[table]) rows[table] = [];
     rows[table].push(_params ?? []);
@@ -62,8 +76,16 @@ vi.mock("tauri-plugin-libsql-api", () => ({
   },
 }));
 
+export const TEST_TURSO = { url: "libsql://polaris-test", token: "test-token" };
+
+export async function defaultInvoke(cmd: string): Promise<unknown> {
+  if (cmd === "get_turso_config") return TEST_TURSO;
+  if (cmd === "turso_reachable") return true;
+  return null;
+}
+
 vi.mock("@tauri-apps/api/core", () => ({
-  invoke: vi.fn(async () => null),
+  invoke: vi.fn((cmd: string) => defaultInvoke(cmd)),
 }));
 
 vi.mock("@tauri-apps/api/path", () => ({
@@ -93,6 +115,8 @@ export function failOn(pattern: RegExp, message: string) {
 }
 
 export function resetMock() {
+  clearCache();
+  insertResults.length = 0;
   mockDb.execute.mockReset();
   mockDb.select.mockReset();
   mockDb.batch.mockReset();

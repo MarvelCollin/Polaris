@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { resetMock, mockDb } from "./setup";
+import { resetMock, mockDb, nextInsertResult } from "./setup";
 import { getCategories, createCategory, updateCategory, deleteCategory } from "@/db/categories";
 
 describe("categories", () => {
@@ -19,7 +19,7 @@ describe("categories", () => {
   });
 
   it("should create a category and return its id", async () => {
-    mockDb.execute.mockResolvedValueOnce({ lastInsertId: 5, rowsAffected: 1 });
+    nextInsertResult({ lastInsertId: 5, rowsAffected: 1 });
     const id = await createCategory("Semen");
     expect(id).toBe(5);
     expect(mockDb.execute).toHaveBeenCalledWith(

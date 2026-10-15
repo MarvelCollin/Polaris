@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { resetMock, mockDb } from "./setup";
+import { resetMock, mockDb, nextInsertResult, statements } from "./setup";
 import { getProducts, getProduct, createProduct, updateProduct, deleteProduct, getLowStockProducts, generateProductCode, getFrequentProductIds } from "@/db/products";
 
 describe("products", () => {
@@ -59,7 +59,7 @@ describe("products", () => {
   });
 
   it("should create a product", async () => {
-    mockDb.execute.mockResolvedValueOnce({ lastInsertId: 10, rowsAffected: 1 });
+    nextInsertResult({ lastInsertId: 10, rowsAffected: 1 });
     const data = {
       kode: "SMN-001",
       nama: "Semen Tiga Roda",
@@ -72,7 +72,7 @@ describe("products", () => {
     };
     const id = await createProduct(data);
     expect(id).toBe(10);
-    expect(mockDb.execute).toHaveBeenCalledTimes(1);
+    expect(statements()).toHaveLength(1);
   });
 
   it("should update a product", async () => {
@@ -87,7 +87,7 @@ describe("products", () => {
       stok_minimum: 25,
     };
     await updateProduct(1, data);
-    const call = mockDb.execute.mock.calls[0][0] as string;
+    const call = statements()[0][0] as string;
     expect(call).toContain("UPDATE produk SET");
     expect(call).toContain("WHERE id = $10");
   });
@@ -125,7 +125,7 @@ describe("products", () => {
   });
 
   it("should create product with gambar", async () => {
-    mockDb.execute.mockResolvedValueOnce({ lastInsertId: 11, rowsAffected: 1 });
+    nextInsertResult({ lastInsertId: 11, rowsAffected: 1 });
     mockDb.select.mockResolvedValueOnce([{ max_id: 10 }]);
     const data = {
       kode: "",

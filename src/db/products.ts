@@ -1,4 +1,4 @@
-import { getDb, syncDb, op } from "../database";
+import { getDb, op } from "../database";
 import { Product, ProductWithCategory } from "../types";
 
 export async function generateProductCode(): Promise<string> {
@@ -65,7 +65,6 @@ export const createProduct = op("createProduct", async (data: {
      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
     [kode, data.nama, data.kategori_id, data.satuan, data.harga_beli, data.harga_jual, data.stok, data.stok_minimum, data.gambar ?? null]
   );
-  syncDb();
   return result.lastInsertId ?? 0;
 });
 
@@ -90,7 +89,6 @@ export const updateProduct = op("updateProduct", async (
      WHERE id = $10`,
     [data.kode, data.nama, data.kategori_id, data.satuan, data.harga_beli, data.harga_jual, data.stok, data.stok_minimum, data.gambar ?? null, id]
   );
-  syncDb();
 });
 
 export const updateStock = op("updateStock", async (id: number, stok: number): Promise<void> => {
@@ -100,7 +98,6 @@ export const updateStock = op("updateStock", async (id: number, stok: number): P
     "UPDATE produk SET stok=$1, diperbarui_pada=strftime('%s','now') WHERE id=$2",
     [stok, id]
   );
-  syncDb();
 });
 
 export const deleteProduct = op("deleteProduct", async (id: number): Promise<void> => {
@@ -114,7 +111,6 @@ export const deleteProduct = op("deleteProduct", async (id: number): Promise<voi
     throw new Error("Produk tidak dapat dihapus karena sudah memiliki transaksi");
   }
   await db.execute("DELETE FROM produk WHERE id = $1", [id]);
-  syncDb();
 });
 
 export async function getFrequentProductIds(limit: number = 8): Promise<number[]> {

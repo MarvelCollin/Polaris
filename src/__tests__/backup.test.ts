@@ -18,6 +18,14 @@ describe("backup", () => {
     mockInvoke.mockReset();
   });
 
+  function online() {
+    mockInvoke.mockImplementation(async (cmd: string) => {
+      if (cmd === "get_turso_config") return { url: "libsql://polaris-test", token: "test-token" };
+      if (cmd === "turso_reachable") return true;
+      return undefined;
+    });
+  }
+
   describe("backup operations", () => {
     it("should invoke gdrive_backup", async () => {
       const mockFile = { id: "file1", name: "backup.db" };
@@ -40,7 +48,7 @@ describe("backup", () => {
     });
 
     it("should invoke gdrive_restore with file id", async () => {
-      mockInvoke.mockResolvedValueOnce(undefined);
+      online();
 
       await restoreBackup("file_id_123");
 

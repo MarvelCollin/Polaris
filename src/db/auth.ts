@@ -1,4 +1,4 @@
-import { getDb, op, syncDb } from "@/database";
+import { getDb, op, isOffline } from "@/database";
 import { invoke } from "@tauri-apps/api/core";
 
 async function hashPassword(password: string): Promise<string> {
@@ -11,6 +11,7 @@ async function hashPassword(password: string): Promise<string> {
 
 export async function initPassword(): Promise<void> {
   const db = await getDb();
+  if (isOffline()) return;
   const ver = await db.select<{ value: string }[]>(
     "SELECT value FROM settings WHERE key = 'app_password_version'"
   );
@@ -26,15 +27,20 @@ export async function initPassword(): Promise<void> {
   }
 }
 
-export async function verifyPassword(password: string): Promise<boolean> {
+export async function readPasswordHash(): Promise<string | null> {
   const db = await getDb();
   const rows = await db.select<{ value: string }[]>(
     "SELECT value FROM settings WHERE key = 'app_password'"
   );
-  if (rows.length === 0) return false;
+  return rows[0]?.value ?? null;
+}
+
+export async function verifyPassword(password: string): Promise<boolean> {
+  const stored = await readPasswordHash();
+  if (stored === null) return false;
 
   const hash = await hashPassword(password);
-  return hash === rows[0].value;
+  return hash === stored;
 }
 
 export async function changePassword(
@@ -54,5 +60,4 @@ const savePasswordHash = op("savePasswordHash", async (hash: string): Promise<vo
     "INSERT OR REPLACE INTO settings (key, value) VALUES ('app_password', $1)",
     [hash]
   );
-  syncDb();
 });

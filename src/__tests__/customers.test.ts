@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { resetMock, mockDb } from "./setup";
+import { resetMock, mockDb, nextInsertResult, statements } from "./setup";
 import {
   getCustomers,
   createCustomer,
@@ -37,7 +37,7 @@ describe("customers", () => {
   });
 
   it("should create a customer and return id", async () => {
-    mockDb.execute.mockResolvedValueOnce({ lastInsertId: 3, rowsAffected: 1 });
+    nextInsertResult({ lastInsertId: 3, rowsAffected: 1 });
     const id = await createCustomer({ nama: "Pak Budi", telepon: "081234567890", alamat: "Jl. Merdeka" });
     expect(id).toBe(3);
     expect(mockDb.execute).toHaveBeenCalledWith(
@@ -47,10 +47,10 @@ describe("customers", () => {
   });
 
   it("should create a customer with null phone and address", async () => {
-    mockDb.execute.mockResolvedValueOnce({ lastInsertId: 4, rowsAffected: 1 });
+    nextInsertResult({ lastInsertId: 4, rowsAffected: 1 });
     const id = await createCustomer({ nama: "Toko ABC", telepon: null, alamat: null });
     expect(id).toBe(4);
-    const call = mockDb.execute.mock.calls[0][1] as unknown[];
+    const call = statements()[0][1] as unknown[];
     expect(call[1]).toBeNull();
     expect(call[2]).toBeNull();
   });
@@ -90,7 +90,7 @@ describe("customers", () => {
 
   it("should set a customer price (upsert)", async () => {
     await setCustomerPrice(1, 5, 50000);
-    const call = mockDb.execute.mock.calls[0];
+    const call = statements()[0];
     expect((call[0] as string)).toContain("INSERT INTO harga_pelanggan");
     expect((call[0] as string)).toContain("ON CONFLICT");
     expect(call[1]).toEqual([1, 5, 50000]);

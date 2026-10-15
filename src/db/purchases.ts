@@ -1,6 +1,6 @@
-import { getDb, syncDb, withTransaction, op, opTime, keep } from "../database";
+import { getDb, withTransaction, op, opTime, keep } from "../database";
 import { Purchase, PurchaseItem, PurchaseEntry, PurchaseDebt, Payment, ReturPembelian, ReturItem } from "../types";
-import { type ChartGroupBy, groupSqlFor, formatGroupLabel } from "./sales";
+import { type ChartGroupBy, groupSqlFor, formatGroupLabel, offlineNumber } from "./sales";
 import { toLocalDateKey, toUnixTimestamp } from "../lib/utils";
 
 export async function getDistinctSuppliers(): Promise<string[]> {
@@ -81,8 +81,11 @@ export const createPurchase = op("createPurchase", async (
 
     return id;
   });
-  syncDb();
   return purchaseId;
+}, {
+  offline: (_args, kept, tempId, at) => {
+    kept.nomor = offlineNumber("PO", at, tempId);
+  },
 });
 
 export async function getPurchases(
@@ -172,7 +175,6 @@ export const addPurchasePayment = op("addPurchasePayment", async (purchaseId: nu
     "INSERT INTO pembayaran_pembelian (pembelian_id, jumlah, catatan, dibuat_pada) VALUES ($1, $2, $3, $4)",
     [purchaseId, jumlah, catatan || null, opTime()]
   );
-  syncDb();
 });
 
 export async function getPurchaseHistoryStats(startDate?: number, endDate?: number) {
@@ -335,7 +337,6 @@ export const createPurchaseReturn = op("createPurchaseReturn", async (
 
     return id;
   });
-  syncDb();
   return returId;
 });
 

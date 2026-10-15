@@ -1,29 +1,12 @@
-import { describe, it, expect, beforeAll, beforeEach, afterEach, vi } from "vitest";
+import { describe, it, expect, beforeAll, beforeEach } from "vitest";
 import { resetMock, mockDb, writes, transactionLog, failOn } from "./setup";
-import { invoke } from "@tauri-apps/api/core";
-import { connectTurso, syncDb, withTransaction, SYNC_DELAY_MS, SYNC_MAX_DELAY_MS } from "@/database";
+import { connectTurso, withTransaction } from "@/database";
 import { getDashboardStats, getDailySales, getMonthlySalesVsPurchases } from "@/db/dashboard";
-import { createSale, createSaleReturn, addSalePayment } from "@/db/sales";
-import { createPurchase, createPurchaseReturn, addPurchasePayment } from "@/db/purchases";
-import { createProduct, updateProduct, deleteProduct } from "@/db/products";
-import { createCategory, updateCategory, deleteCategory } from "@/db/categories";
-import { createCustomer, addCustomerAddress, setCustomerPrice } from "@/db/customers";
-
-function online() {
-  vi.mocked(invoke).mockImplementation(async (cmd: string) => {
-    if (cmd === "get_turso_config") return { url: "libsql://polaris-test", token: "test-token" };
-    if (cmd === "turso_reachable") return true;
-    if (cmd === "offline_db_exists") return false;
-    return null;
-  });
-}
-
-function mirrorSyncs() {
-  return vi.mocked(invoke).mock.calls.filter(([cmd]) => cmd === "mirror_sync").length;
-}
+import { createSale, createSaleReturn } from "@/db/sales";
+import { createPurchase, createPurchaseReturn } from "@/db/purchases";
+import { addCustomerAddress, setCustomerPrice } from "@/db/customers";
 
 beforeAll(async () => {
-  online();
   await connectTurso();
 });
 
@@ -398,145 +381,6 @@ describe("stress: cart operations at scale", () => {
   });
 });
 
-describe("stress: syncDb fires after every write", () => {
-  beforeEach(() => {
-    vi.useFakeTimers();
-    resetMock();
-    vi.mocked(invoke).mockClear();
-  });
-
-  afterEach(() => {
-    vi.useRealTimers();
-  });
-
-  it("createSale triggers sync after commit", async () => {
-    mockDb.select.mockResolvedValueOnce([{ count: 0 }]);
-    mockDb.select.mockResolvedValueOnce([{ id: 1, harga_beli: 8000 }]);
-
-    await createSale(
-      [{ produk_id: 1, nama: "X", satuan: "pcs", jumlah: 1, harga: 10000, stok: 10 }],
-      10000
-    );
-
-    vi.advanceTimersByTime(2000);
-    expect(mirrorSyncs()).toBeGreaterThan(0);
-  });
-
-  it("createPurchase triggers sync after commit", async () => {
-    mockDb.select.mockResolvedValueOnce([{ count: 0 }]);
-    mockDb.select.mockResolvedValueOnce([{ id: 1, stok: 50, harga_beli: 4000 }]);
-
-    await createPurchase("Supplier", [{ produk_id: 1, nama: "X", satuan: "pcs", jumlah: 5, harga: 5000 }]);
-
-    vi.advanceTimersByTime(2000);
-    expect(mirrorSyncs()).toBeGreaterThan(0);
-  });
-
-  it("addSalePayment triggers sync", async () => {
-    await addSalePayment(1, 50000, "cicilan");
-    vi.advanceTimersByTime(2000);
-    expect(mirrorSyncs()).toBeGreaterThan(0);
-  });
-
-  it("addPurchasePayment triggers sync", async () => {
-    await addPurchasePayment(1, 50000, "cicilan");
-    vi.advanceTimersByTime(2000);
-    expect(mirrorSyncs()).toBeGreaterThan(0);
-  });
-
-  it("createProduct triggers sync", async () => {
-    mockDb.select.mockResolvedValueOnce([{ max_id: 5 }]);
-    await createProduct({
-      kode: "", nama: "Test", kategori_id: 1, satuan: "pcs",
-      harga_beli: 5000, harga_jual: 8000, stok: 10, stok_minimum: 2,
-    });
-    vi.advanceTimersByTime(2000);
-    expect(mirrorSyncs()).toBeGreaterThan(0);
-  });
-
-  it("updateProduct triggers sync", async () => {
-    await updateProduct(1, {
-      kode: "T-001", nama: "Test", kategori_id: 1, satuan: "pcs",
-      harga_beli: 5000, harga_jual: 8000, stok: 10, stok_minimum: 2,
-    });
-    vi.advanceTimersByTime(2000);
-    expect(mirrorSyncs()).toBeGreaterThan(0);
-  });
-
-  it("deleteProduct triggers sync", async () => {
-    mockDb.select.mockResolvedValueOnce([{ count: 0 }]);
-    await deleteProduct(1);
-    vi.advanceTimersByTime(2000);
-    expect(mirrorSyncs()).toBeGreaterThan(0);
-  });
-
-  it("createCategory triggers sync", async () => {
-    await createCategory("Baru");
-    vi.advanceTimersByTime(2000);
-    expect(mirrorSyncs()).toBeGreaterThan(0);
-  });
-
-  it("updateCategory triggers sync", async () => {
-    await updateCategory(1, "Updated");
-    vi.advanceTimersByTime(2000);
-    expect(mirrorSyncs()).toBeGreaterThan(0);
-  });
-
-  it("deleteCategory triggers sync", async () => {
-    mockDb.select.mockResolvedValueOnce([{ count: 0 }]);
-    await deleteCategory(1);
-    vi.advanceTimersByTime(2000);
-    expect(mirrorSyncs()).toBeGreaterThan(0);
-  });
-
-  it("createCustomer triggers sync", async () => {
-    await createCustomer({ nama: "Test", telepon: null, alamat: null });
-    vi.advanceTimersByTime(2000);
-    expect(mirrorSyncs()).toBeGreaterThan(0);
-  });
-
-  it("addCustomerAddress triggers sync", async () => {
-    await addCustomerAddress(1, "Kantor", "Jl. Test");
-    vi.advanceTimersByTime(2000);
-    expect(mirrorSyncs()).toBeGreaterThan(0);
-  });
-
-  it("setCustomerPrice triggers sync", async () => {
-    await setCustomerPrice(1, 1, 50000);
-    vi.advanceTimersByTime(2000);
-    expect(mirrorSyncs()).toBeGreaterThan(0);
-  });
-
-  it("createSaleReturn triggers sync after commit", async () => {
-    await createSaleReturn(1, [
-      { produk_id: 1, nama_produk: "X", jumlah: 1, harga_satuan: 10000 },
-    ], "rusak");
-    vi.advanceTimersByTime(2000);
-    expect(mirrorSyncs()).toBeGreaterThan(0);
-  });
-
-  it("createPurchaseReturn triggers sync after commit", async () => {
-    mockDb.select.mockResolvedValueOnce([{ id: 1, stok: 100 }]);
-    await createPurchaseReturn(1, [
-      { produk_id: 1, nama_produk: "X", jumlah: 1, harga_satuan: 5000 },
-    ], "salah kirim");
-    vi.advanceTimersByTime(2000);
-    expect(mirrorSyncs()).toBeGreaterThan(0);
-  });
-
-  it("failed transaction does NOT trigger sync", async () => {
-    mockDb.select.mockResolvedValueOnce([{ count: 0 }]);
-    mockDb.select.mockResolvedValueOnce([{ id: 1, harga_beli: 8000 }]);
-    failOn(/INSERT INTO penjualan/, "fail");
-
-    await expect(
-      createSale([{ produk_id: 1, nama: "X", satuan: "pcs", jumlah: 1, harga: 10000, stok: 10 }], 10000)
-    ).rejects.toThrow("fail");
-
-    vi.advanceTimersByTime(2000);
-    expect(mirrorSyncs()).toBe(0);
-  });
-});
 
 describe("stress: batch operations", () => {
   beforeEach(() => {
@@ -561,12 +405,6 @@ describe("stress: batch operations", () => {
     expect(transactionLog()).toEqual(["BEGIN IMMEDIATE", "COMMIT"]);
   });
 
-  it("resetTransactionData triggers sync", async () => {
-    vi.mocked(invoke).mockClear();
-    const { resetTransactionData } = await import("@/database");
-    await resetTransactionData();
-    expect(mirrorSyncs()).toBeGreaterThan(0);
-  });
 });
 
 describe("stress: concurrent write simulation", () => {
@@ -711,67 +549,5 @@ describe("stress: address unlimited", () => {
     );
     await Promise.all(ops);
     expect(writes(/INSERT INTO alamat_pelanggan/)).toHaveLength(10);
-  });
-});
-
-describe("stress: sync scheduling", () => {
-  beforeEach(() => {
-    vi.useFakeTimers();
-    resetMock();
-    vi.mocked(invoke).mockClear();
-  });
-
-  afterEach(() => {
-    vi.runOnlyPendingTimers();
-    vi.useRealTimers();
-  });
-
-  it("waits for the quiet gap before syncing a single write", () => {
-    syncDb();
-    vi.advanceTimersByTime(SYNC_DELAY_MS - 1);
-    expect(mirrorSyncs()).toBe(0);
-    vi.advanceTimersByTime(1);
-    expect(mirrorSyncs()).toBe(1);
-  });
-
-  it("collapses a burst of writes into one sync", () => {
-    for (let i = 0; i < 20; i += 1) {
-      syncDb();
-      vi.advanceTimersByTime(100);
-    }
-    vi.advanceTimersByTime(SYNC_DELAY_MS);
-    expect(mirrorSyncs()).toBe(1);
-  });
-
-  it("still syncs during sustained writes instead of starving forever", () => {
-    for (let i = 0; i < 30; i += 1) {
-      syncDb();
-      vi.advanceTimersByTime(SYNC_DELAY_MS - 500);
-    }
-    expect(mirrorSyncs()).toBeGreaterThan(0);
-  });
-
-  it("never lets a write wait longer than the maximum delay", () => {
-    const start = Date.now();
-    let first = 0;
-    vi.mocked(invoke).mockImplementation(async (cmd: string) => {
-      if (cmd === "mirror_sync" && !first) first = Date.now();
-      return cmd === "turso_reachable" ? true : null;
-    });
-    for (let i = 0; i < 40; i += 1) {
-      syncDb();
-      vi.advanceTimersByTime(500);
-    }
-    expect(first).toBeGreaterThan(0);
-    expect(first - start).toBeLessThanOrEqual(SYNC_MAX_DELAY_MS);
-  });
-
-  it("starts a fresh window after a sync lands", () => {
-    syncDb();
-    vi.advanceTimersByTime(SYNC_DELAY_MS);
-    expect(mirrorSyncs()).toBe(1);
-    syncDb();
-    vi.advanceTimersByTime(SYNC_DELAY_MS);
-    expect(mirrorSyncs()).toBe(2);
   });
 });

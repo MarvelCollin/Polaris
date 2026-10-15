@@ -1,6 +1,11 @@
-import { getDb, syncDb, withTransaction, op, opTime, keep } from "../database";
+import { getDb, withTransaction, op, opTime, keep, queuedOp, OFFLINE_ID_BASE } from "../database";
 import { Sale, SaleItem, CartEntry, SaleDebt, Payment, ReturPenjualan, ReturItem } from "../types";
 import { toLocalDateKey, toUnixTimestamp } from "../lib/utils";
+
+export function offlineNumber(prefix: string, at: number, tempId: number): string {
+  const dateStr = toLocalDateKey(new Date(at * 1000)).replace(/-/g, "");
+  return `${prefix}-${dateStr}-OFF${(tempId - OFFLINE_ID_BASE).toString().padStart(4, "0")}`;
+}
 
 export const createSale = op("createSale", async (
   items: CartEntry[],
@@ -64,9 +69,47 @@ export const createSale = op("createSale", async (
 
     return id;
   });
-  syncDb();
   return saleId;
+}, {
+  offline: (_args, kept, tempId, at) => {
+    kept.nomor = offlineNumber("INV", at, tempId);
+  },
 });
+
+function queuedSale(saleId: number): { sale: Sale; items: SaleItem[] } | null {
+  const queued = queuedOp(saleId);
+  if (!queued || queued.name !== "createSale") return null;
+  const [cart, dibayar, pelangganId, namaPelanggan, diskon = 0, alamatPengiriman] = queued.args as [
+    CartEntry[], number, number | null | undefined, string | null | undefined, number | undefined, string | null | undefined
+  ];
+  const total = cart.reduce((sum, item) => sum + item.jumlah * item.harga, 0) - diskon;
+  return {
+    sale: {
+      id: saleId,
+      nomor_faktur: String(queued.kept.nomor ?? ""),
+      total,
+      dibayar,
+      kembalian: Math.max(0, dibayar - total),
+      diskon,
+      pelanggan_id: pelangganId ?? null,
+      nama_pelanggan: namaPelanggan ?? null,
+      alamat_pengiriman: alamatPengiriman ?? null,
+      dibuat_pada: queued.at,
+      total_pembayaran: 0,
+      sisa: total - dibayar,
+    },
+    items: cart.map((item, index) => ({
+      id: index + 1,
+      penjualan_id: saleId,
+      produk_id: item.produk_id,
+      nama_produk: item.nama,
+      jumlah: item.jumlah,
+      harga_satuan: item.harga,
+      subtotal: item.jumlah * item.harga,
+      kode: null,
+    })),
+  };
+}
 
 export async function getSales(
   startDate?: number,
@@ -115,6 +158,7 @@ export async function getSales(
 }
 
 export async function getSaleById(saleId: number): Promise<Sale | null> {
+  if (saleId >= OFFLINE_ID_BASE) return queuedSale(saleId)?.sale ?? null;
   const db = await getDb();
   const rows = await db.select<Sale[]>(
     `SELECT p.id, p.nomor_faktur,
@@ -135,6 +179,7 @@ export async function getSaleById(saleId: number): Promise<Sale | null> {
 }
 
 export async function getSaleItems(saleId: number): Promise<SaleItem[]> {
+  if (saleId >= OFFLINE_ID_BASE) return queuedSale(saleId)?.items ?? [];
   const db = await getDb();
   return await db.select(
     `SELECT i.*, pr.kode
@@ -178,7 +223,6 @@ export const addSalePayment = op("addSalePayment", async (saleId: number, jumlah
     "INSERT INTO pembayaran_penjualan (penjualan_id, jumlah, catatan, dibuat_pada) VALUES ($1, $2, $3, $4)",
     [saleId, jumlah, catatan || null, opTime()]
   );
-  syncDb();
 });
 
 export async function getSaleHistoryStats(startDate?: number, endDate?: number) {
@@ -335,7 +379,6 @@ export const createSaleReturn = op("createSaleReturn", async (
 
     return id;
   });
-  syncDb();
   return returId;
 });
 

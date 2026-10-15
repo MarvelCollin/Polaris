@@ -1,4 +1,4 @@
-import { getDb, syncDb, op } from "../database";
+import { getDb, op } from "../database";
 import { Customer, CustomerAddress, CustomerPrice } from "../types";
 
 export async function getCustomers(search?: string): Promise<Customer[]> {
@@ -18,7 +18,6 @@ export const createCustomer = op("createCustomer", async (data: { nama: string; 
     "INSERT INTO pelanggan (nama, telepon, alamat) VALUES ($1, $2, $3)",
     [data.nama, data.telepon, data.alamat]
   );
-  syncDb();
   return result.lastInsertId ?? 0;
 });
 
@@ -28,7 +27,6 @@ export const updateCustomer = op("updateCustomer", async (id: number, data: { na
     "UPDATE pelanggan SET nama=$1, telepon=$2, alamat=$3 WHERE id=$4",
     [data.nama, data.telepon, data.alamat, id]
   );
-  syncDb();
 });
 
 export const deleteCustomer = op("deleteCustomer", async (id: number): Promise<void> => {
@@ -41,7 +39,6 @@ export const deleteCustomer = op("deleteCustomer", async (id: number): Promise<v
     throw new Error("Pelanggan tidak dapat dihapus karena sudah memiliki transaksi");
   }
   await db.execute("DELETE FROM pelanggan WHERE id = $1", [id]);
-  syncDb();
 });
 
 export async function getCustomerAddresses(pelangganId: number): Promise<CustomerAddress[]> {
@@ -58,7 +55,6 @@ export const addCustomerAddress = op("addCustomerAddress", async (pelangganId: n
     "INSERT INTO alamat_pelanggan (pelanggan_id, label, alamat) VALUES ($1, $2, $3)",
     [pelangganId, label, alamat]
   );
-  syncDb();
   return result.lastInsertId ?? 0;
 });
 
@@ -68,13 +64,11 @@ export const updateCustomerAddress = op("updateCustomerAddress", async (id: numb
     "UPDATE alamat_pelanggan SET label = $1, alamat = $2 WHERE id = $3",
     [label, alamat, id]
   );
-  syncDb();
 });
 
 export const deleteCustomerAddress = op("deleteCustomerAddress", async (id: number): Promise<void> => {
   const db = await getDb();
   await db.execute("DELETE FROM alamat_pelanggan WHERE id = $1", [id]);
-  syncDb();
 });
 
 export async function getCustomerPrices(pelangganId: number): Promise<CustomerPrice[]> {
@@ -96,7 +90,6 @@ export const setCustomerPrice = op("setCustomerPrice", async (pelangganId: numbe
      ON CONFLICT(pelanggan_id, produk_id) DO UPDATE SET harga = $3`,
     [pelangganId, produkId, harga]
   );
-  syncDb();
 });
 
 export const removeCustomerPrice = op("removeCustomerPrice", async (pelangganId: number, produkId: number): Promise<void> => {
@@ -105,7 +98,6 @@ export const removeCustomerPrice = op("removeCustomerPrice", async (pelangganId:
     "DELETE FROM harga_pelanggan WHERE pelanggan_id = $1 AND produk_id = $2",
     [pelangganId, produkId]
   );
-  syncDb();
 });
 
 export async function getCustomerPriceMap(pelangganId: number): Promise<Record<number, number>> {

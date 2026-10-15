@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { resetMock, mockDb, writes, transactionLog, failOn } from "./setup";
+import { resetMock, mockDb, writes, transactionLog, failOn, statements } from "./setup";
 import {
   createPurchase, getPurchases, getPurchaseItems, getDistinctSuppliers,
   getReturnedQtyMapPurchase, createPurchaseReturn, getPurchaseReturns, getPurchaseReturItems,
@@ -317,7 +317,7 @@ describe("purchases", () => {
   it("should add purchase payment with null catatan", async () => {
     await addPurchasePayment(1, 100000);
 
-    const call = mockDb.execute.mock.calls[0][1] as unknown[];
+    const call = statements()[0][1] as unknown[];
     expect(call[2]).toBeNull();
   });
 

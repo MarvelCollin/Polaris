@@ -1,4 +1,4 @@
-import { getDb } from "../database";
+import { getDb, isOffline } from "../database";
 
 const categories = [
   "Semen", "Besi & Baja", "Kayu", "Cat", "Keramik & Granit",
@@ -18,6 +18,7 @@ const products = [
 
 export async function seedDatabase() {
   const db = await getDb();
+  if (isOffline()) return;
   const existing: { count: number }[] = await db.select("SELECT COUNT(*) as count FROM produk");
   if (existing[0].count > 0) return;
 

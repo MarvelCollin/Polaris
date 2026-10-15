@@ -17,14 +17,14 @@ tauri = { version = "2", features = [] }
 tauri-plugin-opener = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-tauri-plugin-libsql = { version = "0.1", features = ["replication", "remote"] }
-libsql = { version = "0.9.30", default-features = false, features = ["core", "replication", "remote", "tls"] }
+tauri-plugin-libsql = { version = "0.1", default-features = false, features = ["core", "remote"] }
+libsql = { version = "0.9.30", default-features = false, features = ["core", "remote", "tls"] }
 tauri-plugin-dialog = "2.7.2"
 tauri-plugin-fs = "2.5.1"
 tauri-plugin-updater = "2"
 tauri-plugin-process = "2"
 reqwest = { version = "0.12", features = ["json"] }
-tokio = { version = "1", features = ["time", "sync"] }
+tokio = { version = "1", features = ["time"] }
 chrono = { version = "0.4", default-features = false, features = ["clock"] }
 hostname = "0.4"
 base64 = "0.22"
