@@ -48,7 +48,7 @@ export default function ConnectionBanner() {
       {status.mode === "offline" && (
         <div className="mb-4 flex items-center gap-3 rounded-md border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-800 dark:text-amber-300">
           <span className="flex-1">
-            Sedang offline. Transaksi tetap bisa dicatat dan otomatis dikirim ke server saat internet kembali.
+            Sedang offline. Transaksi tetap bisa dicatat dan otomatis dikirim ke server saat internet kembali. Data yang tampil adalah data terakhir sebelum offline.
             {status.pending > 0 && ` Belum terkirim: ${status.pending}.`}
           </span>
           <Button variant="outline" size="sm" onClick={retry} disabled={checking}>
