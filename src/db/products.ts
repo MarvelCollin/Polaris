@@ -1,4 +1,4 @@
-import { getDb, syncDb } from "../database";
+import { getDb, syncDb, op } from "../database";
 import { Product, ProductWithCategory } from "../types";
 
 export async function generateProductCode(): Promise<string> {
@@ -47,7 +47,7 @@ export async function getProduct(id: number): Promise<Product | null> {
   return rows[0] || null;
 }
 
-export async function createProduct(data: {
+export const createProduct = op("createProduct", async (data: {
   kode: string;
   nama: string;
   kategori_id: number;
@@ -57,7 +57,7 @@ export async function createProduct(data: {
   stok: number;
   stok_minimum: number;
   gambar?: string | null;
-}): Promise<number> {
+}): Promise<number> => {
   const db = await getDb();
   const kode = data.kode.trim() || (await generateProductCode());
   const result = await db.execute(
@@ -67,9 +67,9 @@ export async function createProduct(data: {
   );
   syncDb();
   return result.lastInsertId ?? 0;
-}
+});
 
-export async function updateProduct(
+export const updateProduct = op("updateProduct", async (
   id: number,
   data: {
     kode: string;
@@ -82,7 +82,7 @@ export async function updateProduct(
     stok_minimum: number;
     gambar?: string | null;
   }
-): Promise<void> {
+): Promise<void> => {
   const db = await getDb();
   await db.execute(
     `UPDATE produk SET kode=$1, nama=$2, kategori_id=$3, satuan=$4, harga_beli=$5,
@@ -91,9 +91,9 @@ export async function updateProduct(
     [data.kode, data.nama, data.kategori_id, data.satuan, data.harga_beli, data.harga_jual, data.stok, data.stok_minimum, data.gambar ?? null, id]
   );
   syncDb();
-}
+});
 
-export async function updateStock(id: number, stok: number): Promise<void> {
+export const updateStock = op("updateStock", async (id: number, stok: number): Promise<void> => {
   if (stok < 0) throw new Error("Stok tidak boleh negatif");
   const db = await getDb();
   await db.execute(
@@ -101,9 +101,9 @@ export async function updateStock(id: number, stok: number): Promise<void> {
     [stok, id]
   );
   syncDb();
-}
+});
 
-export async function deleteProduct(id: number): Promise<void> {
+export const deleteProduct = op("deleteProduct", async (id: number): Promise<void> => {
   const db = await getDb();
   const rows: { count: number }[] = await db.select(
     `SELECT (SELECT COUNT(*) FROM item_penjualan WHERE produk_id = $1)
@@ -115,7 +115,7 @@ export async function deleteProduct(id: number): Promise<void> {
   }
   await db.execute("DELETE FROM produk WHERE id = $1", [id]);
   syncDb();
-}
+});
 
 export async function getFrequentProductIds(limit: number = 8): Promise<number[]> {
   const db = await getDb();

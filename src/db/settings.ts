@@ -1,4 +1,4 @@
-import { getDb, syncDb } from "@/database";
+import { getDb, syncDb, op } from "@/database";
 import { columnsFor, Device } from "@/lib/escInterpreter";
 
 export type PrinterDialect = "escpos" | "escp";
@@ -132,11 +132,11 @@ export async function getSetting(key: string): Promise<string | null> {
   return rows[0]?.value ?? null;
 }
 
-export async function setSetting(key: string, value: string): Promise<void> {
+export const setSetting = op("setSetting", async (key: string, value: string): Promise<void> => {
   const db = await getDb();
   await db.execute("INSERT OR REPLACE INTO settings (key, value) VALUES ($1, $2)", [key, value]);
   syncDb();
-}
+});
 
 export function upgradePrinterSettings(saved: Partial<PrinterSettings>): PrinterSettings {
   return {

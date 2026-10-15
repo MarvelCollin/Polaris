@@ -51,6 +51,13 @@ describe("database location", () => {
     expect(path.endsWith("polaris.db")).toBe(true);
   });
 
+  it("keeps the database inside the app data folder instead of gluing it to the folder name", async () => {
+    const { databasePath } = await import("@/database");
+    const path = await databasePath();
+    expect(path).toBe("sqlite:C:/Users/test/AppData/Roaming/com.marvelcollin.polaris/polaris.db");
+    expect(path).not.toContain("polarispolaris");
+  });
+
   it("does not depend on the working directory", async () => {
     const { databasePath } = await import("@/database");
     expect(await databasePath()).toBe(await databasePath());

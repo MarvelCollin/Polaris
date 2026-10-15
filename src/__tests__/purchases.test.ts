@@ -29,7 +29,7 @@ describe("purchases", () => {
 
     const [purchase] = writes(/INSERT INTO pembelian/);
     const total = 100 * 52000 + 50 * 45000;
-    expect(purchase.params).toEqual(["PT Semen Indonesia", expect.stringMatching(/^PO-\d{8}-0001$/), total, total]);
+    expect(purchase.params).toEqual(["PT Semen Indonesia", expect.stringMatching(/^PO-\d{8}-0001$/), total, total, expect.any(Number)]);
 
     expect(writes(/INSERT INTO item_pembelian/)).toHaveLength(2);
     expect(writes(/UPDATE produk SET stok/)).toHaveLength(2);
@@ -187,7 +187,7 @@ describe("purchases", () => {
 
     const [purchase] = writes(/INSERT INTO pembelian/);
     const total = 5 * 52000;
-    expect(purchase.params.slice(2)).toEqual([total, total]);
+    expect(purchase.params.slice(2, 4)).toEqual([total, total]);
   });
 
   it("should return distinct suppliers grouped case-insensitively", async () => {
@@ -219,7 +219,7 @@ describe("purchases", () => {
 
     const [retur] = writes(/INSERT INTO retur_pembelian/);
     const expectedTotal = 10 * 52000 + 5 * 45000;
-    expect(retur.params).toEqual([1, expectedTotal, "Barang cacat"]);
+    expect(retur.params).toEqual([1, expectedTotal, "Barang cacat", expect.any(Number)]);
 
     expect(writes(/INSERT INTO item_retur_pembelian/)).toHaveLength(2);
     const stockReduces = writes(/UPDATE produk SET stok = stok -/);
@@ -309,8 +309,8 @@ describe("purchases", () => {
     await addPurchasePayment(1, 150000, "Cicilan ke-2");
 
     expect(mockDb.execute).toHaveBeenCalledWith(
-      "INSERT INTO pembayaran_pembelian (pembelian_id, jumlah, catatan) VALUES ($1, $2, $3)",
-      [1, 150000, "Cicilan ke-2"]
+      "INSERT INTO pembayaran_pembelian (pembelian_id, jumlah, catatan, dibuat_pada) VALUES ($1, $2, $3, $4)",
+      [1, 150000, "Cicilan ke-2", expect.any(Number)]
     );
   });
 

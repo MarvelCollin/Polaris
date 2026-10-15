@@ -9,8 +9,21 @@ import { createProduct, updateProduct, deleteProduct } from "@/db/products";
 import { createCategory, updateCategory, deleteCategory } from "@/db/categories";
 import { createCustomer, addCustomerAddress, setCustomerPrice } from "@/db/customers";
 
+function online() {
+  vi.mocked(invoke).mockImplementation(async (cmd: string) => {
+    if (cmd === "get_turso_config") return { url: "libsql://polaris-test", token: "test-token" };
+    if (cmd === "turso_reachable") return true;
+    if (cmd === "offline_db_exists") return false;
+    return null;
+  });
+}
+
+function mirrorSyncs() {
+  return vi.mocked(invoke).mock.calls.filter(([cmd]) => cmd === "mirror_sync").length;
+}
+
 beforeAll(async () => {
-  vi.mocked(invoke).mockResolvedValue({ url: "libsql://polaris-test", token: "test-token" });
+  online();
   await connectTurso();
 });
 
@@ -389,7 +402,7 @@ describe("stress: syncDb fires after every write", () => {
   beforeEach(() => {
     vi.useFakeTimers();
     resetMock();
-    mockDb.sync.mockClear();
+    vi.mocked(invoke).mockClear();
   });
 
   afterEach(() => {
@@ -406,7 +419,7 @@ describe("stress: syncDb fires after every write", () => {
     );
 
     vi.advanceTimersByTime(2000);
-    expect(mockDb.sync).toHaveBeenCalled();
+    expect(mirrorSyncs()).toBeGreaterThan(0);
   });
 
   it("createPurchase triggers sync after commit", async () => {
@@ -416,19 +429,19 @@ describe("stress: syncDb fires after every write", () => {
     await createPurchase("Supplier", [{ produk_id: 1, nama: "X", satuan: "pcs", jumlah: 5, harga: 5000 }]);
 
     vi.advanceTimersByTime(2000);
-    expect(mockDb.sync).toHaveBeenCalled();
+    expect(mirrorSyncs()).toBeGreaterThan(0);
   });
 
   it("addSalePayment triggers sync", async () => {
     await addSalePayment(1, 50000, "cicilan");
     vi.advanceTimersByTime(2000);
-    expect(mockDb.sync).toHaveBeenCalled();
+    expect(mirrorSyncs()).toBeGreaterThan(0);
   });
 
   it("addPurchasePayment triggers sync", async () => {
     await addPurchasePayment(1, 50000, "cicilan");
     vi.advanceTimersByTime(2000);
-    expect(mockDb.sync).toHaveBeenCalled();
+    expect(mirrorSyncs()).toBeGreaterThan(0);
   });
 
   it("createProduct triggers sync", async () => {
@@ -438,7 +451,7 @@ describe("stress: syncDb fires after every write", () => {
       harga_beli: 5000, harga_jual: 8000, stok: 10, stok_minimum: 2,
     });
     vi.advanceTimersByTime(2000);
-    expect(mockDb.sync).toHaveBeenCalled();
+    expect(mirrorSyncs()).toBeGreaterThan(0);
   });
 
   it("updateProduct triggers sync", async () => {
@@ -447,51 +460,51 @@ describe("stress: syncDb fires after every write", () => {
       harga_beli: 5000, harga_jual: 8000, stok: 10, stok_minimum: 2,
     });
     vi.advanceTimersByTime(2000);
-    expect(mockDb.sync).toHaveBeenCalled();
+    expect(mirrorSyncs()).toBeGreaterThan(0);
   });
 
   it("deleteProduct triggers sync", async () => {
     mockDb.select.mockResolvedValueOnce([{ count: 0 }]);
     await deleteProduct(1);
     vi.advanceTimersByTime(2000);
-    expect(mockDb.sync).toHaveBeenCalled();
+    expect(mirrorSyncs()).toBeGreaterThan(0);
   });
 
   it("createCategory triggers sync", async () => {
     await createCategory("Baru");
     vi.advanceTimersByTime(2000);
-    expect(mockDb.sync).toHaveBeenCalled();
+    expect(mirrorSyncs()).toBeGreaterThan(0);
   });
 
   it("updateCategory triggers sync", async () => {
     await updateCategory(1, "Updated");
     vi.advanceTimersByTime(2000);
-    expect(mockDb.sync).toHaveBeenCalled();
+    expect(mirrorSyncs()).toBeGreaterThan(0);
   });
 
   it("deleteCategory triggers sync", async () => {
     mockDb.select.mockResolvedValueOnce([{ count: 0 }]);
     await deleteCategory(1);
     vi.advanceTimersByTime(2000);
-    expect(mockDb.sync).toHaveBeenCalled();
+    expect(mirrorSyncs()).toBeGreaterThan(0);
   });
 
   it("createCustomer triggers sync", async () => {
     await createCustomer({ nama: "Test", telepon: null, alamat: null });
     vi.advanceTimersByTime(2000);
-    expect(mockDb.sync).toHaveBeenCalled();
+    expect(mirrorSyncs()).toBeGreaterThan(0);
   });
 
   it("addCustomerAddress triggers sync", async () => {
     await addCustomerAddress(1, "Kantor", "Jl. Test");
     vi.advanceTimersByTime(2000);
-    expect(mockDb.sync).toHaveBeenCalled();
+    expect(mirrorSyncs()).toBeGreaterThan(0);
   });
 
   it("setCustomerPrice triggers sync", async () => {
     await setCustomerPrice(1, 1, 50000);
     vi.advanceTimersByTime(2000);
-    expect(mockDb.sync).toHaveBeenCalled();
+    expect(mirrorSyncs()).toBeGreaterThan(0);
   });
 
   it("createSaleReturn triggers sync after commit", async () => {
@@ -499,7 +512,7 @@ describe("stress: syncDb fires after every write", () => {
       { produk_id: 1, nama_produk: "X", jumlah: 1, harga_satuan: 10000 },
     ], "rusak");
     vi.advanceTimersByTime(2000);
-    expect(mockDb.sync).toHaveBeenCalled();
+    expect(mirrorSyncs()).toBeGreaterThan(0);
   });
 
   it("createPurchaseReturn triggers sync after commit", async () => {
@@ -508,7 +521,7 @@ describe("stress: syncDb fires after every write", () => {
       { produk_id: 1, nama_produk: "X", jumlah: 1, harga_satuan: 5000 },
     ], "salah kirim");
     vi.advanceTimersByTime(2000);
-    expect(mockDb.sync).toHaveBeenCalled();
+    expect(mirrorSyncs()).toBeGreaterThan(0);
   });
 
   it("failed transaction does NOT trigger sync", async () => {
@@ -521,7 +534,7 @@ describe("stress: syncDb fires after every write", () => {
     ).rejects.toThrow("fail");
 
     vi.advanceTimersByTime(2000);
-    expect(mockDb.sync).not.toHaveBeenCalled();
+    expect(mirrorSyncs()).toBe(0);
   });
 });
 
@@ -543,21 +556,16 @@ describe("stress: batch operations", () => {
   it("resetTransactionData uses batch for bulk deletes", async () => {
     const { resetTransactionData } = await import("@/database");
     await resetTransactionData();
-    const batchCalls = mockDb.batch.mock.calls;
-    const deleteBatch = batchCalls.find((c: unknown[]) =>
-      (c[0] as string[]).some((s: string) => s.includes("DELETE FROM"))
-    );
-    expect(deleteBatch).toBeDefined();
-    const stmts = (deleteBatch as unknown[])[0] as string[];
-    expect(stmts.length).toBe(10);
-    expect(stmts.every((s: string) => s.startsWith("DELETE FROM"))).toBe(true);
+    const deletes = writes(/^DELETE FROM/);
+    expect(deletes).toHaveLength(10);
+    expect(transactionLog()).toEqual(["BEGIN IMMEDIATE", "COMMIT"]);
   });
 
   it("resetTransactionData triggers sync", async () => {
-    mockDb.sync.mockClear();
+    vi.mocked(invoke).mockClear();
     const { resetTransactionData } = await import("@/database");
     await resetTransactionData();
-    expect(mockDb.sync).toHaveBeenCalled();
+    expect(mirrorSyncs()).toBeGreaterThan(0);
   });
 });
 
@@ -568,8 +576,6 @@ describe("stress: concurrent write simulation", () => {
 
   it("10 concurrent sales complete without interleaving", async () => {
     const sales = Array.from({ length: 10 }, (_, i) => {
-      mockDb.select.mockResolvedValueOnce([{ count: i }]);
-      mockDb.select.mockResolvedValueOnce([{ id: i + 1, harga_beli: 8000 }]);
       return createSale(
         [{ produk_id: i + 1, nama: `P${i}`, satuan: "pcs", jumlah: 1, harga: 10000, stok: 100 }],
         10000
@@ -614,11 +620,6 @@ describe("stress: concurrent write simulation", () => {
   });
 
   it("mixed sales and purchases resolve independently", async () => {
-    mockDb.select.mockResolvedValueOnce([{ count: 0 }]);
-    mockDb.select.mockResolvedValueOnce([{ id: 1, harga_beli: 8000 }]);
-    mockDb.select.mockResolvedValueOnce([{ count: 0 }]);
-    mockDb.select.mockResolvedValueOnce([{ id: 1, stok: 50, harga_beli: 4000 }]);
-
     const [saleId, purchaseId] = await Promise.all([
       createSale([{ produk_id: 1, nama: "X", satuan: "pcs", jumlah: 1, harga: 10000, stok: 10 }], 10000),
       createPurchase("Sup", [{ produk_id: 1, nama: "X", satuan: "pcs", jumlah: 5, harga: 5000 }]),
@@ -637,7 +638,7 @@ describe("stress: concurrent write simulation", () => {
     const elapsed = performance.now() - start;
 
     expect(elapsed).toBeLessThan(50);
-    expect(mockDb.execute).toHaveBeenCalledTimes(100);
+    expect(writes(/harga_pelanggan/)).toHaveLength(100);
   });
 });
 
@@ -709,7 +710,7 @@ describe("stress: address unlimited", () => {
       addCustomerAddress(1, `Alamat ${i + 1}`, `Jl. Test No. ${i + 1}`)
     );
     await Promise.all(ops);
-    expect(mockDb.execute).toHaveBeenCalledTimes(10);
+    expect(writes(/INSERT INTO alamat_pelanggan/)).toHaveLength(10);
   });
 });
 
@@ -717,7 +718,7 @@ describe("stress: sync scheduling", () => {
   beforeEach(() => {
     vi.useFakeTimers();
     resetMock();
-    mockDb.sync.mockClear();
+    vi.mocked(invoke).mockClear();
   });
 
   afterEach(() => {
@@ -728,9 +729,9 @@ describe("stress: sync scheduling", () => {
   it("waits for the quiet gap before syncing a single write", () => {
     syncDb();
     vi.advanceTimersByTime(SYNC_DELAY_MS - 1);
-    expect(mockDb.sync).not.toHaveBeenCalled();
+    expect(mirrorSyncs()).toBe(0);
     vi.advanceTimersByTime(1);
-    expect(mockDb.sync).toHaveBeenCalledTimes(1);
+    expect(mirrorSyncs()).toBe(1);
   });
 
   it("collapses a burst of writes into one sync", () => {
@@ -739,7 +740,7 @@ describe("stress: sync scheduling", () => {
       vi.advanceTimersByTime(100);
     }
     vi.advanceTimersByTime(SYNC_DELAY_MS);
-    expect(mockDb.sync).toHaveBeenCalledTimes(1);
+    expect(mirrorSyncs()).toBe(1);
   });
 
   it("still syncs during sustained writes instead of starving forever", () => {
@@ -747,14 +748,15 @@ describe("stress: sync scheduling", () => {
       syncDb();
       vi.advanceTimersByTime(SYNC_DELAY_MS - 500);
     }
-    expect(mockDb.sync.mock.calls.length).toBeGreaterThan(0);
+    expect(mirrorSyncs()).toBeGreaterThan(0);
   });
 
   it("never lets a write wait longer than the maximum delay", () => {
     const start = Date.now();
     let first = 0;
-    mockDb.sync.mockImplementation(async () => {
-      if (!first) first = Date.now();
+    vi.mocked(invoke).mockImplementation(async (cmd: string) => {
+      if (cmd === "mirror_sync" && !first) first = Date.now();
+      return cmd === "turso_reachable" ? true : null;
     });
     for (let i = 0; i < 40; i += 1) {
       syncDb();
@@ -767,9 +769,9 @@ describe("stress: sync scheduling", () => {
   it("starts a fresh window after a sync lands", () => {
     syncDb();
     vi.advanceTimersByTime(SYNC_DELAY_MS);
-    expect(mockDb.sync).toHaveBeenCalledTimes(1);
+    expect(mirrorSyncs()).toBe(1);
     syncDb();
     vi.advanceTimersByTime(SYNC_DELAY_MS);
-    expect(mockDb.sync).toHaveBeenCalledTimes(2);
+    expect(mirrorSyncs()).toBe(2);
   });
 });

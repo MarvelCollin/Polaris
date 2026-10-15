@@ -1,4 +1,4 @@
-import { getDb, syncDb, withTransaction } from "../database";
+import { getDb, syncDb, withTransaction, op, opTime, keep } from "../database";
 import { Purchase, PurchaseItem, PurchaseEntry, PurchaseDebt, Payment, ReturPembelian, ReturItem } from "../types";
 import { type ChartGroupBy, groupSqlFor, formatGroupLabel } from "./sales";
 import { toLocalDateKey, toUnixTimestamp } from "../lib/utils";
@@ -11,16 +11,17 @@ export async function getDistinctSuppliers(): Promise<string[]> {
   return rows.map((r) => r.supplier);
 }
 
-export async function createPurchase(
+export const createPurchase = op("createPurchase", async (
   supplier: string,
   items: PurchaseEntry[],
   dibayar?: number
-): Promise<number> {
+): Promise<number> => {
   const db = await getDb();
   const total = items.reduce((sum, item) => sum + item.jumlah * item.harga, 0);
   const paid = dibayar ?? total;
 
-  const now = new Date();
+  const at = opTime();
+  const now = new Date(at * 1000);
   const dateStr = toLocalDateKey(now).replace(/-/g, "");
   const startOfDay = toUnixTimestamp(new Date(now.getFullYear(), now.getMonth(), now.getDate()));
   const endOfDay = startOfDay + 86400;
@@ -38,13 +39,17 @@ export async function createPurchase(
       produkIds
     ) as Promise<{ id: number; stok: number; harga_beli: number }[]>,
   ]);
-  const nomor = `PO-${dateStr}-${(countRows[0].count + 1).toString().padStart(4, "0")}`;
+  const nomor = await keep(
+    "nomor",
+    async () => `PO-${dateStr}-${(countRows[0].count + 1).toString().padStart(4, "0")}`,
+    async (value) => (await db.select<unknown[]>("SELECT 1 FROM pembelian WHERE referensi_faktur = $1", [value])).length === 0
+  );
   const produkMap = new Map(produkRows.map((r) => [r.id, r]));
 
   const purchaseId = await withTransaction(async (tx) => {
     await tx.execute(
-      "INSERT INTO pembelian (supplier, referensi_faktur, total, dibayar) VALUES ($1, $2, $3, $4)",
-      [supplier, nomor, total, paid]
+      "INSERT INTO pembelian (supplier, referensi_faktur, total, dibayar, dibuat_pada) VALUES ($1, $2, $3, $4, $5)",
+      [supplier, nomor, total, paid, at]
     );
     const idRows = await tx.select<{ id: number }[]>("SELECT last_insert_rowid() as id");
     const id = idRows[0].id;
@@ -78,7 +83,7 @@ export async function createPurchase(
   });
   syncDb();
   return purchaseId;
-}
+});
 
 export async function getPurchases(
   startDate?: number,
@@ -161,14 +166,14 @@ export async function getPurchasePayments(purchaseId: number): Promise<Payment[]
   );
 }
 
-export async function addPurchasePayment(purchaseId: number, jumlah: number, catatan?: string): Promise<void> {
+export const addPurchasePayment = op("addPurchasePayment", async (purchaseId: number, jumlah: number, catatan?: string): Promise<void> => {
   const db = await getDb();
   await db.execute(
-    "INSERT INTO pembayaran_pembelian (pembelian_id, jumlah, catatan) VALUES ($1, $2, $3)",
-    [purchaseId, jumlah, catatan || null]
+    "INSERT INTO pembayaran_pembelian (pembelian_id, jumlah, catatan, dibuat_pada) VALUES ($1, $2, $3, $4)",
+    [purchaseId, jumlah, catatan || null, opTime()]
   );
   syncDb();
-}
+});
 
 export async function getPurchaseHistoryStats(startDate?: number, endDate?: number) {
   const db = await getDb();
@@ -287,11 +292,11 @@ export async function getReturnedQtyMapPurchase(purchaseId: number): Promise<Rec
   return map;
 }
 
-export async function createPurchaseReturn(
+export const createPurchaseReturn = op("createPurchaseReturn", async (
   purchaseId: number,
   items: { produk_id: number; nama_produk: string; jumlah: number; harga_satuan: number }[],
   alasan?: string
-): Promise<number> {
+): Promise<number> => {
   const total = items.reduce((sum, i) => sum + i.jumlah * i.harga_satuan, 0);
 
   const returId = await withTransaction(async (tx) => {
@@ -310,8 +315,8 @@ export async function createPurchaseReturn(
     }
 
     await tx.execute(
-      "INSERT INTO retur_pembelian (pembelian_id, total, alasan) VALUES ($1, $2, $3)",
-      [purchaseId, total, alasan || null]
+      "INSERT INTO retur_pembelian (pembelian_id, total, alasan, dibuat_pada) VALUES ($1, $2, $3, $4)",
+      [purchaseId, total, alasan || null, opTime()]
     );
     const idRows = await tx.select<{ id: number }[]>("SELECT last_insert_rowid() as id");
     const id = idRows[0].id;
@@ -332,7 +337,7 @@ export async function createPurchaseReturn(
   });
   syncDb();
   return returId;
-}
+});
 
 export async function getPurchaseReturns(purchaseId: number): Promise<ReturPembelian[]> {
   const db = await getDb();

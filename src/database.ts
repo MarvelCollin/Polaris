@@ -1,20 +1,119 @@
 import { Database } from "tauri-plugin-libsql-api";
 import { invoke } from "@tauri-apps/api/core";
-import { appDataDir } from "@tauri-apps/api/path";
+import { appDataDir, join } from "@tauri-apps/api/path";
 
-let db: Database | null = null;
-let dbPromise: Promise<Database> | null = null;
-let tursoConnected = false;
-let dbFile: string | null = null;
+export type ConnectionMode = "online" | "offline" | "local";
+
+export interface FailedOp {
+  name: string;
+  error: string;
+}
+
+export interface ConnectionStatus {
+  mode: ConnectionMode;
+  pending: number;
+  failed: FailedOp[];
+}
 
 interface TursoConfig {
   url: string;
   token: string;
 }
 
+interface OpContext {
+  at: number;
+  kept: Record<string, unknown>;
+  replay: boolean;
+  tx: boolean;
+  pinned?: Database | null;
+}
+
+interface OutboxRow {
+  seq: number;
+  id: string;
+  name: string;
+  args: string;
+  kept: string | null;
+  result: string | null;
+  remote_result: string | null;
+  status: number;
+  dibuat_pada: number;
+}
+
+type AnyOp = (...args: any[]) => Promise<any>;
+
+export const OFFLINE_ID_BASE = 9_000_000_000_000;
+export const REMOTE_TIMEOUT_MS = 15000;
+export const RECONNECT_INTERVAL_MS = 30000;
+export const SYNC_DELAY_MS = 2000;
+export const SYNC_MAX_DELAY_MS = 10000;
+export const ONLINE_ONLY_MESSAGE = "Fitur ini butuh koneksi internet. Coba lagi saat sudah online.";
+
+const PENDING = 0;
+const APPLIED = 1;
+const FAILED = 2;
+const UNDEFINED = "__polaris_undefined__";
+const APPLIED_OPS_RETENTION_DAYS = 90;
+
+const OUTBOX_TABLE =
+  "CREATE TABLE IF NOT EXISTS _outbox (seq INTEGER PRIMARY KEY, id TEXT NOT NULL UNIQUE, name TEXT NOT NULL, args TEXT NOT NULL, kept TEXT, result TEXT, remote_result TEXT, status INTEGER NOT NULL DEFAULT 0, error TEXT, dibuat_pada INTEGER NOT NULL)";
+const APPLIED_OPS_TABLE =
+  "CREATE TABLE IF NOT EXISTS _applied_ops (id TEXT PRIMARY KEY, result TEXT, dibuat_pada INTEGER NOT NULL DEFAULT (strftime('%s', 'now')))";
+
+let backend: Database | null = null;
+let remote: Database | null = null;
+let offline: Database | null = null;
+let config: TursoConfig | null = null;
+let mode: ConnectionMode = "local";
+let replaying = false;
+let context: OpContext | null = null;
+let dbPromise: Promise<Database> | null = null;
+let dbFile: string | null = null;
+let switching: Promise<void> | null = null;
+let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+let opQueue: Promise<unknown> = Promise.resolve();
+const FAILED_KEY = "polaris:failed-ops";
+
+function savedFailures(): FailedOp[] {
+  try {
+    const raw = typeof localStorage === "undefined" ? null : localStorage.getItem(FAILED_KEY);
+    return raw ? (JSON.parse(raw) as FailedOp[]) : [];
+  } catch (_) {
+    return [];
+  }
+}
+
+let status: ConnectionStatus = { mode: "local", pending: 0, failed: savedFailures() };
+const listeners = new Set<(status: ConnectionStatus) => void>();
+const registry = new Map<string, AnyOp>();
+
 export async function databasePath(): Promise<string> {
-  if (!dbFile) dbFile = `sqlite:${await appDataDir()}polaris.db`;
+  if (!dbFile) dbFile = `sqlite:${await join(await appDataDir(), "polaris.db")}`;
   return dbFile;
+}
+
+export function connectionStatus(): ConnectionStatus {
+  return status;
+}
+
+export function onConnectionChange(listener: (status: ConnectionStatus) => void): () => void {
+  listeners.add(listener);
+  return () => listeners.delete(listener);
+}
+
+function publish(next: Partial<ConnectionStatus>) {
+  status = { ...status, ...next };
+  if (next.failed) {
+    try {
+      if (next.failed.length > 0) localStorage.setItem(FAILED_KEY, JSON.stringify(next.failed));
+      else localStorage.removeItem(FAILED_KEY);
+    } catch (_) {}
+  }
+  for (const listener of listeners) listener(status);
+}
+
+export function dismissFailedOps() {
+  publish({ failed: [] });
 }
 
 async function tune(database: Database): Promise<Database> {
@@ -28,46 +127,11 @@ async function tune(database: Database): Promise<Database> {
 
 async function tursoConfig(): Promise<TursoConfig | null> {
   try {
-    return await invoke<TursoConfig | null>("get_turso_config");
+    const value = await invoke<TursoConfig | null>("get_turso_config");
+    return value?.url && value?.token ? value : null;
   } catch (_) {
     return null;
   }
-}
-
-const DIVERGED = /frame insert conflict|invalid local state|lower generation than local|verify metadata file/i;
-const DIRTY_KEY = "polaris:replica-dirty";
-const RESET_KEY = "polaris:replica-reset";
-const RESET_VERSION = "1";
-
-export const DIVERGED_MESSAGE =
-  "Data di komputer ini tidak sinkron dengan server. Tutup lalu buka lagi aplikasi agar diperbaiki otomatis. Cek riwayat dulu sebelum mengulang transaksi.";
-
-export function isDiverged(error: unknown): boolean {
-  return DIVERGED.test(error instanceof Error ? error.message : String(error));
-}
-
-function storage(): Storage | null {
-  try {
-    return typeof localStorage === "undefined" ? null : localStorage;
-  } catch (_) {
-    return null;
-  }
-}
-
-function markDirty() {
-  storage()?.setItem(DIRTY_KEY, "1");
-}
-
-function needsReset(): boolean {
-  const store = storage();
-  if (!store) return false;
-  return store.getItem(DIRTY_KEY) === "1" || store.getItem(RESET_KEY) !== RESET_VERSION;
-}
-
-function markReset() {
-  const store = storage();
-  store?.removeItem(DIRTY_KEY);
-  store?.setItem(RESET_KEY, RESET_VERSION);
 }
 
 async function tursoReachable(): Promise<boolean> {
@@ -78,78 +142,369 @@ async function tursoReachable(): Promise<boolean> {
   }
 }
 
-async function watch<T>(work: Promise<T>): Promise<T> {
+function message(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+function withTimeout<T>(work: Promise<T>, ms: number): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error("Koneksi ke server terlalu lama")), ms);
+  });
+  return Promise.race([work, timeout]).finally(() => clearTimeout(timer));
+}
+
+async function closeQuietly(database: Database | null) {
+  if (!database) return;
+  try { await database.close(database.path); } catch (_) {}
+}
+
+function encode(value: unknown): string {
+  return JSON.stringify(value, (_key, v) => (v === undefined ? UNDEFINED : v));
+}
+
+function decode(text: string | null): any {
+  if (text == null) return undefined;
+  return JSON.parse(text, (_key, v) => (v === UNDEFINED ? undefined : v));
+}
+
+function nowSeconds(): number {
+  return Math.floor(Date.now() / 1000);
+}
+
+function opId(): string {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") return crypto.randomUUID();
+  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}-${Math.random().toString(36).slice(2)}`;
+}
+
+async function connectRemote(settings: TursoConfig): Promise<Database | null> {
+  if (!(await tursoReachable())) return null;
+  let database: Database | null = null;
   try {
-    return await work;
-  } catch (e) {
-    if (!isDiverged(e)) throw e;
-    markDirty();
-    throw new Error(DIVERGED_MESSAGE);
+    database = await Database.load({ path: settings.url, authToken: settings.token });
+    await withTimeout(database.select("SELECT 1"), REMOTE_TIMEOUT_MS);
+    await withTimeout(database.execute(APPLIED_OPS_TABLE), REMOTE_TIMEOUT_MS);
+    return database;
+  } catch (_) {
+    await closeQuietly(database);
+    return null;
   }
 }
 
-function guard(replica: Database): Database {
-  return Object.assign(Object.create(replica) as Database, {
-    execute: (query: string, values?: unknown[]) => watch(replica.execute(query, values)),
-    select: <T>(query: string, values?: unknown[]) => watch(replica.select<T>(query, values)),
-    batch: (queries: string[]) => watch(replica.batch(queries)),
-    sync: () => watch(replica.sync()),
+async function openOffline(): Promise<Database> {
+  const file = await invoke<string>("prepare_offline_db");
+  const database = await tune(await Database.load(`sqlite:${file}`));
+  await database.batch([
+    OUTBOX_TABLE,
+    `UPDATE sqlite_sequence SET seq = ${OFFLINE_ID_BASE} WHERE seq < ${OFFLINE_ID_BASE}`,
+    `INSERT INTO sqlite_sequence (name, seq) SELECT name, ${OFFLINE_ID_BASE} FROM sqlite_master WHERE type = 'table' AND sql LIKE '%AUTOINCREMENT%' AND name NOT IN (SELECT name FROM sqlite_sequence)`,
+  ]);
+  return database;
+}
+
+async function countPending(database: Database): Promise<number> {
+  const rows = await database.select<{ count: number }[]>(
+    "SELECT COUNT(*) as count FROM _outbox WHERE status = $1",
+    [PENDING]
+  );
+  return Number(rows[0]?.count ?? 0);
+}
+
+async function connectionLost(): Promise<boolean> {
+  return mode !== "online" || !(await tursoReachable());
+}
+
+async function route<T>(work: (database: Database) => Promise<T>, timeout = REMOTE_TIMEOUT_MS): Promise<T> {
+  const database = context?.pinned ?? backend;
+  if (!database) throw new Error("Database belum siap");
+  if (database !== remote || replaying) return work(database);
+  try {
+    return await withTimeout(work(database), timeout);
+  } catch (e) {
+    if (context?.tx || !(await connectionLost())) throw e;
+    await goOffline();
+    return work(backend!);
+  }
+}
+
+const router = {
+  get path() {
+    return backend?.path ?? "";
+  },
+  execute: (...args: [string, unknown[]?]) => route((database) => database.execute(...args)),
+  select: <T>(...args: [string, unknown[]?]) => route((database) => database.select<T>(...args)),
+  batch: (queries: string[]) =>
+    route(async (database) => {
+      if (!context?.tx) return database.batch(queries);
+      for (const query of queries) await database.execute(query);
+    }, REMOTE_TIMEOUT_MS * 4),
+  sync: async () => {
+    if (mode === "online") await invoke("mirror_sync");
+  },
+  close: async () => true,
+} as unknown as Database;
+
+function goOffline(): Promise<void> {
+  if (mode === "offline") return Promise.resolve();
+  switching ??= (async () => {
+    offline ??= await openOffline();
+    const stale = remote;
+    remote = null;
+    backend = offline;
+    mode = "offline";
+    cancelSync();
+    publish({ mode, pending: await countPending(offline) });
+    await closeQuietly(stale);
+    scheduleReconnect();
+  })().finally(() => {
+    switching = null;
+  });
+  return switching;
+}
+
+function learn(ids: Map<number, number>, local: unknown, remoteValue: unknown) {
+  if (typeof local === "number" && local >= OFFLINE_ID_BASE && typeof remoteValue === "number") {
+    ids.set(local, remoteValue);
+  }
+}
+
+function remap(value: unknown, ids: Map<number, number>): any {
+  if (typeof value === "number" && value >= OFFLINE_ID_BASE) {
+    const mapped = ids.get(value);
+    if (mapped === undefined) throw new Error("Data offline yang dirujuk gagal dikirim lebih dulu");
+    return mapped;
+  }
+  if (Array.isArray(value)) return value.map((item) => remap(item, ids));
+  if (value && typeof value === "object") {
+    return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, remap(item, ids)]));
+  }
+  return value;
+}
+
+async function within<T>(next: OpContext, work: () => Promise<T>): Promise<T> {
+  context = next;
+  try {
+    return await work();
+  } finally {
+    context = null;
+  }
+}
+
+function applyRemote<R>(id: string, work: () => Promise<R>, next: OpContext): Promise<R> {
+  return within(next, () =>
+    withTransaction(async (tx) => {
+      const result = await work();
+      await tx.execute("INSERT INTO _applied_ops (id, result, dibuat_pada) VALUES ($1, $2, $3)", [id, encode(result), nowSeconds()]);
+      return result;
+    })
+  );
+}
+
+async function applyOffline<R>(id: string, name: string, args: unknown[], work: () => Promise<R>, at: number): Promise<R> {
+  const next: OpContext = { at, kept: {}, replay: false, tx: false };
+  const result = await within(next, () =>
+    withTransaction(async (tx) => {
+      const value = await work();
+      await tx.execute(
+        "INSERT INTO _outbox (id, name, args, kept, result, status, dibuat_pada) VALUES ($1, $2, $3, $4, $5, $6, $7)",
+        [id, name, encode(args), encode(next.kept), encode(value), PENDING, at]
+      );
+      return value;
+    })
+  );
+  publish({ pending: status.pending + 1 });
+  return result;
+}
+
+async function replay(local: Database, target: Database): Promise<FailedOp[]> {
+  await import("./db/writes");
+  const rows = await local.select<OutboxRow[]>("SELECT * FROM _outbox ORDER BY seq");
+  const ids = new Map<number, number>();
+  const failed: FailedOp[] = [];
+  backend = target;
+  replaying = true;
+  try {
+    for (const row of rows) {
+      if (row.status === APPLIED) {
+        learn(ids, decode(row.result), decode(row.remote_result));
+        continue;
+      }
+      if (row.status === FAILED) continue;
+      let remoteResult: unknown;
+      try {
+        const done = await target.select<{ result: string | null }[]>("SELECT result FROM _applied_ops WHERE id = $1", [row.id]);
+        if (done.length > 0) {
+          remoteResult = decode(done[0].result);
+        } else {
+          const work = registry.get(row.name);
+          if (!work) throw new Error(`Jenis transaksi tidak dikenal: ${row.name}`);
+          const args = remap(decode(row.args), ids) as unknown[];
+          const kept = (decode(row.kept) ?? {}) as Record<string, unknown>;
+          remoteResult = await applyRemote(row.id, () => work(...args), { at: row.dibuat_pada, kept, replay: true, tx: false });
+        }
+      } catch (e) {
+        if (!(await tursoReachable())) throw e;
+        await local.execute("UPDATE _outbox SET status = $1, error = $2 WHERE seq = $3", [FAILED, message(e), row.seq]);
+        failed.push({ name: row.name, error: message(e) });
+        continue;
+      }
+      learn(ids, decode(row.result), remoteResult);
+      await local.execute("UPDATE _outbox SET status = $1, remote_result = $2 WHERE seq = $3", [APPLIED, encode(remoteResult), row.seq]);
+    }
+  } finally {
+    replaying = false;
+  }
+  return failed;
+}
+
+async function enterOnline(target: Database) {
+  if (await invoke<boolean>("offline_db_exists")) {
+    offline ??= await openOffline();
+    try {
+      const failed = await replay(offline, target);
+      if (failed.length > 0) publish({ failed: [...status.failed, ...failed] });
+    } catch (e) {
+      backend = offline;
+      throw e;
+    }
+    const done = offline;
+    offline = null;
+    await closeQuietly(done);
+    await invoke("discard_offline_db").catch(() => {});
+  }
+  remote = target;
+  backend = target;
+  mode = "online";
+  publish({ mode, pending: 0 });
+  target
+    .execute("DELETE FROM _applied_ops WHERE dibuat_pada < $1", [nowSeconds() - APPLIED_OPS_RETENTION_DAYS * 86400])
+    .catch(() => {});
+  syncDb();
+}
+
+function scheduleReconnect() {
+  if (reconnectTimer) return;
+  reconnectTimer = setTimeout(() => {
+    reconnectTimer = null;
+    void reconnect();
+  }, RECONNECT_INTERVAL_MS);
+}
+
+export function reconnect(): Promise<boolean> {
+  if (mode !== "offline" || !config) return Promise.resolve(mode === "online");
+  const settings = config;
+  const attempt = exclusive(async () => {
+    if (mode !== "offline") return mode === "online";
+    const target = await connectRemote(settings);
+    if (!target) return false;
+    try {
+      await enterOnline(target);
+      return true;
+    } catch (_) {
+      await closeQuietly(target);
+      return false;
+    }
+  });
+  return attempt.then((ok) => {
+    if (!ok) scheduleReconnect();
+    return ok;
   });
 }
 
-async function rebuildReplica(options: { path: string; syncUrl: string; authToken: string }): Promise<Database> {
-  const moved = await invoke<string>("quarantine_replica");
-  try {
-    const replica = await Database.load(options);
-    markReset();
-    return replica;
-  } catch (e) {
-    await invoke("restore_replica", { folder: moved }).catch(() => {});
-    throw e;
-  }
-}
-
-async function loadReplica(path: string, config: TursoConfig): Promise<Database> {
-  const options = { path, syncUrl: config.url, authToken: config.token };
-  if (needsReset() && (await tursoReachable())) return guard(await rebuildReplica(options));
-  try {
-    return guard(await Database.load(options));
-  } catch (e) {
-    if (!isDiverged(e)) throw e;
-    return guard(await rebuildReplica(options));
-  }
-}
-
 async function openDb(): Promise<Database> {
-  const path = await databasePath();
-  const config = await tursoConfig();
-
-  if (config) {
-    try {
-      const replica = await loadReplica(path, config);
-      tursoConnected = true;
-      db = await tune(replica);
-      void replica.sync().catch(() => {});
-      return db;
-    } catch (_) {}
-    markDirty();
+  config = await tursoConfig();
+  if (!config) {
+    backend = await tune(await Database.load(await databasePath()));
+    mode = "local";
+    publish({ mode });
+    return router;
   }
-
-  db = await tune(await Database.load(path));
-  return db;
+  const target = await connectRemote(config);
+  if (target) {
+    try {
+      await enterOnline(target);
+      return router;
+    } catch (_) {
+      await closeQuietly(target);
+    }
+  }
+  offline ??= await openOffline();
+  backend = offline;
+  mode = "offline";
+  publish({ mode, pending: await countPending(offline) });
+  scheduleReconnect();
+  return router;
 }
 
 export function getDb(): Promise<Database> {
-  if (!dbPromise) dbPromise = openDb();
+  if (replaying) return Promise.resolve(router);
+  if (!dbPromise) {
+    dbPromise = openDb().catch((e) => {
+      dbPromise = null;
+      throw e;
+    });
+  }
   return dbPromise;
+}
+
+function exclusive<T>(work: () => Promise<T>): Promise<T> {
+  const run = opQueue.then(work);
+  opQueue = run.catch(() => {});
+  return run;
+}
+
+export function op<A extends unknown[], R>(name: string, work: (...args: A) => Promise<R>): (...args: A) => Promise<R> {
+  registry.set(name, work as AnyOp);
+  return async (...args: A) => {
+    await getDb();
+    if (mode === "local") return work(...args);
+    return exclusive(async () => {
+      if (switching) await switching.catch(() => {});
+      const id = opId();
+      const at = nowSeconds();
+      if (mode === "online") {
+        try {
+          return await applyRemote(id, () => work(...args), { at, kept: {}, replay: false, tx: false });
+        } catch (e) {
+          if (!(await connectionLost())) throw e;
+          await goOffline();
+        }
+      }
+      return applyOffline(id, name, args, () => work(...args), at);
+    });
+  };
+}
+
+export function opTime(): number {
+  return context?.at ?? nowSeconds();
+}
+
+export async function keep<T>(key: string, compute: () => Promise<T>, usable?: (value: T) => Promise<boolean>): Promise<T> {
+  const hint = context?.replay ? (context.kept[key] as T | undefined) : undefined;
+  const value = hint !== undefined && (!usable || (await usable(hint))) ? hint : await compute();
+  if (context) context.kept[key] = value;
+  return value;
+}
+
+export function requireOnline() {
+  if (mode === "offline") throw new Error(ONLINE_ONLY_MESSAGE);
 }
 
 let transactionQueue: Promise<unknown> = Promise.resolve();
 
 export function withTransaction<T>(work: (tx: Database) => Promise<T>): Promise<T> {
+  if (context?.tx) return work(router);
+  const owner = context;
   const run = transactionQueue.then(async () => {
     const database = await getDb();
-    await database.execute("BEGIN IMMEDIATE");
+    if (owner) owner.pinned = backend;
+    try {
+      await database.execute("BEGIN IMMEDIATE");
+    } catch (e) {
+      if (owner) owner.pinned = null;
+      throw e;
+    }
+    if (owner) owner.tx = true;
     try {
       const result = await work(database);
       await database.execute("COMMIT");
@@ -157,6 +512,11 @@ export function withTransaction<T>(work: (tx: Database) => Promise<T>): Promise<
     } catch (e) {
       await database.execute("ROLLBACK").catch(() => {});
       throw e;
+    } finally {
+      if (owner) {
+        owner.tx = false;
+        owner.pinned = null;
+      }
     }
   });
   transactionQueue = run.catch(() => {});
@@ -166,9 +526,6 @@ export function withTransaction<T>(work: (tx: Database) => Promise<T>): Promise<
 export async function connectTurso(): Promise<void> {
   await getDb();
 }
-
-export const SYNC_DELAY_MS = 2000;
-export const SYNC_MAX_DELAY_MS = 10000;
 
 let syncTimer: ReturnType<typeof setTimeout> | null = null;
 let syncDeadline = 0;
@@ -182,22 +539,15 @@ function cancelSync() {
 function runSync() {
   syncTimer = null;
   syncDeadline = 0;
-  db?.sync().catch(() => {});
+  if (mode === "online") invoke("mirror_sync").catch(() => {});
 }
 
 export function syncDb() {
-  if (!db || !tursoConnected) return;
+  if (mode !== "online") return;
   const now = Date.now();
   if (!syncDeadline) syncDeadline = now + SYNC_MAX_DELAY_MS;
   if (syncTimer) clearTimeout(syncTimer);
   syncTimer = setTimeout(runSync, Math.max(0, Math.min(SYNC_DELAY_MS, syncDeadline - now)));
-}
-
-async function syncDbImmediate() {
-  cancelSync();
-  if (db && tursoConnected) {
-    try { await db.sync(); } catch (_) {}
-  }
 }
 
 export const SCHEMA_VERSION = 1;
@@ -302,6 +652,13 @@ export async function initDb() {
 }
 
 export async function resetTransactionData() {
+  await clearTransactions();
+  cancelSync();
+  if (mode === "online") await invoke("mirror_sync").catch(() => {});
+}
+
+const clearTransactions = op("resetTransactionData", async () => {
+  requireOnline();
   const database = await getDb();
   await database.batch([
     "DELETE FROM item_retur_penjualan",
@@ -315,5 +672,4 @@ export async function resetTransactionData() {
     "DELETE FROM penjualan",
     "DELETE FROM pembelian",
   ]);
-  await syncDbImmediate();
-}
+});

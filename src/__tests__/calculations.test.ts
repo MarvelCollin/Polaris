@@ -176,7 +176,7 @@ describe("purchase total calculation", () => {
 
     const [purchase] = writes(/INSERT INTO pembelian/);
     const total = 5 * 45000;
-    expect(purchase.params.slice(2)).toEqual([total, total]);
+    expect(purchase.params.slice(2, 4)).toEqual([total, total]);
   });
 
   it("should store partial payment for purchase utang", async () => {
@@ -193,7 +193,7 @@ describe("purchase total calculation", () => {
     const [purchase] = writes(/INSERT INTO pembelian/);
     const total = 10 * 45000;
     expect(total).toBe(450000);
-    expect(purchase.params.slice(2)).toEqual([total, partialPay]);
+    expect(purchase.params.slice(2, 4)).toEqual([total, partialPay]);
   });
 });
 

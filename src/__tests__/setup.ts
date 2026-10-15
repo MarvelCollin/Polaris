@@ -67,7 +67,8 @@ vi.mock("@tauri-apps/api/core", () => ({
 }));
 
 vi.mock("@tauri-apps/api/path", () => ({
-  appDataDir: vi.fn(async () => "C:/Users/test/AppData/Roaming/com.marvelcollin.polaris/"),
+  appDataDir: vi.fn(async () => "C:/Users/test/AppData/Roaming/com.marvelcollin.polaris"),
+  join: vi.fn(async (...parts: string[]) => parts.join("/").replace(/\/{2,}/g, "/")),
 }));
 
 export { mockDb, rows, autoId };

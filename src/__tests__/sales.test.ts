@@ -251,7 +251,7 @@ describe("sales", () => {
 
     const [retur] = writes(/INSERT INTO retur_penjualan/);
     const expectedTotal = 3 * 58000 + 1 * 55000;
-    expect(retur.params).toEqual([1, expectedTotal, "Barang rusak"]);
+    expect(retur.params).toEqual([1, expectedTotal, "Barang rusak", expect.any(Number)]);
 
     expect(writes(/INSERT INTO item_retur_penjualan/)).toHaveLength(2);
     const stockRestores = writes(/UPDATE produk SET stok = stok \+/);

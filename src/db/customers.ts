@@ -1,4 +1,4 @@
-import { getDb, syncDb } from "../database";
+import { getDb, syncDb, op } from "../database";
 import { Customer, CustomerAddress, CustomerPrice } from "../types";
 
 export async function getCustomers(search?: string): Promise<Customer[]> {
@@ -12,7 +12,7 @@ export async function getCustomers(search?: string): Promise<Customer[]> {
   return await db.select("SELECT * FROM pelanggan ORDER BY nama");
 }
 
-export async function createCustomer(data: { nama: string; telepon: string | null; alamat: string | null }): Promise<number> {
+export const createCustomer = op("createCustomer", async (data: { nama: string; telepon: string | null; alamat: string | null }): Promise<number> => {
   const db = await getDb();
   const result = await db.execute(
     "INSERT INTO pelanggan (nama, telepon, alamat) VALUES ($1, $2, $3)",
@@ -20,18 +20,18 @@ export async function createCustomer(data: { nama: string; telepon: string | nul
   );
   syncDb();
   return result.lastInsertId ?? 0;
-}
+});
 
-export async function updateCustomer(id: number, data: { nama: string; telepon: string | null; alamat: string | null }): Promise<void> {
+export const updateCustomer = op("updateCustomer", async (id: number, data: { nama: string; telepon: string | null; alamat: string | null }): Promise<void> => {
   const db = await getDb();
   await db.execute(
     "UPDATE pelanggan SET nama=$1, telepon=$2, alamat=$3 WHERE id=$4",
     [data.nama, data.telepon, data.alamat, id]
   );
   syncDb();
-}
+});
 
-export async function deleteCustomer(id: number): Promise<void> {
+export const deleteCustomer = op("deleteCustomer", async (id: number): Promise<void> => {
   const db = await getDb();
   const sales: { count: number }[] = await db.select(
     "SELECT COUNT(*) as count FROM penjualan WHERE pelanggan_id = $1",
@@ -42,7 +42,7 @@ export async function deleteCustomer(id: number): Promise<void> {
   }
   await db.execute("DELETE FROM pelanggan WHERE id = $1", [id]);
   syncDb();
-}
+});
 
 export async function getCustomerAddresses(pelangganId: number): Promise<CustomerAddress[]> {
   const db = await getDb();
@@ -52,29 +52,30 @@ export async function getCustomerAddresses(pelangganId: number): Promise<Custome
   );
 }
 
-export async function addCustomerAddress(pelangganId: number, label: string, alamat: string): Promise<void> {
+export const addCustomerAddress = op("addCustomerAddress", async (pelangganId: number, label: string, alamat: string): Promise<number> => {
   const db = await getDb();
-  await db.execute(
+  const result = await db.execute(
     "INSERT INTO alamat_pelanggan (pelanggan_id, label, alamat) VALUES ($1, $2, $3)",
     [pelangganId, label, alamat]
   );
   syncDb();
-}
+  return result.lastInsertId ?? 0;
+});
 
-export async function updateCustomerAddress(id: number, label: string, alamat: string): Promise<void> {
+export const updateCustomerAddress = op("updateCustomerAddress", async (id: number, label: string, alamat: string): Promise<void> => {
   const db = await getDb();
   await db.execute(
     "UPDATE alamat_pelanggan SET label = $1, alamat = $2 WHERE id = $3",
     [label, alamat, id]
   );
   syncDb();
-}
+});
 
-export async function deleteCustomerAddress(id: number): Promise<void> {
+export const deleteCustomerAddress = op("deleteCustomerAddress", async (id: number): Promise<void> => {
   const db = await getDb();
   await db.execute("DELETE FROM alamat_pelanggan WHERE id = $1", [id]);
   syncDb();
-}
+});
 
 export async function getCustomerPrices(pelangganId: number): Promise<CustomerPrice[]> {
   const db = await getDb();
@@ -88,7 +89,7 @@ export async function getCustomerPrices(pelangganId: number): Promise<CustomerPr
   );
 }
 
-export async function setCustomerPrice(pelangganId: number, produkId: number, harga: number): Promise<void> {
+export const setCustomerPrice = op("setCustomerPrice", async (pelangganId: number, produkId: number, harga: number): Promise<void> => {
   const db = await getDb();
   await db.execute(
     `INSERT INTO harga_pelanggan (pelanggan_id, produk_id, harga) VALUES ($1, $2, $3)
@@ -96,16 +97,16 @@ export async function setCustomerPrice(pelangganId: number, produkId: number, ha
     [pelangganId, produkId, harga]
   );
   syncDb();
-}
+});
 
-export async function removeCustomerPrice(pelangganId: number, produkId: number): Promise<void> {
+export const removeCustomerPrice = op("removeCustomerPrice", async (pelangganId: number, produkId: number): Promise<void> => {
   const db = await getDb();
   await db.execute(
     "DELETE FROM harga_pelanggan WHERE pelanggan_id = $1 AND produk_id = $2",
     [pelangganId, produkId]
   );
   syncDb();
-}
+});
 
 export async function getCustomerPriceMap(pelangganId: number): Promise<Record<number, number>> {
   const db = await getDb();
