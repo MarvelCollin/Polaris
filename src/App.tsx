@@ -1,5 +1,6 @@
 import { Outlet, Navigate } from "react-router-dom";
 import Sidebar from "./components/Sidebar";
+import ConnectionBanner from "./components/ConnectionBanner";
 import { useTheme } from "./hooks/useTheme";
 import { useFontSize } from "./hooks/useFontSize";
 import "./App.css";
@@ -16,6 +17,7 @@ export default function App() {
     <div className="flex h-screen overflow-hidden">
       <Sidebar />
       <main className="flex-1 overflow-y-auto p-6">
+        <ConnectionBanner />
         <Outlet />
       </main>
     </div>
